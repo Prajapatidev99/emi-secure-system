@@ -62,9 +62,9 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
   
   if (error) {
     return (
-        <Card className="border border-red-400 bg-red-50 dark:bg-rose-900/20 dark:border-rose-500/30">
-            <p className="text-center font-bold text-red-600 dark:text-rose-400">An Error Occurred</p>
-            <p className="text-center text-red-500 dark:text-rose-500 mt-2">{error}</p>
+        <Card className="border border-rose-500/30 bg-rose-900/20">
+            <p className="text-center font-bold text-rose-400">An Error Occurred</p>
+            <p className="text-center text-rose-500 mt-2">{error}</p>
         </Card>
     );
   }
@@ -80,34 +80,34 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
         </div>
         
         <Card className="mb-6">
-            <h2 className="text-3xl font-bold mb-2">{customer.name}</h2>
-            <p className="text-slate-600 dark:text-slate-400"><strong>Phone:</strong> {customer.phone}</p>
-            <p className="text-slate-600 dark:text-slate-400"><strong>Address:</strong> {customer.address}</p>
+            <h2 className="text-3xl font-bold mb-2 text-white">{customer.name}</h2>
+            <p className="text-slate-400"><strong>Phone:</strong> {customer.phone}</p>
+            <p className="text-slate-400"><strong>Address:</strong> {customer.address}</p>
         </Card>
 
         <div className="grid grid-cols-1 gap-6">
             <Card>
-                <h3 className="text-xl font-semibold mb-4">Registered Devices</h3>
+                <h3 className="text-xl font-semibold mb-4 text-white">Registered Devices</h3>
                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-                        <thead className="bg-slate-50 dark:bg-slate-700">
+                    <table className="min-w-full divide-y divide-slate-700">
+                        <thead className="bg-slate-800">
                             <tr>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Model</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">IMEI</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Android ID</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Status</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Model</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">IMEI</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Android ID</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
                             </tr>
                         </thead>
-                         <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
+                         <tbody className="bg-slate-900 divide-y divide-slate-800">
                             {devices.length > 0 ? devices.map(d => (
                                 <tr key={d.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap">{d.model}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{d.imei}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap font-mono">{d.androidId}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-white">{d.model}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-slate-400">{d.imei}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap font-mono text-slate-400">{d.androidId}</td>
                                     <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={d.status} /></td>
                                 </tr>
                             )) : (
-                                <tr><td colSpan={4} className="text-center py-4">No devices found.</td></tr>
+                                <tr><td colSpan={4} className="text-center py-4 text-slate-400">No devices found.</td></tr>
                             )}
                          </tbody>
                     </table>
@@ -115,27 +115,27 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
             </Card>
             
             <Card>
-                <h3 className="text-xl font-semibold mb-4">Payment History</h3>
+                <h3 className="text-xl font-semibold mb-4 text-white">Payment History</h3>
                 <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-                        <thead className="bg-slate-50 dark:bg-slate-700">
+                    <table className="min-w-full divide-y divide-slate-700">
+                        <thead className="bg-slate-800">
                             <tr>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Device Model</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Amount</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Due Date</th>
-                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Status</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Device Model</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Amount</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Due Date</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
                             </tr>
                         </thead>
-                         <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
+                         <tbody className="bg-slate-900 divide-y divide-slate-800">
                              {payments.length > 0 ? payments.map(p => (
                                 <tr key={p.id}>
-                                    <td className="px-6 py-4 whitespace-nowrap">{p.deviceModel}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">₹{p.amount.toFixed(2)}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">{new Date(p.dueDate).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-white">{p.deviceModel}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-slate-400">₹{p.amount.toFixed(2)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-slate-400">{new Date(p.dueDate).toLocaleDateString()}</td>
                                     <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={p.status} /></td>
                                 </tr>
                              )) : (
-                                <tr><td colSpan={4} className="text-center py-4">No payment history found.</td></tr>
+                                <tr><td colSpan={4} className="text-center py-4 text-slate-400">No payment history found.</td></tr>
                              )}
                          </tbody>
                     </table>

@@ -34,8 +34,8 @@ const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
 
   return (
     <form onSubmit={handleSubmit}>
-      {error && <p className="bg-red-100 text-red-700 p-3 rounded-md mb-4 text-center">{error}</p>}
-      {successMessage && <p className="bg-green-100 text-green-700 p-3 rounded-md mb-4 text-center">{successMessage}</p>}
+      {error && <p className="bg-rose-900/50 text-rose-300 border border-rose-500/30 p-3 rounded-md mb-4 text-center">{error}</p>}
+      {successMessage && <p className="bg-teal-900/50 text-teal-300 border border-teal-500/30 p-3 rounded-md mb-4 text-center">{successMessage}</p>}
       
       {successMessage ? (
         <div className="flex justify-end mt-4">
@@ -46,38 +46,38 @@ const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
       ) : (
         <>
           <div className="mb-4">
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Full Name</label>
+            <label htmlFor="name" className="block text-sm font-medium text-slate-300">Full Name</label>
             <input
               type="text"
               id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
-              className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 bg-slate-700 text-white"
             />
           </div>
 
           <div className="mb-4">
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Phone Number</label>
+            <label htmlFor="phone" className="block text-sm font-medium text-slate-300">Phone Number</label>
             <input
               type="tel"
               id="phone"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               required
-              className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 bg-slate-700 text-white"
             />
           </div>
 
           <div className="mb-6">
-            <label htmlFor="address" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Address</label>
+            <label htmlFor="address" className="block text-sm font-medium text-slate-300">Address</label>
             <textarea
               id="address"
               value={address}
               onChange={(e) => setAddress(e.target.value)}
               required
               rows={3}
-              className="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+              className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 bg-slate-700 text-white"
             />
           </div>
 

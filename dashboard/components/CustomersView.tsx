@@ -70,7 +70,7 @@ const CustomersView = () => {
     <>
       <Card>
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
-            <h2 className="text-2xl font-bold mb-4 md:mb-0">Customer Management</h2>
+            <h2 className="text-2xl font-bold mb-4 md:mb-0 text-white">Customer Management</h2>
             <div className="space-x-2">
                 <Button onClick={() => setAddCustomerModalOpen(true)}>Add Customer</Button>
                 <Button onClick={() => setRegisterDeviceModalOpen(true)} variant="secondary">Register New Device</Button>
@@ -83,37 +83,37 @@ const CustomersView = () => {
             placeholder="Search by name or phone number..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full md:w-1/2 px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 dark:bg-slate-700 dark:border-slate-600 dark:placeholder-slate-400"
+            className="w-full md:w-1/2 px-3 py-2 border border-slate-700 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 bg-slate-800 placeholder-slate-400"
             aria-label="Search customers"
           />
         </div>
         
-        {error && <p className="text-red-500 text-center py-4">Error: {error}. Is the backend server running?</p>}
+        {error && <p className="text-rose-400 text-center py-4">Error: {error}. Is the backend server running?</p>}
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-            <thead className="bg-slate-50 dark:bg-slate-700">
+          <table className="min-w-full divide-y divide-slate-700">
+            <thead className="bg-slate-800">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Name</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Phone</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Address</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Phone</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Address</th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
+            <tbody className="bg-slate-900 divide-y divide-slate-800">
               {loading ? (
                 <CustomerTableSkeleton />
               ) : filteredCustomers.length > 0 ? filteredCustomers.map((customer) => (
                 <tr 
                   key={customer.id} 
-                  className="hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
+                  className="hover:bg-slate-800 cursor-pointer"
                   onClick={() => setSelectedCustomerId(customer.id)}
                 >
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{customer.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{customer.phone}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{customer.address}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{customer.name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{customer.phone}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{customer.address}</td>
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={3} className="text-center py-4 text-slate-500 dark:text-slate-400">
+                  <td colSpan={3} className="text-center py-4 text-slate-400">
                     No customers found.
                   </td>
                 </tr>
