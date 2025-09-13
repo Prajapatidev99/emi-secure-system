@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<device-admin xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-policies>
+        <!-- Allows the app to remotely lock the device screen. -->
+        <force-lock />
+        <!-- Allows the app to remotely perform a factory reset. This is critical. -->
+        <wipe-data />
+        <!-- NEW: Add restrictions to prevent user bypass -->
+        <set-user-restrictions>
+            <!-- Prevents factory reset from Settings. -->
+            <disallow-factory-reset />
+            <!-- Prevents user from enabling OEM unlocking in developer options -->
+            <disallow-oem-unlock />
+            <!-- Prevents adding new users, which could be a bypass vector -->
+            <disallow-add-user />
+        </set-user-restrictions>
+    </uses-policies>
+</device-admin>

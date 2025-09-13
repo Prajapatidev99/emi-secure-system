@@ -1,0 +1,5 @@
+{
+  "name": "Phone EMI Management & Security System",
+  "description": "A comprehensive dashboard for shopkeepers to manage phone EMIs, track payments, and remotely secure customer devices in case of missed payments.",
+  "requestFramePermissions": []
+}

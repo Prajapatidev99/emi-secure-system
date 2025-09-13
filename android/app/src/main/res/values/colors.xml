@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- App Branding Colors -->
+    <color name="brand_primary">#0284c7</color>
+    <color name="brand_primary_dark">#0369a1</color>
+    <color name="brand_accent">#38bdf8</color>
+    
+    <!-- UI Colors -->
+    <color name="app_background">#f1f5f9</color>
+    <color name="text_primary">#1e293b</color>
+    <color name="text_secondary">#64748b</color>
+
+    <!-- Status Colors -->
+    <color name="status_paid">#16a34a</color>
+    <color name="status_pending">#f59e0b</color>
+    <color name="status_overdue">#dc2626</color>
+</resources>

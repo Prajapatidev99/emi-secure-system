@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <!--
+        To learn more about Cloud Backup APIs, see:
+        https://developer.android.com/guide/topics/data/cloud-backup
+        -->
+    </cloud-backup>
+    <device-transfer>
+        <!--
+        To learn more about Device-to-Device migration APIs, see:
+        https://developer.android.com/guide/topics/data/device-transfer
+        -->
+    </device-transfer>
+</data-extraction-rules>

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "357369806397",
+    "project_id": "phone-emi",
+    "storage_bucket": "phone-emi.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:357369806397:android:c742030a9214d20cb87454",
+        "android_client_info": {
+          "package_name": "com.emiseure.customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8Jm-F0iibkC20hiylqJ8MWn1ickOBZfk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
