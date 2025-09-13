@@ -9,23 +9,23 @@ function initializeFirebaseAdmin() {
     throw new Error('FIREBASE_SERVICE_ACCOUNT_PATH environment variable is not set. Please create a .env file in the backend directory and set the variable.');
   }
 
+  // Construct the absolute path to the service account key file
   const absolutePath = path.resolve(process.cwd(), serviceAccountPath);
-  let serviceAccount;
 
   try {
-    serviceAccount = require(absolutePath);
+    // The robust way: Initialize Firebase Admin by passing the file path directly.
+    // The SDK is designed to handle reading the file from a path in a secure manner.
+    admin.initializeApp({
+      credential: admin.credential.cert(absolutePath),
+    });
+
   } catch (error) {
-    if (error.code === 'MODULE_NOT_FOUND') {
-        console.error(`Failed to load Firebase service account key from: ${absolutePath}`);
-        console.error('Please ensure the path in your .env file is correct and the JSON file exists.');
-    }
+    console.error(`Failed to initialize Firebase Admin SDK with key from path: ${absolutePath}`);
+    console.error('This usually means the file path is incorrect or the JSON file is malformed.');
+    console.error('Original Error:', error);
+    // Re-throw the error to ensure the server fails to start if Firebase isn't configured.
     throw error;
   }
-
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
 }
 
 module.exports = { initializeFirebaseAdmin, admin };
