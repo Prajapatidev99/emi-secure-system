@@ -1,137 +1,149 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { getCustomers } from '../services/api';
-import { Customer } from '../types';
+import React, { useState, useEffect } from 'react';
+import { getCustomerById, getDevicesForCustomer, getPaymentsForCustomer } from '../services/api';
+import { Customer, Device, EmiPayment } from '../types';
 import Card from './common/Card';
 import Skeleton from './common/Skeleton';
 import Button from './common/Button';
-import Modal from './common/Modal';
-import AddCustomerForm from './AddCustomerForm';
-import RegisterDeviceForm from './RegisterDeviceForm';
-import CustomerDetailView from './CustomerDetailView.tsx';
+import Spinner from './common/Spinner';
+import StatusBadge from './common/StatusBadge';
 
-const CustomersView: React.FC = () => {
-  const [customers, setCustomers] = useState<Customer[]>([]);
+interface CustomerDetailViewProps {
+  customerId: string;
+  onBack: () => void;
+}
+
+const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => {
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [payments, setPayments] = useState<EmiPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isAddCustomerModalOpen, setAddCustomerModalOpen] = useState(false);
-  const [isRegisterDeviceModalOpen, setRegisterDeviceModalOpen] = useState(false);
-  
-  // State to manage which view to show
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
-
-
-  const fetchCustomers = useCallback(() => {
-    setLoading(true);
-    setError(null);
-    getCustomers()
-      .then(setCustomers)
-      .catch(err => {
-        if (err instanceof Error) {
-            setError(err.message);
-        } else {
-            setError('Failed to fetch customers.');
-        }
-      })
-      .finally(() => setLoading(false));
-  }, []);
 
   useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
+    const fetchCustomerData = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const customerData = getCustomerById(customerId);
+        const devicesData = getDevicesForCustomer(customerId);
+        const paymentsData = getPaymentsForCustomer(customerId);
 
-  const handleCustomerAdded = () => {
-    setAddCustomerModalOpen(false);
-    fetchCustomers(); // Refresh the list
-  };
+        const [customerResult, devicesResult, paymentsResult] = await Promise.all([
+          customerData,
+          devicesData,
+          paymentsData,
+        ]);
+        
+        setCustomer(customerResult);
+        setDevices(devicesResult);
+        setPayments(paymentsResult);
 
-  const filteredCustomers = customers.filter(customer =>
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.phone.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Failed to fetch customer details.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCustomerData();
+  }, [customerId]);
+
+  if (loading) {
+    return (
+        <div className="flex justify-center items-center h-64">
+            <Spinner size="lg" />
+        </div>
+    );
+  }
   
-  // If a customer is selected, show the detail view
-  if (selectedCustomerId) {
-    return <CustomerDetailView customerId={selectedCustomerId} onBack={() => setSelectedCustomerId(null)} />;
+  if (error) {
+    return (
+        <Card className="border border-red-400 bg-red-50 dark:bg-rose-900/20 dark:border-rose-500/30">
+            <p className="text-center font-bold text-red-600 dark:text-rose-400">An Error Occurred</p>
+            <p className="text-center text-red-500 dark:text-rose-500 mt-2">{error}</p>
+        </Card>
+    );
   }
 
-
-  const CustomerTableSkeleton = () => (
-    [...Array(8)].map((_, index) => (
-      <tr key={index}>
-        <td className="px-6 py-4 whitespace-nowrap"><Skeleton className="h-4 w-32" /></td>
-        <td className="px-6 py-4 whitespace-nowrap"><Skeleton className="h-4 w-24" /></td>
-        <td className="px-6 py-4 whitespace-nowrap"><Skeleton className="h-4 w-48" /></td>
-      </tr>
-    ))
-  );
+  if (!customer) {
+    return <p className="text-center py-4">Customer not found.</p>;
+  }
 
   return (
-    <>
-      <Card>
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
-            <h2 className="text-2xl font-bold mb-4 md:mb-0">Customer Management</h2>
-            <div className="space-x-2">
-                <Button onClick={() => setAddCustomerModalOpen(true)}>Add Customer</Button>
-                <Button onClick={() => setRegisterDeviceModalOpen(true)} variant="secondary">Register New Device</Button>
-            </div>
-        </div>
-        
+    <div>
         <div className="mb-4">
-          <input
-            type="text"
-            placeholder="Search by name or phone number..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full md:w-1/2 px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 dark:bg-slate-700 dark:border-slate-600 dark:placeholder-slate-400"
-            aria-label="Search customers"
-          />
+            <Button onClick={onBack} variant="secondary">{'\u2190'} Back to Customer List</Button>
         </div>
         
-        {error && <p className="text-red-500 text-center py-4">Error: {error}. Is the backend server running?</p>}
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
-            <thead className="bg-slate-50 dark:bg-slate-700">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Name</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Phone</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Address</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
-              {loading ? (
-                <CustomerTableSkeleton />
-              ) : filteredCustomers.length > 0 ? filteredCustomers.map((customer) => (
-                <tr 
-                  key={customer.id} 
-                  className="hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer"
-                  onClick={() => setSelectedCustomerId(customer.id)}
-                >
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">{customer.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{customer.phone}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500 dark:text-slate-400">{customer.address}</td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={3} className="text-center py-4 text-slate-500 dark:text-slate-400">
-                    No customers found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <Card className="mb-6">
+            <h2 className="text-3xl font-bold mb-2">{customer.name}</h2>
+            <p className="text-slate-600 dark:text-slate-400"><strong>Phone:</strong> {customer.phone}</p>
+            <p className="text-slate-600 dark:text-slate-400"><strong>Address:</strong> {customer.address}</p>
+        </Card>
+
+        <div className="grid grid-cols-1 gap-6">
+            <Card>
+                <h3 className="text-xl font-semibold mb-4">Registered Devices</h3>
+                 <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                        <thead className="bg-slate-50 dark:bg-slate-700">
+                            <tr>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Model</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">IMEI</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Android ID</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                         <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
+                            {devices.length > 0 ? devices.map(d => (
+                                <tr key={d.id}>
+                                    <td className="px-6 py-4 whitespace-nowrap">{d.model}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{d.imei}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap font-mono">{d.androidId}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={d.status} /></td>
+                                </tr>
+                            )) : (
+                                <tr><td colSpan={4} className="text-center py-4">No devices found.</td></tr>
+                            )}
+                         </tbody>
+                    </table>
+                 </div>
+            </Card>
+            
+            <Card>
+                <h3 className="text-xl font-semibold mb-4">Payment History</h3>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-700">
+                        <thead className="bg-slate-50 dark:bg-slate-700">
+                            <tr>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Device Model</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Amount</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Due Date</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-500 dark:text-slate-300 uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                         <tbody className="bg-white dark:bg-slate-800 divide-y divide-slate-200 dark:divide-slate-700">
+                             {payments.length > 0 ? payments.map(p => (
+                                <tr key={p.id}>
+                                    <td className="px-6 py-4 whitespace-nowrap">{p.deviceModel}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">₹{p.amount.toFixed(2)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{new Date(p.dueDate).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={p.status} /></td>
+                                </tr>
+                             )) : (
+                                <tr><td colSpan={4} className="text-center py-4">No payment history found.</td></tr>
+                             )}
+                         </tbody>
+                    </table>
+                </div>
+            </Card>
         </div>
-      </Card>
-
-      <Modal isOpen={isAddCustomerModalOpen} onClose={() => setAddCustomerModalOpen(false)} title="Add New Customer">
-        <AddCustomerForm onSuccess={handleCustomerAdded} />
-      </Modal>
-
-      <Modal isOpen={isRegisterDeviceModalOpen} onClose={() => setRegisterDeviceModalOpen(false)} title="Register New Device">
-        <RegisterDeviceForm customers={customers} onSuccess={() => setRegisterDeviceModalOpen(false)} />
-      </Modal>
-    </>
+    </div>
   );
 };
 
-export default CustomersView;
+export default CustomerDetailView;

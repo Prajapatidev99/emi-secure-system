@@ -17,7 +17,7 @@ interface DashboardStats {
     monthlyData: { name: string; revenue: number }[];
 }
 
-const LockPanel: React.FC = () => {
+const LockPanel = () => {
   const [payments, setPayments] = useState<EmiPayment[]>([]);
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
   const [paymentLoading, setPaymentLoading] = useState<Record<string, boolean>>({});
@@ -75,9 +75,6 @@ const LockPanel: React.FC = () => {
       setActionLoading(prev => ({ ...prev, [deviceId]: false }));
     }
   };
- 
-    
- 
 
   const confirmDeviceAction = (payment: EmiPayment, action: 'lock' | 'unlock' | 'reset') => {
     // FIX: Explicitly type `details` to match the properties required by `confirmationDetails` state.
@@ -294,8 +291,25 @@ const LockPanel: React.FC = () => {
   );
 };
 
+interface StatCardProps {
+  title: string;
+  value: string | number;
+  loading: boolean;
+  colorClass?: string;
+}
 
-const DashboardView: React.FC = () => {
+const StatCard = ({ title, value, loading, colorClass = '' }: StatCardProps) => (
+    <Card>
+        <h4 className="text-slate-400">{title}</h4>
+        {loading ? (
+            <Skeleton className="h-8 w-3/4 mt-1" />
+        ) : (
+            <p className={`text-3xl font-bold ${colorClass || 'text-white'}`}>{value}</p>
+        )}
+    </Card>
+);
+
+const DashboardView = () => {
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [loadingStats, setLoadingStats] = useState(true);
 
@@ -308,17 +322,6 @@ const DashboardView: React.FC = () => {
             })
             .finally(() => setLoadingStats(false));
     }, []);
-
-    const StatCard = ({ title, value, loading, colorClass = '' }: { title: string, value: string | number, loading: boolean, colorClass?: string }) => (
-        <Card>
-            <h4 className="text-slate-400">{title}</h4>
-            {loading ? (
-                <Skeleton className="h-8 w-3/4 mt-1" />
-            ) : (
-                <p className={`text-3xl font-bold ${colorClass || 'text-white'}`}>{value}</p>
-            )}
-        </Card>
-    );
 
     return (
         <div>

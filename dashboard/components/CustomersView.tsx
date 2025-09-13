@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { getCustomers } from '../services/api';
 import { Customer } from '../types';
@@ -10,7 +9,7 @@ import AddCustomerForm from './AddCustomerForm';
 import RegisterDeviceForm from './RegisterDeviceForm';
 import CustomerDetailView from './CustomerDetailView';
 
-const CustomersView: React.FC = () => {
+const CustomersView = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -129,7 +128,10 @@ const CustomersView: React.FC = () => {
       </Modal>
 
       <Modal isOpen={isRegisterDeviceModalOpen} onClose={() => setRegisterDeviceModalOpen(false)} title="Register New Device">
-        <RegisterDeviceForm customers={customers} onSuccess={() => setRegisterDeviceModalOpen(false)} />
+        <RegisterDeviceForm customers={customers} onSuccess={() => {
+            setRegisterDeviceModalOpen(false);
+            fetchCustomers();
+        }} />
       </Modal>
     </>
   );
