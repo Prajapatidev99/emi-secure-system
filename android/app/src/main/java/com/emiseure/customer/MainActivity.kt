@@ -3,6 +3,7 @@ package com.emiseure.customer
 import android.annotation.SuppressLint
 import android.app.admin.DevicePolicyManager
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
@@ -20,7 +21,7 @@ import org.json.JSONObject
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-
+    
     // CRITICAL: Replace this URL with your live Render backend URL before building the release app.
     private val publicBackendUrl = "https://emi-secure-system.onrender.com/api/public"
 
@@ -33,7 +34,7 @@ class MainActivity : AppCompatActivity() {
         Log.d("MainActivity", "Device Android ID: $androidId")
 
         binding.androidIdTextView.text = getString(R.string.your_device_id, androidId)
-
+        
         checkDeviceAdminStatus()
         registerForPushNotifications(androidId)
         fetchDeviceStatus(androidId)
@@ -57,7 +58,7 @@ class MainActivity : AppCompatActivity() {
             Log.w("DeviceAdminCheck", "App is not the device owner.")
         }
     }
-
+    
     @SuppressLint("HardwareIds")
     private fun getAndroidId(): String {
         return Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
@@ -72,7 +73,7 @@ class MainActivity : AppCompatActivity() {
 
             val fcmToken = task.result
             Log.d("FCM", "FCM Token: $fcmToken")
-
+            
             sendFcmTokenToServer(androidId, fcmToken)
         })
     }
@@ -147,6 +148,16 @@ class MainActivity : AppCompatActivity() {
         val paymentStatus = status.optString("paymentStatus", "Unknown")
         val deviceStatus = status.optString("deviceStatus", "Unknown")
 
+        // CRITICAL: Enforce lock screen if device status is Locked
+        if (deviceStatus == "Locked") {
+            val lockIntent = Intent(this, LockScreenActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            }
+            startActivity(lockIntent)
+            // No need to update the rest of the UI if the lock screen is about to show
+            return 
+        }
+
         binding.deviceStatusTextView.text = getString(R.string.device_status_label, deviceStatus)
 
         when (paymentStatus) {
@@ -176,7 +187,7 @@ class MainActivity : AppCompatActivity() {
                 binding.statusMessage.visibility = View.GONE
             }
             else -> {
-                showError("Your device status could not be determined. Please contact support.")
+                 showError("Your device status could not be determined. Please contact support.")
             }
         }
     }
