@@ -11,19 +11,37 @@ const router = express.Router();
 // --- Helper function to send FCM message ---
 const sendFcmCommand = async (fcmToken, command, message) => {
     const payload = {
+        token: fcmToken,
         data: {
             action: command, // 'LOCK', 'UNLOCK', or 'WIPE'
             message: message,
         },
-        token: fcmToken,
+        // --- URGENT FIX: Ensure immediate delivery for critical commands ---
+        // By setting priority to 'high', we instruct FCM to wake the device
+        // and deliver the message immediately, bypassing battery-saving optimizations.
+        // This is essential for time-sensitive commands like LOCK and WIPE.
+        android: {
+            priority: 'high',
+        },
+        // It's good practice to include APNS config for potential future iOS support
+        apns: {
+            headers: {
+                'apns-priority': '10', // Maps to high priority on iOS
+            },
+            payload: {
+                aps: {
+                    'content-available': 1, // Wakes up the app on iOS
+                },
+            },
+        },
     };
 
     try {
         const response = await admin.messaging().send(payload);
-        console.log('Successfully sent message:', response);
+        console.log(`Successfully sent '${command}' command:`, response);
         return { success: true, response };
     } catch (error) {
-        console.error('Error sending message:', error);
+        console.error(`Error sending '${command}' command:`, error);
         return { success: false, error };
     }
 };
@@ -35,6 +53,12 @@ router.post('/customers', async (req, res) => {
         if (!name || !phone || !address) {
             return res.status(400).json({ message: 'All fields are required.' });
         }
+        
+        const existingCustomer = await Customer.findOne({ phone });
+        if (existingCustomer) {
+            return res.status(400).json({ message: 'A customer with this phone number already exists.' });
+        }
+
         const newCustomer = new Customer({ name, phone, address });
         await newCustomer.save();
         res.status(201).json(newCustomer);
@@ -79,14 +103,6 @@ router.get('/customers/:id/devices', async (req, res) => {
 // NEW: Get all payments for a specific customer
 router.get('/customers/:id/payments', async (req, res) => {
     try {
-        // First, update any pending payments for this specific customer that are now overdue.
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        await Payment.updateMany(
-            { customerId: req.params.id, dueDate: { $lt: today }, status: PaymentStatus.Pending },
-            { $set: { status: PaymentStatus.Overdue } }
-        );
-
         const payments = await Payment.find({ customerId: req.params.id })
             .populate('deviceId', 'model')
             .sort({ dueDate: 'desc' });
@@ -151,8 +167,9 @@ router.post('/devices/register', async (req, res) => {
 
         for (let i = 1; i <= numberOfEmis; i++) {
             const dueDate = new Date(startDate);
-            // The first EMI is due one month after the start date
-            dueDate.setMonth(dueDate.getMonth() + i -1);
+            // The first EMI (i=1) is due one month after the start date.
+            // The second EMI (i=2) is due two months after, and so on.
+            dueDate.setMonth(dueDate.getMonth() + i);
 
             const newPayment = new Payment({
                 customerId,
@@ -195,14 +212,6 @@ router.post('/devices/:deviceId/compromised', async (req, res) => {
 // --- Payment Routes ---
 router.get('/payments/pending', async (req, res) => {
     try {
-        // First, update any pending payments that are now overdue.
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Set to the beginning of the day
-        await Payment.updateMany(
-            { dueDate: { $lt: today }, status: PaymentStatus.Pending },
-            { $set: { status: PaymentStatus.Overdue } }
-        );
-
         // This query fetches pending/overdue payments and populates related data
         const pendingPayments = await Payment.find({ status: { $in: ['Pending', 'Overdue'] } })
             .populate('customerId', 'name')
