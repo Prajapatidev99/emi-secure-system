@@ -1,7 +1,7 @@
 // FIX: Import the 'Device' type to resolve 'Cannot find name' error in 'registerDevice' function.
 import { Customer, EmiPayment, Device } from '../types';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+const API_BASE_URL = 'https://emi-secure-system.onrender.com/api';
 
 const getAuthHeaders = () => {
     // Retrieve token from sessionStorage to authorize API requests.
