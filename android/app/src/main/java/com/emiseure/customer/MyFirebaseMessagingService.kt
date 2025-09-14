@@ -53,11 +53,17 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 }
                 "WIPE" -> {
                     Log.e(TAG, "DEVICE WIPE COMMAND RECEIVED! THIS IS IRREVERSIBLE.")
-                    try {
-                         // For device owner apps, wipeData(0) performs a factory reset.
-                        dpm.wipeData(0)
-                    } catch (e: SecurityException) {
-                        Log.e(TAG, "Failed to wipe device", e)
+                    // CRITICAL SECURITY FIX: Only a Device Owner can perform a factory reset.
+                    // Check for this permission before attempting the wipe to prevent exceptions.
+                    if (dpm.isDeviceOwnerApp(applicationContext.packageName)) {
+                        try {
+                            // For device owner apps, wipeData(0) performs a factory reset.
+                            dpm.wipeData(0)
+                        } catch (e: SecurityException) {
+                            Log.e(TAG, "Failed to wipe device even as device owner", e)
+                        }
+                    } else {
+                        Log.e(TAG, "WIPE COMMAND FAILED: App is not the device owner. Provisioning was not done correctly.")
                     }
                 }
             }

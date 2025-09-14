@@ -107,11 +107,12 @@ const LockPanel = () => {
         break;
       case 'reset':
          details = {
-          title: 'Confirm Hard Reset',
+          title: 'DANGER: Confirm Hard Reset',
           message: (
             <>
-              This action is irreversible and will perform a factory reset, wiping all data from device{' '}
-              <strong className="font-semibold text-white">{payment.deviceModel} ({payment.deviceImei})</strong>. Are you absolutely sure?
+              <p>This action is irreversible and will perform a <strong>factory reset</strong>, wiping all data from device{' '}
+              <strong className="font-semibold text-white">{payment.deviceModel} ({payment.deviceImei})</strong>.</p>
+              <p className="mt-2 text-amber-300">This command will only succeed if the app was provisioned as a "Device Owner" as per the guide. Are you absolutely sure?</p>
             </>
           ),
           variant: 'danger' as const,
@@ -167,7 +168,7 @@ const LockPanel = () => {
     switch (confirmationDetails.action) {
       case 'lock': return 'Yes, Lock Device';
       case 'unlock': return 'Yes, Unlock Device';
-      case 'reset': return 'Yes, Reset Device';
+      case 'reset': return 'Yes, I Understand, Reset Device';
       default: return 'Confirm';
     }
   };
