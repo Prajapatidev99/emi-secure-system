@@ -5,6 +5,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
+import android.os.UserManager
 import android.provider.Settings
 import android.util.Log
 import android.view.View
@@ -22,8 +23,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     
-    // CRITICAL: You may need to change this IP address to your computer's local IP address.
-    private val publicBackendUrl = "http://192.168.1.8:3001/api/public"
+    // CRITICAL: Replace this URL with your live Render backend URL before building the release app.
+    private val publicBackendUrl = "https://your-render-backend.onrender.com/api/public"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,7 +36,7 @@ class MainActivity : AppCompatActivity() {
 
         binding.androidIdTextView.text = getString(R.string.your_device_id, androidId)
         
-        checkDeviceAdminStatus()
+        checkDeviceAdminStatusAndApplyPolicies()
         registerForPushNotifications(androidId)
         fetchDeviceStatus(androidId)
 
@@ -44,17 +45,31 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun checkDeviceAdminStatus() {
+    private fun checkDeviceAdminStatusAndApplyPolicies() {
         val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         val adminComponent = ComponentName(this, MyDeviceAdminReceiver::class.java)
-        val isAdmin = dpm.isDeviceOwnerApp(packageName) || dpm.isAdminActive(adminComponent)
+        // We only care if this app is the DEVICE OWNER. Regular admin is not enough.
+        val isDeviceOwner = dpm.isDeviceOwnerApp(packageName)
 
-        if (isAdmin) {
+        if (isDeviceOwner) {
             binding.deviceAdminStatusTextView.text = getString(R.string.device_admin_active)
             binding.deviceAdminStatusTextView.setTextColor(ContextCompat.getColor(this, R.color.status_paid))
+
+            // CRITICAL: Programmatically apply security policies now that we are the device owner.
+            // This is the correct way to disable the factory reset button in settings.
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
+            // Prevent adding new users/profiles which could be a bypass vector.
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_ADD_USER)
+            // Prevent enabling OEM unlocking in developer options.
+            // FIX: Use the direct string value to prevent "Unresolved reference" build error.
+            dpm.addUserRestriction(adminComponent, "no_oem_unlock")
+
+            Log.d("DeviceAdmin", "Security policies applied: Factory reset, add user, and OEM unlocking are disabled.")
+
         } else {
             binding.deviceAdminStatusTextView.text = getString(R.string.device_admin_inactive)
             binding.deviceAdminStatusTextView.setTextColor(ContextCompat.getColor(this, R.color.status_overdue))
+            Log.w("DeviceAdmin", "App is not the device owner. Security policies not applied.")
         }
     }
     
