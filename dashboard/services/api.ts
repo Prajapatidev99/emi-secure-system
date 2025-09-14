@@ -18,40 +18,24 @@ const handleResponse = async (response: Response) => {
     if (response.status === 401 && !response.url.endsWith('/login')) {
         // Any other 401 means the token is invalid/expired.
         sessionStorage.removeItem('authToken');
-        window.location.reload(); // Reload to force back to login page.
+        // FIX: Complete the line to force a reload, which will redirect to the login page.
+        window.location.reload();
+        // We throw an error here to stop the promise chain.
         throw new Error('Your session has expired. Please log in again.');
     }
-
-    const isJson = response.headers.get('content-type')?.includes('application/json');
-    const data = isJson ? await response.json() : null;
+    
+    const data = await response.json();
 
     if (!response.ok) {
-        let errorMessage = 'An unknown error occurred.';
-        if (data && data.message) {
-            errorMessage = data.message;
-        } else {
-             switch (response.status) {
-                case 400:
-                    errorMessage = 'Bad Request. Please check your input.';
-                    break;
-                case 404:
-                    errorMessage = 'Resource not found.';
-                    break;
-                case 500:
-                    errorMessage = 'Server error. Please try again later.';
-                    break;
-                default:
-                    errorMessage = `An error occurred: ${response.statusText}`;
-            }
-        }
+        // Use the error message from the backend if available, otherwise use a default.
+        const errorMessage = data.message || `An error occurred: ${response.statusText}`;
         throw new Error(errorMessage);
     }
-    
-    return data || {};
+    return data;
 };
 
 
-// --- Auth Routes (Public) ---
+// --- AUTH ---
 export const login = async (email: string, password: string): Promise<{ token: string }> => {
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
@@ -59,9 +43,9 @@ export const login = async (email: string, password: string): Promise<{ token: s
         body: JSON.stringify({ email, password }),
     });
     return handleResponse(response);
-}
+};
 
-// --- Protected Routes ---
+// --- DASHBOARD ---
 export const getDashboardStats = async () => {
     const response = await fetch(`${API_BASE_URL}/stats`, { headers: getAuthHeaders() });
     return handleResponse(response);
@@ -69,24 +53,52 @@ export const getDashboardStats = async () => {
 
 export const getPendingPayments = async (): Promise<EmiPayment[]> => {
     const response = await fetch(`${API_BASE_URL}/payments/pending`, { headers: getAuthHeaders() });
-    const payments = await handleResponse(response);
-    // FIX: Prevent white screen crash if API response is not an array
-    if (!Array.isArray(payments)) {
-        console.error("API Error: Expected payments to be an array, but received:", payments);
-        return [];
-    }
-    return payments;
+    return handleResponse(response);
 };
 
+// --- DEVICE ACTIONS ---
+export const lockDevice = async (deviceId: string) => {
+    const response = await fetch(`${API_BASE_URL}/lock/${deviceId}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+};
+
+export const unlockDevice = async (deviceId: string) => {
+    const response = await fetch(`${API_BASE_URL}/unlock/${deviceId}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+};
+
+export const hardResetDevice = async (deviceId: string) => {
+    const response = await fetch(`${API_BASE_URL}/reset/${deviceId}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+};
+
+export const getOfflineUnlockKey = async (deviceId: string): Promise<{ unlockKey: string }> => {
+    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/unlock-key`, { headers: getAuthHeaders() });
+    return handleResponse(response);
+};
+
+// --- PAYMENT ACTIONS ---
+export const markPaymentAsPaid = async (paymentId: string) => {
+    const response = await fetch(`${API_BASE_URL}/payments/${paymentId}/pay`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+};
+
+// --- CUSTOMER MANAGEMENT ---
 export const getCustomers = async (): Promise<Customer[]> => {
     const response = await fetch(`${API_BASE_URL}/customers`, { headers: getAuthHeaders() });
-    const customers = await handleResponse(response);
-    // FIX: Prevent white screen crash if API response is not an array
-    if (!Array.isArray(customers)) {
-        console.error("API Error: Expected customers to be an array, but received:", customers);
-        return [];
-    }
-    return customers.map((c: any) => ({ ...c, id: c._id }));
+    return handleResponse(response);
 };
 
 export const addCustomer = async (customerData: { name: string; phone: string; address: string }): Promise<Customer> => {
@@ -95,112 +107,47 @@ export const addCustomer = async (customerData: { name: string; phone: string; a
         headers: getAuthHeaders(),
         body: JSON.stringify(customerData),
     });
-    const customer = await handleResponse(response);
-    return { ...customer, id: customer._id };
-};
-
-export const registerDevice = async (deviceData: { 
-    customerId: string; 
-    imei: string;
-    androidId: string;
-    model: string;
-    totalPrice: number;
-    downPayment: number;
-    numberOfEmis: number;
-    emiStartDate: string;
-}): Promise<{ message: string, device: Device }> => {
-    const response = await fetch(`${API_BASE_URL}/devices/register`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(deviceData),
-    });
-    // The API returns an object like { message: '...', device: {...} }
-    const responseData = await handleResponse(response);
-    return {
-        ...responseData,
-        device: { ...responseData.device, id: responseData.device._id }
-    };
-};
-
-export const lockDevice = async (deviceId: string): Promise<{ success: boolean }> => {
-    const response = await fetch(`${API_BASE_URL}/lock/${deviceId}`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-    });
-    await handleResponse(response);
-    return { success: true };
-};
-
-export const unlockDevice = async (deviceId: string): Promise<{ success: boolean }> => {
-    const response = await fetch(`${API_BASE_URL}/unlock/${deviceId}`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-    });
-    await handleResponse(response);
-    return { success: true };
-};
-
-export const hardResetDevice = async (deviceId: string): Promise<{ success: boolean }> => {
-    const response = await fetch(`${API_BASE_URL}/reset/${deviceId}`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-    });
-    await handleResponse(response);
-    return { success: true };
-};
-
-export const markPaymentAsPaid = async (paymentId: string): Promise<{ success: boolean }> => {
-     const response = await fetch(`${API_BASE_URL}/payments/${paymentId}/pay`, {
-        method: 'PATCH',
-        headers: getAuthHeaders(),
-    });
-    await handleResponse(response);
-    return { success: true };
-};
-
-export const getDevices = async (): Promise<(Device & { customerId: { name: string }, _id: string })[]> => {
-    const response = await fetch(`${API_BASE_URL}/devices`, { headers: getAuthHeaders() });
-    const devices = await handleResponse(response);
-    // FIX: Prevent white screen crash if API response is not an array
-    if (!Array.isArray(devices)) {
-        console.error("API Error: Expected devices to be an array, but received:", devices);
-        return [];
-    }
-    // Map _id to id for frontend consistency
-    return devices.map((d: any) => ({ ...d, id: d._id }));
-};
-
-// --- NEW: API to get permanent offline unlock key ---
-export const getOfflineUnlockKey = async (deviceId: string): Promise<{ unlockKey: string }> => {
-    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/unlock-key`, { headers: getAuthHeaders() });
     return handleResponse(response);
 };
 
-
-// --- New APIs for Customer Detail View ---
 export const getCustomerById = async (customerId: string): Promise<Customer> => {
     const response = await fetch(`${API_BASE_URL}/customers/${customerId}`, { headers: getAuthHeaders() });
-    const customer = await handleResponse(response);
-    return { ...customer, id: customer._id };
+    return handleResponse(response);
 };
 
 export const getDevicesForCustomer = async (customerId: string): Promise<Device[]> => {
     const response = await fetch(`${API_BASE_URL}/customers/${customerId}/devices`, { headers: getAuthHeaders() });
-    const devices = await handleResponse(response);
-     if (!Array.isArray(devices)) {
-        console.error("API Error: Expected devices to be an array, but received:", devices);
-        return [];
-    }
-    return devices.map((d: any) => ({ ...d, id: d._id }));
+    return handleResponse(response);
 };
 
-// FIX: Corrected typo in API_BASE_URL and completed the function body to fetch and return customer payments.
 export const getPaymentsForCustomer = async (customerId: string): Promise<EmiPayment[]> => {
     const response = await fetch(`${API_BASE_URL}/customers/${customerId}/payments`, { headers: getAuthHeaders() });
-    const payments = await handleResponse(response);
-    if (!Array.isArray(payments)) {
-        console.error("API Error: Expected payments for customer to be an array, but received:", payments);
-        return [];
-    }
-    return payments;
+    return handleResponse(response);
+};
+
+// --- DEVICE MANAGEMENT ---
+type RegisterDeviceData = {
+  customerId: string;
+  imei: string;
+  androidId: string;
+  model: string;
+  totalPrice: number;
+  downPayment: number;
+  numberOfEmis: number;
+  emiStartDate: string;
+};
+
+export const registerDevice = async (saleData: RegisterDeviceData) => {
+    const response = await fetch(`${API_BASE_URL}/devices/register`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(saleData),
+    });
+    return handleResponse(response);
+};
+
+// FIX: Update the return type to match the shape of data returned by the API, which includes a populated customerId and a MongoDB _id. This resolves the type error in DevicesView.tsx.
+export const getDevices = async (): Promise<(Device & { customerId: { name: string } | null; _id: string; })[]> => {
+    const response = await fetch(`${API_BASE_URL}/devices`, { headers: getAuthHeaders() });
+    return handleResponse(response);
 };
