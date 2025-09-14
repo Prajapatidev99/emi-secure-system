@@ -2,10 +2,8 @@ package com.emiseure.customer
 
 import android.annotation.SuppressLint
 import android.app.admin.DevicePolicyManager
-import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
-import android.os.UserManager
 import android.provider.Settings
 import android.util.Log
 import android.view.View
@@ -22,9 +20,9 @@ import org.json.JSONObject
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
-    
+
     // CRITICAL: Replace this URL with your live Render backend URL before building the release app.
-    private val publicBackendUrl = "https://your-render-backend.onrender.com/api/public"
+    private val publicBackendUrl = "https://emi-secure-system.onrender.com/api/public"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,8 +33,8 @@ class MainActivity : AppCompatActivity() {
         Log.d("MainActivity", "Device Android ID: $androidId")
 
         binding.androidIdTextView.text = getString(R.string.your_device_id, androidId)
-        
-        checkDeviceAdminStatusAndApplyPolicies()
+
+        checkDeviceAdminStatus()
         registerForPushNotifications(androidId)
         fetchDeviceStatus(androidId)
 
@@ -45,34 +43,21 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun checkDeviceAdminStatusAndApplyPolicies() {
+    private fun checkDeviceAdminStatus() {
         val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        val adminComponent = ComponentName(this, MyDeviceAdminReceiver::class.java)
-        // We only care if this app is the DEVICE OWNER. Regular admin is not enough.
         val isDeviceOwner = dpm.isDeviceOwnerApp(packageName)
 
         if (isDeviceOwner) {
             binding.deviceAdminStatusTextView.text = getString(R.string.device_admin_active)
             binding.deviceAdminStatusTextView.setTextColor(ContextCompat.getColor(this, R.color.status_paid))
-
-            // CRITICAL: Programmatically apply security policies now that we are the device owner.
-            // This is the correct way to disable the factory reset button in settings.
-            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
-            // Prevent adding new users/profiles which could be a bypass vector.
-            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_ADD_USER)
-            // Prevent enabling OEM unlocking in developer options.
-            // FIX: Use the direct string value to prevent "Unresolved reference" build error.
-            dpm.addUserRestriction(adminComponent, "no_oem_unlock")
-
-            Log.d("DeviceAdmin", "Security policies applied: Factory reset, add user, and OEM unlocking are disabled.")
-
+            Log.d("DeviceAdminCheck", "App is the device owner.")
         } else {
             binding.deviceAdminStatusTextView.text = getString(R.string.device_admin_inactive)
             binding.deviceAdminStatusTextView.setTextColor(ContextCompat.getColor(this, R.color.status_overdue))
-            Log.w("DeviceAdmin", "App is not the device owner. Security policies not applied.")
+            Log.w("DeviceAdminCheck", "App is not the device owner.")
         }
     }
-    
+
     @SuppressLint("HardwareIds")
     private fun getAndroidId(): String {
         return Settings.Secure.getString(contentResolver, Settings.Secure.ANDROID_ID)
@@ -87,7 +72,7 @@ class MainActivity : AppCompatActivity() {
 
             val fcmToken = task.result
             Log.d("FCM", "FCM Token: $fcmToken")
-            
+
             sendFcmTokenToServer(androidId, fcmToken)
         })
     }
@@ -191,7 +176,7 @@ class MainActivity : AppCompatActivity() {
                 binding.statusMessage.visibility = View.GONE
             }
             else -> {
-                 showError("Your device status could not be determined. Please contact support.")
+                showError("Your device status could not be determined. Please contact support.")
             }
         }
     }
