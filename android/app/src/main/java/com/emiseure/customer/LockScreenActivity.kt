@@ -6,18 +6,26 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.View
 import android.view.WindowManager
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.emiseure.customer.databinding.ActivityLockScreenBinding
 
 class LockScreenActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLockScreenBinding
+    private var iconClickCount = 0
+    private val handler = Handler(Looper.getMainLooper())
+    private var resetClickCountRunnable: Runnable? = null
+
 
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.emiseure.customer.ACTION_UNLOCK") {
-                finish()
+                finishAndRemoveTask()
             }
         }
     }
@@ -32,6 +40,7 @@ class LockScreenActivity : AppCompatActivity() {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
         } else {
+            @Suppress("DEPRECATION")
             window.addFlags(
                 WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
                         or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
@@ -39,26 +48,64 @@ class LockScreenActivity : AppCompatActivity() {
             )
         }
         
-        // Register the broadcast receiver to listen for unlock commands
         val filter = IntentFilter("com.emiseure.customer.ACTION_UNLOCK")
         registerReceiver(unlockReceiver, filter, RECEIVER_EXPORTED)
 
-        // --- HARD LOCK (KIOSK MODE) ---
-        // This will prevent the user from leaving this screen.
+        setupOfflineUnlock()
+
         startLockTask()
+    }
+
+    private fun setupOfflineUnlock() {
+        binding.lockIcon.setOnClickListener {
+            iconClickCount++
+
+            // If a reset timer is already running, cancel it
+            resetClickCountRunnable?.let { handler.removeCallbacks(it) }
+
+            // Start a new timer to reset the click count after 2 seconds
+            resetClickCountRunnable = Runnable {
+                iconClickCount = 0
+            }
+            handler.postDelayed(resetClickCountRunnable!!, 2000)
+
+            if (iconClickCount >= 5) {
+                binding.keypadContainer.visibility = View.VISIBLE
+                binding.mainContent.visibility = View.GONE
+                iconClickCount = 0 // Reset after showing
+            }
+        }
+
+        binding.keypadSubmitButton.setOnClickListener {
+            val enteredKey = binding.keypadInput.text.toString().trim().uppercase()
+            val prefs = getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
+            val correctKey = prefs.getString("UNLOCK_KEY", null)
+
+            if (!correctKey.isNullOrEmpty() && enteredKey == correctKey) {
+                Toast.makeText(this, "Device Unlocked!", Toast.LENGTH_SHORT).show()
+                // Set lock state to false and send broadcast to fully unlock
+                prefs.edit().putBoolean("IS_LOCKED", false).apply()
+                sendBroadcast(Intent("com.emiseure.customer.ACTION_UNLOCK"))
+            } else {
+                Toast.makeText(this, "Incorrect Key", Toast.LENGTH_SHORT).show()
+                binding.keypadInput.text.clear()
+            }
+        }
+
+        binding.keypadCancelButton.setOnClickListener {
+            binding.keypadContainer.visibility = View.GONE
+            binding.mainContent.visibility = View.VISIBLE
+            binding.keypadInput.text.clear()
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        // Unregister the receiver to avoid memory leaks
         unregisterReceiver(unlockReceiver)
-
-        // --- RELEASE HARD LOCK ---
-        // Must be called to allow the user to use the phone again.
         stopLockTask()
     }
 
-    // Disable the back button to prevent the user from closing the lock screen
+    @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
         // Do nothing. The user is locked in.
     }

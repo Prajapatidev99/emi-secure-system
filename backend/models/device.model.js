@@ -39,6 +39,10 @@ const deviceSchema = new Schema({
     trim: true,
     default: null
   },
+  unlockKey: {
+    type: String,
+    // This key will be generated on device registration
+  },
   isCompromised: {
     type: Boolean,
     default: false,

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Dev Mobile</string>
+    <string name="app_name">EMI Secure</string>
     
     <!-- UI Labels -->
     <string name="your_emi_status">Your EMI Status</string>
@@ -24,5 +24,9 @@
     <!-- Lock Screen -->
     <string name="device_locked_title">Device Locked</string>
     <string name="device_locked_message">Your device has been locked due to a pending EMI payment. Please contact the shop to resolve this issue.</string>
+    <string name="offline_unlock_prompt">Tap the lock icon 5 times for offline unlock</string>
+    <string name="enter_offline_key">Enter Offline Key</string>
+    <string name="cancel">Cancel</string>
+    <string name="submit">Submit</string>
 
 </resources>

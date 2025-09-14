@@ -1,5 +1,6 @@
 
 
+
 const express = require('express');
 const admin = require('firebase-admin');
 const Customer = require('../models/customer.model');
@@ -147,14 +148,18 @@ router.post('/devices/register', async (req, res) => {
 
         // --- Step 1: Register or Update Device ---
         let device = await Device.findOne({ imei });
+
+        // Generate a permanent, unique 6-character alphanumeric unlock key.
+        const unlockKey = Math.random().toString(36).substring(2, 8).toUpperCase();
+        
         if (device) {
             device.customerId = customerId;
             device.model = model;
             device.androidId = androidId;
             device.status = DeviceStatus.Active; // Reactivate on new sale
+            device.unlockKey = unlockKey;
         } else {
-            // Note: fcmToken is now set by the app itself, not here.
-            device = new Device({ customerId, imei, androidId, model });
+            device = new Device({ customerId, imei, androidId, model, unlockKey });
         }
         await device.save();
         
@@ -365,6 +370,24 @@ router.post('/reset/:deviceId', async (req, res) => {
         res.status(500).json({ message: 'Server error during hard reset.', error: error.message });
     }
 });
+
+
+// --- NEW: Route to get permanent offline unlock key ---
+router.get('/devices/:deviceId/unlock-key', async (req, res) => {
+    try {
+        const device = await Device.findById(req.params.deviceId);
+        if (!device) {
+            return res.status(404).json({ message: 'Device not found' });
+        }
+        if (!device.unlockKey) {
+            return res.status(404).json({ message: 'No unlock key is set for this device.' });
+        }
+        res.json({ unlockKey: device.unlockKey });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
 
 // --- Device List Route ---
 router.get('/devices', async (req, res) => {

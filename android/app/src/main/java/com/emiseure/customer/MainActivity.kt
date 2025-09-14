@@ -5,6 +5,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.os.Bundle
+import android.os.UserManager
 import android.provider.Settings
 import android.util.Log
 import android.view.View
@@ -59,6 +60,14 @@ class MainActivity : AppCompatActivity() {
                 Log.d("DeviceAdmin", "App is device owner and whitelisted for Lock Task Mode.")
             } catch (e: SecurityException) {
                 Log.e("DeviceAdmin", "Failed to whitelist for Lock Task Mode", e)
+            }
+            
+            // Block user from adding/removing accounts to prevent FRP bypass.
+            try {
+                dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
+                Log.d("DeviceAdmin", "Account modification has been disabled.")
+            } catch (e: SecurityException) {
+                Log.e("DeviceAdmin", "Failed to disable account modification", e)
             }
 
         } else if (dpm.isAdminActive(adminComponent)) {
@@ -121,6 +130,15 @@ class MainActivity : AppCompatActivity() {
             { response ->
                 showLoading(false)
                 Log.d("API_SUCCESS", response.toString())
+
+                // Save the latest unlock key from the server
+                if (response.has("unlockKey")) {
+                    val key = response.getString("unlockKey")
+                    val prefs = getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
+                    prefs.edit().putString("UNLOCK_KEY", key).apply()
+                    Log.d("MainActivity", "Saved unlock key: $key")
+                }
+
                 updateUiWithStatus(response)
             },
             { error ->

@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { getDashboardStats, getPendingPayments, lockDevice, unlockDevice, markPaymentAsPaid, hardResetDevice } from '../services/api';
+import { getDashboardStats, getPendingPayments, lockDevice, unlockDevice, markPaymentAsPaid, hardResetDevice, getOfflineUnlockKey } from '../services/api';
 import { EmiPayment, DeviceStatus } from '../types';
 import Card from './common/Card';
 import StatusBadge from './common/StatusBadge';
 import Button from './common/Button';
-import { LockClosedIcon, LockOpenIcon, CheckCircleIcon, ExclamationTriangleIcon } from './icons';
+import { LockClosedIcon, LockOpenIcon, CheckCircleIcon, ExclamationTriangleIcon, KeyIcon } from './icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Skeleton from './common/Skeleton';
 import Spinner from './common/Spinner';
 import ConfirmationModal from './common/ConfirmationModal';
+import Modal from './common/Modal';
 
 interface DashboardStats {
     totalEmiCollected: number;
@@ -33,6 +34,10 @@ const LockPanel = () => {
     message: React.ReactNode;
     variant: 'danger' | 'success';
   } | null>(null);
+  
+  const [isOfflineKeyModalOpen, setOfflineKeyModalOpen] = useState(false);
+  const [offlineKey, setOfflineKey] = useState<string | null>(null);
+  const [offlineKeyLoading, setOfflineKeyLoading] = useState(false);
 
   
   const fetchPayments = useCallback(async () => {
@@ -77,8 +82,6 @@ const LockPanel = () => {
   };
 
   const confirmDeviceAction = (payment: EmiPayment, action: 'lock' | 'unlock' | 'reset') => {
-    // FIX: Explicitly type `details` to match the properties required by `confirmationDetails` state.
-    // This resolves a TypeScript error where the inferred type of `{}` was missing properties.
     let details: { title: string; message: React.ReactNode; variant: 'danger' | 'success' };
     switch(action) {
       case 'lock':
@@ -154,6 +157,24 @@ const LockPanel = () => {
       }
     } finally {
       setPaymentLoading(prev => ({ ...prev, [paymentId]: false }));
+    }
+  };
+
+  const handleShowOfflineKey = async (deviceId: string) => {
+    setOfflineKeyModalOpen(true);
+    setOfflineKeyLoading(true);
+    setOfflineKey(null);
+    try {
+        const data = await getOfflineUnlockKey(deviceId);
+        setOfflineKey(data.unlockKey);
+    } catch (err) {
+        if (err instanceof Error) {
+            setOfflineKey(`Error: ${err.message}`);
+        } else {
+            setOfflineKey('An unknown error occurred.');
+        }
+    } finally {
+        setOfflineKeyLoading(false);
     }
   };
 
@@ -243,6 +264,13 @@ const LockPanel = () => {
                         >
                           <LockOpenIcon /> {actionLoading[payment.deviceId] ? 'Unlocking...' : 'Unlock'}
                         </Button>
+                         <Button
+                          onClick={() => handleShowOfflineKey(payment.deviceId)}
+                          variant="secondary"
+                          size="sm"
+                        >
+                          <KeyIcon /> Offline Unlock
+                        </Button>
                         <Button
                           onClick={() => confirmDeviceAction(payment, 'reset')}
                           variant="danger"
@@ -288,6 +316,20 @@ const LockPanel = () => {
           {confirmationDetails.message}
         </ConfirmationModal>
       )}
+      <Modal
+        isOpen={isOfflineKeyModalOpen}
+        onClose={() => setOfflineKeyModalOpen(false)}
+        title="Offline Unlock Key"
+      >
+        <div className="text-center">
+            <p className="text-slate-400 mb-4">Provide this permanent key to the customer to unlock their device without internet.</p>
+            {offlineKeyLoading ? <Spinner /> : (
+                <div className="bg-slate-900 p-4 rounded-lg">
+                    <p className="text-3xl font-mono tracking-widest text-amber-300">{offlineKey}</p>
+                </div>
+            )}
+        </div>
+      </Modal>
     </>
   );
 };
