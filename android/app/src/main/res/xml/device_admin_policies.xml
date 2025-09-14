@@ -13,6 +13,8 @@
             <disallow-oem-unlock />
             <!-- Prevents adding new users, which could be a bypass vector -->
             <disallow-add-user />
+            <!-- Prevents adding/removing Google accounts to secure FRP -->
+            <disallow-modify-accounts />
         </set-user-restrictions>
     </uses-policies>
 </device-admin>
