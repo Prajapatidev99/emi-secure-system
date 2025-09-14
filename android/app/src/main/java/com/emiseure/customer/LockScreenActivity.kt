@@ -41,17 +41,25 @@ class LockScreenActivity : AppCompatActivity() {
         
         // Register the broadcast receiver to listen for unlock commands
         val filter = IntentFilter("com.emiseure.customer.ACTION_UNLOCK")
-        registerReceiver(unlockReceiver, filter, RECEIVER_EXPORTED) // Use RECEIVER_EXPORTED for compatibility
+        registerReceiver(unlockReceiver, filter, RECEIVER_EXPORTED)
+
+        // --- HARD LOCK (KIOSK MODE) ---
+        // This will prevent the user from leaving this screen.
+        startLockTask()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         // Unregister the receiver to avoid memory leaks
         unregisterReceiver(unlockReceiver)
+
+        // --- RELEASE HARD LOCK ---
+        // Must be called to allow the user to use the phone again.
+        stopLockTask()
     }
 
     // Disable the back button to prevent the user from closing the lock screen
     override fun onBackPressed() {
-        // Do nothing
+        // Do nothing. The user is locked in.
     }
 }

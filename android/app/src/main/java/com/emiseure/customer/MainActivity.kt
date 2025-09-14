@@ -47,11 +47,25 @@ class MainActivity : AppCompatActivity() {
     private fun checkDeviceAdminStatus() {
         val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         val adminComponent = ComponentName(this, MyDeviceAdminReceiver::class.java)
-        val isAdmin = dpm.isDeviceOwnerApp(packageName) || dpm.isAdminActive(adminComponent)
+        val isDeviceOwner = dpm.isDeviceOwnerApp(packageName)
 
-        if (isAdmin) {
+        if (isDeviceOwner) {
             binding.deviceAdminStatusTextView.text = getString(R.string.device_admin_active)
             binding.deviceAdminStatusTextView.setTextColor(ContextCompat.getColor(this, R.color.status_paid))
+
+            // Whitelist this app for Lock Task (Kiosk) Mode. This is critical for the hard lock.
+            try {
+                dpm.setLockTaskPackages(adminComponent, arrayOf(packageName))
+                Log.d("DeviceAdmin", "App is device owner and whitelisted for Lock Task Mode.")
+            } catch (e: SecurityException) {
+                Log.e("DeviceAdmin", "Failed to whitelist for Lock Task Mode", e)
+            }
+
+        } else if (dpm.isAdminActive(adminComponent)) {
+            // This is a fallback case - Kiosk mode won't work, but basic admin is active.
+            binding.deviceAdminStatusTextView.text = getString(R.string.device_admin_active)
+            binding.deviceAdminStatusTextView.setTextColor(ContextCompat.getColor(this, R.color.status_paid))
+            Log.w("DeviceAdmin", "App is an admin, but NOT the device owner. Hard lock (Kiosk Mode) will not function.")
         } else {
             binding.deviceAdminStatusTextView.text = getString(R.string.device_admin_inactive)
             binding.deviceAdminStatusTextView.setTextColor(ContextCompat.getColor(this, R.color.status_overdue))
