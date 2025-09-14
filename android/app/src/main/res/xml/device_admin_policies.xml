@@ -5,7 +5,7 @@
         <force-lock />
         <!-- Allows the app to remotely perform a factory reset. This is critical. -->
         <wipe-data />
-        <!-- NEW: Add restrictions to prevent user bypass -->
+        <!-- Add restrictions to prevent user bypass -->
         <set-user-restrictions>
             <!-- Prevents factory reset from Settings. -->
             <disallow-factory-reset />
@@ -16,4 +16,3 @@
         </set-user-restrictions>
     </uses-policies>
 </device-admin>
-

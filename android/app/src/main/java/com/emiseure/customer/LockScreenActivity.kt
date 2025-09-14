@@ -4,15 +4,19 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.appcompat.app.AppCompatActivity
+import com.emiseure.customer.databinding.ActivityLockScreenBinding
 
 class LockScreenActivity : AppCompatActivity() {
 
+    private lateinit var binding: ActivityLockScreenBinding
+
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            if (intent?.action == ACTION_UNLOCK) {
+            if (intent?.action == "com.emiseure.customer.ACTION_UNLOCK") {
                 finish()
             }
         }
@@ -20,18 +24,24 @@ class LockScreenActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_lock_screen)
+        binding = ActivityLockScreenBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         // Make the activity full-screen and show over the lock screen
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-            WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
-            WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
-            WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
-        )
-
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                        or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                        or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+            )
+        }
+        
         // Register the broadcast receiver to listen for unlock commands
-        registerReceiver(unlockReceiver, IntentFilter(ACTION_UNLOCK), RECEIVER_EXPORTED)
+        val filter = IntentFilter("com.emiseure.customer.ACTION_UNLOCK")
+        registerReceiver(unlockReceiver, filter, RECEIVER_EXPORTED) // Use RECEIVER_EXPORTED for compatibility
     }
 
     override fun onDestroy() {
@@ -40,13 +50,8 @@ class LockScreenActivity : AppCompatActivity() {
         unregisterReceiver(unlockReceiver)
     }
 
-    // Override the back button to do nothing, trapping the user on this screen.
-    @Deprecated("Deprecated in Java")
+    // Disable the back button to prevent the user from closing the lock screen
     override fun onBackPressed() {
-        // Do nothing. The user cannot go back.
-    }
-
-    companion object {
-        const val ACTION_UNLOCK = "com.emiseure.customer.UNLOCK_DEVICE"
+        // Do nothing
     }
 }

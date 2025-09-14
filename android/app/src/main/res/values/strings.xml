@@ -20,5 +20,9 @@
     <string name="device_admin_description">Enables remote locking and wiping for EMI security.</string>
     <string name="device_admin_active">Security: Device Admin Active</string>
     <string name="device_admin_inactive">Security: Device Admin INACTIVE</string>
+    
+    <!-- Lock Screen -->
+    <string name="device_locked_title">Device Locked</string>
+    <string name="device_locked_message">Your device has been locked due to a pending EMI payment. Please contact the shop to resolve this issue.</string>
 
 </resources>

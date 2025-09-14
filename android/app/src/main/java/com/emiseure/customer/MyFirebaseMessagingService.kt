@@ -10,54 +10,62 @@ import com.google.firebase.messaging.RemoteMessage
 
 class MyFirebaseMessagingService : FirebaseMessagingService() {
 
+    private val TAG = "FCM_Service"
+
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
-        Log.d("FCM", "From: ${remoteMessage.from}")
+        Log.d(TAG, "From: ${remoteMessage.from}")
 
-        remoteMessage.data.isNotEmpty().let {
-            Log.d("FCM", "Message data payload: " + remoteMessage.data)
-            
-            when (remoteMessage.data["action"]) {
-                "LOCK" -> handleLockCommand()
-                "UNLOCK" -> handleUnlockCommand()
-                "WIPE" -> handleWipeCommand()
+        // Check if message contains a data payload.
+        if (remoteMessage.data.isNotEmpty()) {
+            Log.d(TAG, "Message data payload: " + remoteMessage.data)
+
+            val action = remoteMessage.data["action"]
+            val message = remoteMessage.data["message"]
+            Log.d(TAG, "Received action: $action with message: $message")
+
+            val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val adminComponent = ComponentName(this, MyDeviceAdminReceiver::class.java)
+
+            // Ensure app is device admin before attempting actions
+            val isAdmin = dpm.isDeviceOwnerApp(applicationContext.packageName) || dpm.isAdminActive(adminComponent)
+            if (!isAdmin) {
+                Log.e(TAG, "Action '$action' ignored: App is not a device admin.")
+                return
+            }
+
+            when (action) {
+                "LOCK" -> {
+                    Log.w(TAG, "DEVICE LOCK COMMAND RECEIVED!")
+                    // Launch the custom lock screen activity
+                    val lockIntent = Intent(this, LockScreenActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        // You can pass the message from the push notification if needed
+                        // putExtra("lock_message", message)
+                    }
+                    startActivity(lockIntent)
+                }
+                "UNLOCK" -> {
+                    Log.i(TAG, "DEVICE UNLOCK COMMAND RECEIVED!")
+                    // Send a broadcast to the LockScreenActivity to close itself
+                    val unlockIntent = Intent("com.emiseure.customer.ACTION_UNLOCK")
+                    sendBroadcast(unlockIntent)
+                }
+                "WIPE" -> {
+                    Log.e(TAG, "DEVICE WIPE COMMAND RECEIVED! THIS IS IRREVERSIBLE.")
+                    try {
+                         // For device owner apps, wipeData(0) performs a factory reset.
+                        dpm.wipeData(0)
+                    } catch (e: SecurityException) {
+                        Log.e(TAG, "Failed to wipe device", e)
+                    }
+                }
             }
         }
     }
 
-    private fun handleLockCommand() {
-        Log.d("FCM_Action", "Received LOCK command.")
-        val lockIntent = Intent(this, LockScreenActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-        }
-        startActivity(lockIntent)
-    }
-
-    private fun handleUnlockCommand() {
-        Log.d("FCM_Action", "Received UNLOCK command.")
-        // Send a broadcast to the LockScreenActivity to close itself
-        val unlockIntent = Intent(LockScreenActivity.ACTION_UNLOCK)
-        sendBroadcast(unlockIntent)
-    }
-
-    private fun handleWipeCommand() {
-        Log.d("FCM_Action", "Received WIPE command.")
-        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        val deviceAdmin = ComponentName(this, MyDeviceAdminReceiver::class.java)
-        
-        // Check if the app is the device owner before wiping
-        if (dpm.isDeviceOwnerApp(packageName)) {
-            Log.w("FCM_Action", "Executing factory reset.")
-            dpm.wipeData(0)
-        } else {
-            Log.e("FCM_Action", "WIPE command received, but app is not device owner.")
-        }
-    }
-    
     override fun onNewToken(token: String) {
-        super.onNewToken(token)
-        Log.d("FCM", "Refreshed token: $token")
-        // You would typically send this new token to your server here
-        // The MainActivity already handles sending the token on startup, which is sufficient for this app's lifecycle.
+        Log.d(TAG, "Refreshed token: $token")
+        // The token is sent to the server on app startup (MainActivity).
     }
 }

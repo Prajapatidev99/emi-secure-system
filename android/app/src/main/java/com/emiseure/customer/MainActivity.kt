@@ -2,8 +2,8 @@ package com.emiseure.customer
 
 import android.annotation.SuppressLint
 import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
@@ -22,7 +22,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     
-    // CRITICAL: Replace this URL with your live Render backend URL before building the release app.
+    // CRITICAL: You may need to change this IP address to your computer's local IP address.
     private val publicBackendUrl = "https://emi-secure-system.onrender.com/api/public"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,16 +46,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkDeviceAdminStatus() {
         val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        val isDeviceOwner = dpm.isDeviceOwnerApp(packageName)
+        val adminComponent = ComponentName(this, MyDeviceAdminReceiver::class.java)
+        val isAdmin = dpm.isDeviceOwnerApp(packageName) || dpm.isAdminActive(adminComponent)
 
-        if (isDeviceOwner) {
+        if (isAdmin) {
             binding.deviceAdminStatusTextView.text = getString(R.string.device_admin_active)
             binding.deviceAdminStatusTextView.setTextColor(ContextCompat.getColor(this, R.color.status_paid))
-            Log.d("DeviceAdminCheck", "App is the device owner.")
         } else {
             binding.deviceAdminStatusTextView.text = getString(R.string.device_admin_inactive)
             binding.deviceAdminStatusTextView.setTextColor(ContextCompat.getColor(this, R.color.status_overdue))
-            Log.w("DeviceAdminCheck", "App is not the device owner.")
         }
     }
     
@@ -147,16 +146,6 @@ class MainActivity : AppCompatActivity() {
 
         val paymentStatus = status.optString("paymentStatus", "Unknown")
         val deviceStatus = status.optString("deviceStatus", "Unknown")
-
-        // CRITICAL: Enforce lock screen if device status is Locked
-        if (deviceStatus == "Locked") {
-            val lockIntent = Intent(this, LockScreenActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            }
-            startActivity(lockIntent)
-            // No need to update the rest of the UI if the lock screen is about to show
-            return 
-        }
 
         binding.deviceStatusTextView.text = getString(R.string.device_status_label, deviceStatus)
 
