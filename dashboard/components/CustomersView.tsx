@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import { useState, useEffect, useCallback } from 'react';
 import { getCustomers } from '../services/api';
 import { Customer } from '../types';
 import Card from './common/Card';
