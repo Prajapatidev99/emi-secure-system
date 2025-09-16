@@ -1,3 +1,11 @@
+
+
+
+
+
+
+
+
 const express = require('express');
 const admin = require('firebase-admin');
 const Customer = require('../models/customer.model');
@@ -176,6 +184,13 @@ router.post('/devices/register', async (req, res) => {
             }
 
             console.log("No active payments found. Re-registering device for new plan.");
+            
+            // FIX: Check for and add an unlock key if it's missing. This makes the feature backwards-compatible.
+            if (!existingDevice.unlockKey) {
+                console.log("Existing device is missing an unlock key. Generating one now.");
+                existingDevice.unlockKey = Math.random().toString(36).substring(2, 8).toUpperCase();
+            }
+
             // Update the device with the new customer, status, and the NEW Android ID
             existingDevice.customerId = customerId;
             existingDevice.status = DeviceStatus.Active;
