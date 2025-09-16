@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.os.UserManager
 import android.provider.Settings
@@ -25,6 +26,11 @@ class MainActivity : AppCompatActivity() {
     
     // CRITICAL: You may need to change this IP address to your computer's local IP address.
     private val publicBackendUrl = "https://emi-secure-system.onrender.com/api/public"
+    
+    // Use a lazy delegate to initialize SharedPreferences with device-protected storage context.
+    private val prefs by lazy {
+        createDeviceProtectedStorageContext().getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -43,6 +49,12 @@ class MainActivity : AppCompatActivity() {
         binding.retryButton.setOnClickListener {
             fetchDeviceStatus(androidId)
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Refresh status every time the app is brought to the foreground for robustness.
+        fetchDeviceStatus(getAndroidId())
     }
 
     private fun checkDeviceAdminStatus() {
@@ -131,13 +143,15 @@ class MainActivity : AppCompatActivity() {
                 showLoading(false)
                 Log.d("API_SUCCESS", response.toString())
 
-                // Save the latest unlock key from the server
+                // Save the latest unlock key from the server to device-protected storage
                 if (response.has("unlockKey")) {
                     val key = response.getString("unlockKey")
-                    val prefs = getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
                     prefs.edit().putString("UNLOCK_KEY", key).apply()
-                    Log.d("MainActivity", "Saved unlock key: $key")
+                    Log.d("MainActivity", "Saved unlock key to device-protected storage: $key")
                 }
+                
+                // NEW: Self-heal by synchronizing lock state with the server
+                checkAndSyncLockState(response)
 
                 updateUiWithStatus(response)
             },
@@ -158,6 +172,30 @@ class MainActivity : AppCompatActivity() {
             }
         )
         requestQueue.add(jsonObjectRequest)
+    }
+
+    private fun checkAndSyncLockState(status: JSONObject) {
+        val serverStatus = status.optString("deviceStatus", "Unknown")
+        val isServerLocked = serverStatus == "Locked"
+        val isLocalLocked = prefs.getBoolean("IS_LOCKED", false)
+
+        Log.d("LockSync", "Server state: $serverStatus, Local state: $isLocalLocked")
+
+        if (isServerLocked && !isLocalLocked) {
+            // Server says lock, but we are unlocked. LOCK NOW.
+            Log.w("LockSync", "Discrepancy found. Locking device to match server state.")
+            prefs.edit().putBoolean("IS_LOCKED", true).apply()
+            val lockIntent = Intent(this, LockScreenActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(lockIntent)
+        } else if (!isServerLocked && isLocalLocked) {
+            // Server says unlock, but we are locked. UNLOCK NOW.
+            Log.i("LockSync", "Discrepancy found. Unlocking device to match server state.")
+            prefs.edit().putBoolean("IS_LOCKED", false).apply()
+            val unlockIntent = Intent("com.emiseure.customer.ACTION_UNLOCK")
+            sendBroadcast(unlockIntent)
+        }
     }
 
     private fun showLoading(isLoading: Boolean) {
