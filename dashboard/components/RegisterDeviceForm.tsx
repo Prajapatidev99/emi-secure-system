@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { registerDevice, addCustomer } from '../services/api';
 import { Customer } from '../types';
 import Button from './common/Button';
@@ -33,11 +34,38 @@ const RegisterDeviceForm: React.FC<RegisterDeviceFormProps> = ({ customers, onSu
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [calculatedEmi, setCalculatedEmi] = useState<number | null>(null);
   
   const emiPlanOptions = [3, 4, 6, 8, 9, 10, 12];
 
+  useEffect(() => {
+    const parsedTotalPrice = parseFloat(totalPrice);
+    const parsedDownPayment = parseFloat(downPayment);
+    const parsedEmis = parseInt(numberOfEmis, 10);
+
+    if (
+      !isNaN(parsedTotalPrice) &&
+      !isNaN(parsedDownPayment) &&
+      !isNaN(parsedEmis) &&
+      parsedTotalPrice > 0 &&
+      parsedDownPayment >= 0 &&
+      parsedEmis > 0 &&
+      parsedTotalPrice > parsedDownPayment
+    ) {
+      const emi = (parsedTotalPrice - parsedDownPayment) / parsedEmis;
+      setCalculatedEmi(emi);
+    } else {
+      setCalculatedEmi(null);
+    }
+  }, [totalPrice, downPayment, numberOfEmis]);
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setSuccessMessage(null);
+
+    // --- Robust Validation ---
     if (!isNewCustomer && !customerId) {
       setError('Please select an existing customer.');
       return;
@@ -46,10 +74,24 @@ const RegisterDeviceForm: React.FC<RegisterDeviceFormProps> = ({ customers, onSu
         setError('Please fill in all details for the new customer.');
         return;
     }
+    
+    const parsedTotalPrice = parseFloat(totalPrice);
+    const parsedDownPayment = parseFloat(downPayment);
+
+    if (isNaN(parsedTotalPrice) || parsedTotalPrice <= 0) {
+        setError('Please enter a valid, positive Total Price.');
+        return;
+    }
+    if (isNaN(parsedDownPayment) || parsedDownPayment < 0) {
+        setError('Please enter a valid Down Payment (cannot be negative).');
+        return;
+    }
+     if (parsedTotalPrice <= parsedDownPayment) {
+        setError('Total price must be greater than the down payment.');
+        return;
+    }
 
     setLoading(true);
-    setError(null);
-    setSuccessMessage(null);
     try {
       let finalCustomerId = customerId;
 
@@ -67,8 +109,8 @@ const RegisterDeviceForm: React.FC<RegisterDeviceFormProps> = ({ customers, onSu
         imei,
         androidId,
         model,
-        totalPrice: parseFloat(totalPrice),
-        downPayment: parseFloat(downPayment),
+        totalPrice: parsedTotalPrice,
+        downPayment: parsedDownPayment,
         numberOfEmis: parseInt(numberOfEmis, 10),
         emiStartDate
       };
@@ -140,7 +182,7 @@ const RegisterDeviceForm: React.FC<RegisterDeviceFormProps> = ({ customers, onSu
             <hr className="my-6 border-slate-600" />
             <h4 className="text-md font-semibold mb-4 text-gray-200">Device &amp; EMI Details</h4>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                 <label htmlFor="model" className="block text-sm font-medium text-slate-300">Device Model</label>
                 <input type="text" id="model" placeholder="e.g., iPhone 15 Pro" value={model} onChange={(e) => setModel(e.target.value)} required className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 bg-slate-700 text-white" />
@@ -176,7 +218,15 @@ const RegisterDeviceForm: React.FC<RegisterDeviceFormProps> = ({ customers, onSu
                   </select>
                 </div>
             </div>
-            <div className="mb-6">
+            {calculatedEmi !== null && (
+              <div className="my-4 p-3 bg-slate-700 rounded-lg text-center">
+                  <span className="text-slate-300 text-sm">Calculated EMI Amount: </span>
+                  <span className="font-bold text-lg text-white">
+                      ₹{calculatedEmi.toFixed(2)} / month
+                  </span>
+              </div>
+            )}
+            <div className="my-6">
                 <label htmlFor="emiStartDate" className="block text-sm font-medium text-slate-300">First EMI Date</label>
                 <input type="date" id="emiStartDate" value={emiStartDate} onChange={(e) => setEmiStartDate(e.target.value)} required className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 bg-slate-700 text-white" />
             </div>
