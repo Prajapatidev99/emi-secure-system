@@ -14,6 +14,7 @@ export type Page = 'dashboard' | 'customers' | 'devices' | 'reports';
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [token, setToken] = useState<string | null>(null);
+  const [isSidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     // Check for token in session storage on initial load for better security and session management.
@@ -24,9 +25,6 @@ const App: React.FC = () => {
   }, []);
 
   const handleLoginSuccess = (newToken: string) => {
-    // DIAGNOSTIC LOG: Print the token we are about to store.
-    console.log("Storing token:", newToken);
-    
     // Store token in sessionStorage. It will be cleared when the tab is closed.
     sessionStorage.setItem('authToken', newToken);
     setToken(newToken);
@@ -61,7 +59,13 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout currentPage={currentPage} setCurrentPage={setCurrentPage} onLogout={handleLogout}>
+    <Layout 
+      currentPage={currentPage} 
+      setCurrentPage={setCurrentPage} 
+      onLogout={handleLogout}
+      isSidebarOpen={isSidebarOpen}
+      setSidebarOpen={setSidebarOpen}
+    >
       {renderPage()}
     </Layout>
   );

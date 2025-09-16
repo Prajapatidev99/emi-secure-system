@@ -1,6 +1,7 @@
 
 
 
+
 const express = require('express');
 const admin = require('firebase-admin');
 const Customer = require('../models/customer.model');
@@ -105,20 +106,19 @@ router.get('/customers/:id/devices', async (req, res) => {
 router.get('/customers/:id/payments', async (req, res) => {
     try {
         const payments = await Payment.find({ customerId: req.params.id })
-            .populate('deviceId', 'model')
+            .populate({
+                path: 'deviceId',
+                select: 'model status' // Include status along with model
+            })
             .sort({ dueDate: 'desc' });
         
         const response = payments.map(p => ({
             id: p._id,
             deviceModel: p.deviceId ? p.deviceId.model : 'N/A',
+            deviceStatus: p.deviceId ? p.deviceId.status : 'N/A',
             amount: p.amount,
             dueDate: p.dueDate.toISOString().split('T')[0],
             status: p.status,
-            // Add other fields needed by the frontend that aren't sensitive
-            customerName: '',
-            deviceImei: '',
-            deviceId: '',
-            deviceStatus: '',
             customerId: p.customerId,
         }));
 
@@ -146,21 +146,20 @@ router.post('/devices/register', async (req, res) => {
             return res.status(400).json({ message: 'Total price must be greater than the down payment.' });
         }
 
-        // --- Step 1: Register or Update Device ---
-        let device = await Device.findOne({ imei });
-
+        // --- Step 1: Check for existing device and register or update ---
+        
+        // FIX: Add a robust check to prevent duplicate devices and provide a clear error.
+        // The unique constraints on the model will throw a generic error, so we catch it here first.
+        const existingDevice = await Device.findOne({ $or: [{ imei }, { androidId }] });
+        if (existingDevice) {
+            return res.status(400).json({ message: 'A device with this IMEI or Android ID already exists.' });
+        }
+        
         // Generate a permanent, unique 6-character alphanumeric unlock key.
         const unlockKey = Math.random().toString(36).substring(2, 8).toUpperCase();
         
-        if (device) {
-            device.customerId = customerId;
-            device.model = model;
-            device.androidId = androidId;
-            device.status = DeviceStatus.Active; // Reactivate on new sale
-            device.unlockKey = unlockKey;
-        } else {
-            device = new Device({ customerId, imei, androidId, model, unlockKey });
-        }
+        // Create the new device since it doesn't exist
+        const device = new Device({ customerId, imei, androidId, model, unlockKey });
         await device.save();
         
         // --- Step 2: Generate EMI Payment Schedule ---
@@ -192,6 +191,10 @@ router.post('/devices/register', async (req, res) => {
 
     } catch (error) {
         console.error("Error in device registration:", error);
+        // Handle potential race conditions or other DB errors
+        if (error.code === 11000) { // MongoDB duplicate key error
+             return res.status(400).json({ message: 'A device with this IMEI or Android ID already exists.' });
+        }
         res.status(400).json({ message: 'Error registering device', error: error.message });
     }
 });
