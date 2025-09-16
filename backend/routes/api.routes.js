@@ -1,11 +1,4 @@
 
-
-
-
-
-
-
-
 const express = require('express');
 const admin = require('firebase-admin');
 const Customer = require('../models/customer.model');
@@ -303,22 +296,38 @@ router.patch('/payments/:paymentId/pay', async (req, res) => {
         // 1. Update Payment Status
         payment.status = PaymentStatus.Paid;
         await payment.save();
+        console.log(`Payment ${payment._id} marked as Paid for device ${payment.deviceId}.`);
 
-        // 2. Check and Unlock associated device
-        const device = await Device.findById(payment.deviceId);
-        if (device && device.status === DeviceStatus.Locked) {
-            device.status = DeviceStatus.Active;
-            await device.save();
+        // 2. CRITICAL FIX: Check if there are ANY other pending/overdue payments for this device
+        const outstandingPayments = await Payment.countDocuments({
+            deviceId: payment.deviceId,
+            status: { $in: [PaymentStatus.Pending, PaymentStatus.Overdue] }
+        });
 
-            // 3. Send Unlock command if FCM token exists
-            if (device.fcmToken) {
-                await sendFcmCommand(device.fcmToken, 'UNLOCK', 'Your device has been unlocked. Thank you for your payment.');
+        console.log(`Found ${outstandingPayments} other outstanding payments for this device.`);
+
+        // 3. Only unlock if ALL payments are cleared.
+        if (outstandingPayments === 0) {
+            console.log('All payments cleared. Proceeding to unlock device.');
+            const device = await Device.findById(payment.deviceId);
+            if (device && device.status === DeviceStatus.Locked) {
+                device.status = DeviceStatus.Active;
+                await device.save();
+
+                if (device.fcmToken) {
+                    await sendFcmCommand(device.fcmToken, 'UNLOCK', 'Your device has been unlocked. Thank you for your payment.');
+                }
+                 res.status(200).json({ message: 'Payment marked as paid and device unlocked.' });
+            } else {
+                 res.status(200).json({ message: 'Payment marked as paid. Device was already active.' });
             }
+        } else {
+            console.log('Device remains locked due to other outstanding payments.');
+            res.status(200).json({ message: `Payment marked as paid. Device remains locked due to ${outstandingPayments} other outstanding EMIs.` });
         }
 
-        res.status(200).json({ message: 'Payment marked as paid and device unlocked if applicable.' });
-
     } catch (error) {
+        console.error("Error processing payment:", error);
         res.status(500).json({ message: 'Server error while processing payment', error: error.message });
     }
 });
@@ -406,12 +415,11 @@ router.post('/reset/:deviceId', async (req, res) => {
         const result = await sendFcmCommand(device.fcmToken, 'WIPE', 'This device is being factory reset due to non-compliance.');
         
         if (result.success) {
-            // While we can't confirm the wipe, we can log the action.
+            // We only send the command. The app on the device will execute it if it has
+            // the correct "Device Owner" permissions. We DO NOT change the status here,
+            // as this provides misleading feedback if the device isn't provisioned.
             console.log(`Hard Reset command sent to device ${device.imei}.`);
-            // Optionally, update status to indicate a reset command was sent.
-            device.status = DeviceStatus.Compromised; // Re-purposing status after reset
-            await device.save();
-            res.status(200).json({ message: 'Hard Reset command sent successfully.' });
+            res.status(200).json({ message: 'Hard Reset command sent. The device will wipe if correctly provisioned.' });
         } else {
             res.status(500).json({ message: 'Failed to send Hard Reset command via FCM.', error: result.error });
         }
@@ -428,9 +436,15 @@ router.get('/devices/:deviceId/unlock-key', async (req, res) => {
         if (!device) {
             return res.status(404).json({ message: 'Device not found' });
         }
+        
+        // FIX: If a key is missing, generate one on-the-fly, save it, and return it.
+        // This makes the feature backwards-compatible for devices registered before the key feature was added.
         if (!device.unlockKey) {
-            return res.status(404).json({ message: 'No unlock key is set for this device.' });
+            console.log(`Device ${device.imei} is missing an unlock key. Generating one now.`);
+            device.unlockKey = Math.random().toString(36).substring(2, 8).toUpperCase();
+            await device.save();
         }
+
         res.json({ unlockKey: device.unlockKey });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
