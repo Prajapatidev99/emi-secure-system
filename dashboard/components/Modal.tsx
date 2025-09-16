@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 
 interface ModalProps {
@@ -12,10 +13,17 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 grid place-items-center p-4">
-      {/* Modal container with max-height and flex-col layout */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-[calc(100vh-2rem)]">
-        {/* Header (non-scrolling) */}
+    // This outer div is the backdrop, using grid to center the modal
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-60 z-50 grid place-items-center p-4"
+      onClick={onClose}
+    >
+      {/* This is the actual modal content, structured as a flex column */}
+      <div 
+        className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md flex flex-col max-h-[calc(100vh-2rem)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header - Stays fixed at the top */}
         <div className="flex justify-between items-center p-4 border-b dark:border-slate-700 flex-shrink-0">
           <h3 className="text-xl font-semibold">{title}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
@@ -24,7 +32,8 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
             </svg>
           </button>
         </div>
-        {/* Content (scrollable) */}
+        
+        {/* Content - This div will scroll if content is too long */}
         <div className="p-6 overflow-y-auto">
           {children}
         </div>

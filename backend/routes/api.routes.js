@@ -140,17 +140,32 @@ router.post('/devices/register', async (req, res) => {
             totalPrice, downPayment, numberOfEmis, emiStartDate 
         } = req.body;
 
-        // --- Validation ---
-        if (!customerId || !imei || !model || !totalPrice || !downPayment || !numberOfEmis || !emiStartDate || !androidId) {
-             return res.status(400).json({ message: 'All fields including EMI details and Android ID are required.' });
+        // --- Robust Server-Side Validation ---
+        if (!customerId || !imei || !androidId || !model || !totalPrice || !downPayment || !numberOfEmis || !emiStartDate) {
+            return res.status(400).json({ message: 'One or more required fields are missing.' });
         }
-        if (totalPrice <= downPayment) {
+
+        const numTotalPrice = Number(totalPrice);
+        const numDownPayment = Number(downPayment);
+        const numEmis = Number(numberOfEmis);
+
+        if (isNaN(numTotalPrice) || numTotalPrice <= 0) {
+            return res.status(400).json({ message: 'Total price must be a valid positive number.' });
+        }
+        if (isNaN(numDownPayment) || numDownPayment < 0) {
+            return res.status(400).json({ message: 'Down payment must be a valid non-negative number.' });
+        }
+        if (isNaN(numEmis) || !Number.isInteger(numEmis) || numEmis <= 0) {
+            return res.status(400).json({ message: 'Number of EMIs must be a valid positive whole number.' });
+        }
+        if (numTotalPrice <= numDownPayment) {
             return res.status(400).json({ message: 'Total price must be greater than the down payment.' });
         }
 
         let device; // This will hold the device document, whether new or existing.
 
-        const existingDevice = await Device.findOne({ $or: [{ imei }, { androidId }] });
+        // Use IMEI as the primary key for finding a physical device
+        const existingDevice = await Device.findOne({ imei });
         
         if (existingDevice) {
             // --- Logic for an existing device ---
@@ -166,9 +181,10 @@ router.post('/devices/register', async (req, res) => {
             }
 
             console.log("No active payments found. Re-registering device for new plan.");
-            // Update the device with the new customer and reset its status to Active
+            // Update the device with the new customer, status, and the NEW Android ID
             existingDevice.customerId = customerId;
             existingDevice.status = DeviceStatus.Active;
+            existingDevice.androidId = androidId; // CRITICAL FIX: Update the Android ID
             await existingDevice.save();
             device = existingDevice;
 
@@ -184,21 +200,22 @@ router.post('/devices/register', async (req, res) => {
         }
         
         // --- Step 2: Generate EMI Payment Schedule (Common for both new and existing devices) ---
-        const loanAmount = totalPrice - downPayment;
-        const emiAmount = loanAmount / numberOfEmis;
+        const loanAmount = numTotalPrice - numDownPayment;
+        const emiAmount = loanAmount / numEmis;
         const startDate = new Date(emiStartDate);
         
         const paymentPromises = [];
 
-        for (let i = 1; i <= numberOfEmis; i++) {
+        for (let i = 0; i < numEmis; i++) {
             const dueDate = new Date(startDate);
-            // The first EMI (i=1) is due one month after the start date.
+            // Set the date correctly for each month's EMI
             dueDate.setMonth(dueDate.getMonth() + i);
 
             const newPayment = new Payment({
                 customerId,
                 deviceId: device._id, // Use the ID from the correct device variable
                 amount: emiAmount,
+                dueDate: dueDate,
                 status: PaymentStatus.Pending,
             });
             paymentPromises.push(newPayment.save());
@@ -211,8 +228,8 @@ router.post('/devices/register', async (req, res) => {
     } catch (error) {
         console.error("Error in device registration:", error);
         // Handle potential race conditions or other DB errors
-        if (error.code === 11000) { // MongoDB duplicate key error
-             return res.status(400).json({ message: 'A device with this IMEI or Android ID already exists.' });
+        if (error.code === 11000) { // MongoDB duplicate key error for IMEI
+             return res.status(400).json({ message: 'A device with this IMEI already exists.' });
         }
         res.status(400).json({ message: 'Error registering device', error: error.message });
     }

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { registerDevice, addCustomer } from '../services/api';
 import { Customer } from '../types';
@@ -66,6 +67,10 @@ const RegisterDeviceForm: React.FC<RegisterDeviceFormProps> = ({ customers, onSu
     setSuccessMessage(null);
 
     // --- Robust Validation ---
+    if (!imei.trim() || !androidId.trim()) {
+        setError('Device IMEI and Android ID cannot be empty.');
+        return;
+    }
     if (!isNewCustomer && !customerId) {
       setError('Please select an existing customer.');
       return;
@@ -173,7 +178,12 @@ const RegisterDeviceForm: React.FC<RegisterDeviceFormProps> = ({ customers, onSu
                     <div>
                         <select id="customer" value={customerId} onChange={(e) => setCustomerId(e.target.value)} required className="block w-full px-3 py-2 border border-slate-600 bg-slate-700 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 text-white">
                             <option value="" disabled>-- Select a customer --</option>
-                            {customers.map(c => (<option key={c.id} value={c.id}>{c.name} ({c.phone})</option>))}
+                            {/* FIX: Ensure only valid customers with an ID are mapped to prevent errors */}
+                            {customers.filter(c => c && c.id).map(customer => (
+                                <option key={customer.id} value={customer.id}>
+                                    {customer.name} ({customer.phone})
+                                </option>
+                            ))}
                         </select>
                     </div>
                 )}
