@@ -10,11 +10,12 @@ class BootReceiver : BroadcastReceiver() {
     private val TAG = "BootReceiver"
     
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            Log.d(TAG, "Device has booted. Checking local lock status...")
-            
-            // Check the locally saved lock state instead of making a network call
-            val prefs = context.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
+        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_LOCKED_BOOT_COMPLETED) {
+            Log.d(TAG, "Received boot action: ${intent.action}. Checking local lock status...")
+
+            // +++ MODIFIED: Use device-protected storage to read the state before the user unlocks the phone +++
+            val deviceContext = context.createDeviceProtectedStorageContext()
+            val prefs = deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
             val isLocked = prefs.getBoolean("IS_LOCKED", false)
 
             if (isLocked) {
