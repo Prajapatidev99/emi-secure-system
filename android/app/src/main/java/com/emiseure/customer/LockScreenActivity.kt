@@ -25,6 +25,9 @@ class LockScreenActivity : AppCompatActivity() {
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.emiseure.customer.ACTION_UNLOCK") {
+                // CRITICAL FIX: The activity must be taken out of Kiosk Mode (Lock Task)
+                // before it can be programmatically closed.
+                stopLockTask()
                 finishAndRemoveTask()
             }
         }
@@ -49,7 +52,8 @@ class LockScreenActivity : AppCompatActivity() {
         }
         
         val filter = IntentFilter("com.emiseure.customer.ACTION_UNLOCK")
-        registerReceiver(unlockReceiver, filter, RECEIVER_EXPORTED)
+        // FIX: Use RECEIVER_NOT_EXPORTED for better security, as this broadcast is internal to the app.
+        registerReceiver(unlockReceiver, filter, RECEIVER_NOT_EXPORTED)
 
         setupOfflineUnlock()
 
@@ -78,7 +82,8 @@ class LockScreenActivity : AppCompatActivity() {
 
         binding.keypadSubmitButton.setOnClickListener {
             val enteredKey = binding.keypadInput.text.toString().trim().uppercase()
-            val prefs = getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
+            val deviceContext = createDeviceProtectedStorageContext()
+            val prefs = deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
             val correctKey = prefs.getString("UNLOCK_KEY", null)
 
             if (!correctKey.isNullOrEmpty() && enteredKey == correctKey) {
