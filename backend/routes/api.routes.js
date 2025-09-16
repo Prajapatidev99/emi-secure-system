@@ -1,9 +1,3 @@
-
-
-
-
-
-
 const express = require('express');
 const admin = require('firebase-admin');
 const Customer = require('../models/customer.model');
@@ -141,7 +135,8 @@ router.post('/devices/register', async (req, res) => {
         } = req.body;
 
         // --- Robust Server-Side Validation ---
-        if (!customerId || !imei || !androidId || !model || !totalPrice || !downPayment || !numberOfEmis || !emiStartDate) {
+        // FIX: Explicitly check for undefined/null for numeric fields to allow a value of 0.
+        if (!customerId || !imei || !androidId || !model || totalPrice === undefined || totalPrice === null || downPayment === undefined || downPayment === null || !numberOfEmis || !emiStartDate) {
             return res.status(400).json({ message: 'One or more required fields are missing.' });
         }
 
