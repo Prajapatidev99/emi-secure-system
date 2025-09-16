@@ -2,6 +2,8 @@
 
 
 
+
+
 const express = require('express');
 const admin = require('firebase-admin');
 const Customer = require('../models/customer.model');
@@ -146,23 +148,42 @@ router.post('/devices/register', async (req, res) => {
             return res.status(400).json({ message: 'Total price must be greater than the down payment.' });
         }
 
-        // --- Step 1: Check for existing device and register or update ---
-        
-        // FIX: Add a robust check to prevent duplicate devices and provide a clear error.
-        // The unique constraints on the model will throw a generic error, so we catch it here first.
+        let device; // This will hold the device document, whether new or existing.
+
         const existingDevice = await Device.findOne({ $or: [{ imei }, { androidId }] });
+        
         if (existingDevice) {
-            return res.status(400).json({ message: 'A device with this IMEI or Android ID already exists.' });
+            // --- Logic for an existing device ---
+            console.log("Found existing device, checking for active payments...");
+            const activePaymentCount = await Payment.countDocuments({
+                deviceId: existingDevice._id,
+                status: { $in: [PaymentStatus.Pending, PaymentStatus.Overdue] }
+            });
+
+            if (activePaymentCount > 0) {
+                console.log(`Device has ${activePaymentCount} active payments. Rejecting.`);
+                return res.status(400).json({ message: 'This device is already associated with an active or overdue EMI plan.' });
+            }
+
+            console.log("No active payments found. Re-registering device for new plan.");
+            // Update the device with the new customer and reset its status to Active
+            existingDevice.customerId = customerId;
+            existingDevice.status = DeviceStatus.Active;
+            await existingDevice.save();
+            device = existingDevice;
+
+        } else {
+            // --- Logic for a brand new device ---
+            console.log("No existing device found. Creating a new one.");
+            // Generate a permanent, unique 6-character alphanumeric unlock key.
+            const unlockKey = Math.random().toString(36).substring(2, 8).toUpperCase();
+            
+            const newDevice = new Device({ customerId, imei, androidId, model, unlockKey });
+            await newDevice.save();
+            device = newDevice;
         }
         
-        // Generate a permanent, unique 6-character alphanumeric unlock key.
-        const unlockKey = Math.random().toString(36).substring(2, 8).toUpperCase();
-        
-        // Create the new device since it doesn't exist
-        const device = new Device({ customerId, imei, androidId, model, unlockKey });
-        await device.save();
-        
-        // --- Step 2: Generate EMI Payment Schedule ---
+        // --- Step 2: Generate EMI Payment Schedule (Common for both new and existing devices) ---
         const loanAmount = totalPrice - downPayment;
         const emiAmount = loanAmount / numberOfEmis;
         const startDate = new Date(emiStartDate);
@@ -172,14 +193,12 @@ router.post('/devices/register', async (req, res) => {
         for (let i = 1; i <= numberOfEmis; i++) {
             const dueDate = new Date(startDate);
             // The first EMI (i=1) is due one month after the start date.
-            // The second EMI (i=2) is due two months after, and so on.
             dueDate.setMonth(dueDate.getMonth() + i);
 
             const newPayment = new Payment({
                 customerId,
-                deviceId: device._id,
+                deviceId: device._id, // Use the ID from the correct device variable
                 amount: emiAmount,
-                dueDate,
                 status: PaymentStatus.Pending,
             });
             paymentPromises.push(newPayment.save());
