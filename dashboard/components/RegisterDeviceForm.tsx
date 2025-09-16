@@ -26,7 +26,7 @@ const RegisterDeviceForm: React.FC<RegisterDeviceFormProps> = ({ customers, onSu
   const [model, setModel] = useState('');
   const [totalPrice, setTotalPrice] = useState('');
   const [downPayment, setDownPayment] = useState('');
-  const [numberOfEmis, setNumberOfEmis] = useState('');
+  const [numberOfEmis, setNumberOfEmis] = useState('12'); // Default to a common plan
   const [emiStartDate, setEmiStartDate] = useState(new Date().toISOString().split('T')[0]);
   
   // Form status state
@@ -34,6 +34,8 @@ const RegisterDeviceForm: React.FC<RegisterDeviceFormProps> = ({ customers, onSu
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   
+  const emiPlanOptions = [3, 4, 6, 8, 9, 10, 12];
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isNewCustomer && !customerId) {
@@ -161,7 +163,17 @@ const RegisterDeviceForm: React.FC<RegisterDeviceFormProps> = ({ customers, onSu
                 </div>
                 <div>
                 <label htmlFor="numberOfEmis" className="block text-sm font-medium text-slate-300">Number of EMIs</label>
-                <input type="number" id="numberOfEmis" value={numberOfEmis} onChange={(e) => setNumberOfEmis(e.target.value)} required min="1" className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 bg-slate-700 text-white" />
+                 <select
+                    id="numberOfEmis"
+                    value={numberOfEmis}
+                    onChange={(e) => setNumberOfEmis(e.target.value)}
+                    required
+                    className="mt-1 block w-full px-3 py-2 border border-slate-600 bg-slate-700 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 text-white"
+                  >
+                    {emiPlanOptions.map(plan => (
+                      <option key={plan} value={plan}>{plan} Months</option>
+                    ))}
+                  </select>
                 </div>
             </div>
             <div className="mb-6">
