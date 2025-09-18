@@ -19,17 +19,19 @@ import com.emiseure.customer.databinding.ActivityMainBinding
 import com.google.android.gms.tasks.OnCompleteListener
 import com.google.firebase.messaging.FirebaseMessaging
 import org.json.JSONObject
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     
-    // CRITICAL: You may need to change this IP address to your computer's local IP address.
-    private val publicBackendUrl = "https://emi-secure-system.onrender.com/api/public"
-    
     // Use a lazy delegate to initialize SharedPreferences with device-protected storage context.
     private val prefs by lazy {
         createDeviceProtectedStorageContext().getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
+    }
+
+    companion object {
+        private const val PUBLIC_BACKEND_URL = "https://emi-secure-system.onrender.com/api/public"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -114,7 +116,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendFcmTokenToServer(androidId: String, fcmToken: String) {
         val requestQueue = Volley.newRequestQueue(this)
-        val url = "$publicBackendUrl/devices/fcm-update"
+        val url = "$PUBLIC_BACKEND_URL/devices/fcm-update"
         val params = JSONObject()
         params.put("androidId", androidId)
         params.put("fcmToken", fcmToken)
@@ -132,9 +134,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun fetchDeviceStatus(androidId: String) {
         showLoading(true)
+        binding.syncStatusTextView.text = getString(R.string.sync_status_syncing)
+        binding.syncStatusTextView.setTextColor(ContextCompat.getColor(this, R.color.status_pending))
 
         val requestQueue = Volley.newRequestQueue(this)
-        val url = "$publicBackendUrl/device-status"
+        val url = "$PUBLIC_BACKEND_URL/device-status"
         val params = JSONObject()
         params.put("androidId", androidId)
 
@@ -142,6 +146,11 @@ class MainActivity : AppCompatActivity() {
             { response ->
                 showLoading(false)
                 Log.d("API_SUCCESS", response.toString())
+                
+                // Update sync status on success
+                val currentTime = java.text.SimpleDateFormat("hh:mm:ss a", Locale.getDefault()).format(java.util.Date())
+                binding.syncStatusTextView.text = getString(R.string.sync_status_success, currentTime)
+                binding.syncStatusTextView.setTextColor(ContextCompat.getColor(this, R.color.status_paid))
 
                 // Save the latest unlock key from the server to device-protected storage
                 if (response.has("unlockKey")) {
@@ -150,15 +159,18 @@ class MainActivity : AppCompatActivity() {
                     Log.d("MainActivity", "Saved unlock key to device-protected storage: $key")
                 }
                 
-                // NEW: Self-heal by synchronizing lock state with the server
                 checkAndSyncLockState(response)
-
                 updateUiWithStatus(response)
             },
             { error ->
                 showLoading(false)
                 Log.e("API_ERROR", error.toString())
-                var errorMessage = "Could not connect to the server. Please check your network and ensure the IP address in the code is correct."
+                
+                // Update sync status on failure
+                binding.syncStatusTextView.text = getString(R.string.sync_status_failed)
+                binding.syncStatusTextView.setTextColor(ContextCompat.getColor(this, R.color.status_overdue))
+
+                var errorMessage = "Could not connect to the server. Please check your network and ensure the IP address in the MainActivity.kt file is correct."
                 if (error.networkResponse != null) {
                     val errorData = String(error.networkResponse.data)
                     try {
