@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:app="http://schemas.android.com/apk/res/auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -25,7 +25,7 @@
             android:layout_width="96dp"
             android:layout_height="96dp"
             android:contentDescription="@string/device_locked_title"
-            app:srcCompat="@drawable/ic_lock"
+            app:srcCompat="@android:drawable/ic_lock_lock"
             app:tint="@color/white" />
 
         <TextView
@@ -126,10 +126,10 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="8dp"
                 android:layout_weight="1"
-                android:backgroundTint="@color/status_paid"
-                android:text="@string/submit" />
-
+                android:text="@string/unlock" />
         </LinearLayout>
+
     </LinearLayout>
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>
