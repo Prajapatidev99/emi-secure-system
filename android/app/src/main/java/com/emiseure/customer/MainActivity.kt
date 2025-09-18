@@ -156,7 +156,7 @@ class MainActivity : AppCompatActivity() {
                 // Save the latest unlock key from the server to device-protected storage
                 if (response.has("unlockKey")) {
                     val key = response.getString("unlockKey")
-                    prefs.edit().putString("UNLOCK_KEY", key).apply()
+                    prefs.edit().putString("UNLOCK_KEY", key).commit()
                     Log.d("MainActivity", "Saved unlock key to device-protected storage: $key")
                 }
                 
@@ -197,7 +197,7 @@ class MainActivity : AppCompatActivity() {
         if (isServerLocked && !isLocalLocked) {
             // Server says lock, but we are unlocked. LOCK NOW.
             Log.w("LockSync", "Discrepancy found. Locking device to match server state.")
-            prefs.edit().putBoolean("IS_LOCKED", true).apply()
+            prefs.edit().putBoolean("IS_LOCKED", true).commit()
             val lockIntent = Intent(this, LockScreenActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
@@ -205,7 +205,7 @@ class MainActivity : AppCompatActivity() {
         } else if (!isServerLocked && isLocalLocked) {
             // Server says unlock, but we are locked. UNLOCK NOW.
             Log.i("LockSync", "Discrepancy found. Unlocking device to match server state.")
-            prefs.edit().putBoolean("IS_LOCKED", false).apply()
+            prefs.edit().putBoolean("IS_LOCKED", false).commit()
             val unlockIntent = Intent("com.emiseure.customer.ACTION_UNLOCK")
             sendBroadcast(unlockIntent)
         }
