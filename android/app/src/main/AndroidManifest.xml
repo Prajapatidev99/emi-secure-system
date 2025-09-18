@@ -5,8 +5,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+    <!-- Crucial permission to allow the app to run on startup -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-        
 
     <application
         android:allowBackup="true"
@@ -62,8 +62,8 @@
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
             </intent-filter>
         </receiver>
-
-          <!-- +++ ADDED: Boot Receiver for persistent lock +++ -->
+        
+        <!-- Boot Receiver for persistent lock. Now Direct Boot aware. -->
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"
@@ -74,7 +74,6 @@
                 <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
-
 
     </application>
 </manifest>

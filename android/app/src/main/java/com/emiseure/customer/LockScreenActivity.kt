@@ -89,15 +89,15 @@ class LockScreenActivity : AppCompatActivity() {
 
             // Enhanced check for debugging
             if (correctKey.isNullOrEmpty()) {
-                Toast.makeText(this, "Error: Key not synced. Please connect to internet and reopen the main app screen.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Error: Key not synced. Please connect to internet and reopen main app screen.", Toast.LENGTH_LONG).show()
+                val prefsContents = prefs.all.toString()
+                Log.e("LockScreen", "Unlock key is null or empty. Current Prefs: $prefsContents")
             } else if (enteredKey == correctKey) {
                 Toast.makeText(this, "Device Unlocked!", Toast.LENGTH_SHORT).show()
                 // Set lock state to false and send broadcast to fully unlock
-                prefs.edit().putBoolean("IS_LOCKED", false).apply()
+                prefs.edit().putBoolean("IS_LOCKED", false).commit()
                 sendBroadcast(Intent("com.emiseure.customer.ACTION_UNLOCK"))
             } else {
-                // TEMPORARY: Show both keys to help diagnose the mismatch.
-                // This gives the user immediate feedback on what the device *thinks* the key is.
                 val debugMessage = "Incorrect Key. App expects: $correctKey"
                 Toast.makeText(this, debugMessage, Toast.LENGTH_LONG).show()
                 binding.keypadInput.text.clear()

@@ -31,7 +31,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
-       
         private const val PUBLIC_BACKEND_URL = "https://emi-secure-system.onrender.com/api/public"
     }
 
@@ -156,8 +155,8 @@ class MainActivity : AppCompatActivity() {
                 // Save the latest unlock key from the server to device-protected storage
                 if (response.has("unlockKey")) {
                     val key = response.getString("unlockKey")
-                    prefs.edit().putString("UNLOCK_KEY", key).commit()
-                    Log.d("MainActivity", "Saved unlock key to device-protected storage: $key")
+                    val saved = prefs.edit().putString("UNLOCK_KEY", key).commit()
+                    Log.d("MainActivity", "Saved unlock key to device-protected storage: $key. Success: $saved")
                 }
                 
                 checkAndSyncLockState(response)
