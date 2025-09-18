@@ -6,109 +6,119 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.View
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.content.ContextCompat
 import com.emiseure.customer.databinding.ActivityLockScreenBinding
+import java.util.Locale
 
 class LockScreenActivity : AppCompatActivity() {
 
-    // This binding object is the key to accessing UI elements.
     private lateinit var binding: ActivityLockScreenBinding
+    private var iconClickCount = 0
+    private val handler = Handler(Looper.getMainLooper())
+    private var resetClickCountRunnable: Runnable? = null
+
 
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.emiseure.customer.ACTION_UNLOCK") {
-                unlockDevice()
+                // CRITICAL FIX: The activity must be taken out of Kiosk Mode (Lock Task)
+                // before it can be programmatically closed.
+                stopLockTask()
+                finishAndRemoveTask()
             }
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Inflate the layout using the binding object
         binding = ActivityLockScreenBinding.inflate(layoutInflater)
-        // Set the content view to the root of the binding
         setContentView(binding.root)
 
+        // Make the activity full-screen and show over the lock screen
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                        or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                        or WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+            )
+        }
+        
+        val filter = IntentFilter("com.emiseure.customer.ACTION_UNLOCK")
+        // FIX: Use RECEIVER_NOT_EXPORTED for better security, as this broadcast is internal to the app.
+        registerReceiver(unlockReceiver, filter, RECEIVER_NOT_EXPORTED)
+
+        setupOfflineUnlock()
+
         startLockTask()
+    }
 
-        val intentFilter = IntentFilter("com.emiseure.customer.ACTION_UNLOCK")
-        // Use the modern, safer way to register the receiver
-        ContextCompat.registerReceiver(this, unlockReceiver, intentFilter, ContextCompat.RECEIVER_NOT_EXPORTED)
+    private fun setupOfflineUnlock() {
+        binding.lockIcon.setOnClickListener {
+            iconClickCount++
 
+            // If a reset timer is already running, cancel it
+            resetClickCountRunnable?.let { handler.removeCallbacks(it) }
 
-        // --- THIS IS THE DEFINITIVE FIX ---
-        // All UI elements are now accessed via `binding.`
-        binding.unlockButton.setOnClickListener {
-            val enteredKey = binding.unlockKeyInput.text.toString().trim()
-            val savedKey = getUnlockKey()
-
-            if (savedKey == null) {
-                Toast.makeText(this, "Error: No offline key found for this device.", Toast.LENGTH_LONG).show()
-                return@setOnClickListener
+            // Start a new timer to reset the click count after 2 seconds
+            resetClickCountRunnable = Runnable {
+                iconClickCount = 0
             }
-            
-            // Perform a case-insensitive comparison
-            if (enteredKey.isNotEmpty() && enteredKey.equals(savedKey, ignoreCase = true)) {
-                unlockDevice()
-            } else {
-                Toast.makeText(this, "Incorrect key. Please try again.", Toast.LENGTH_SHORT).show()
-                binding.unlockKeyInput.error = "Incorrect key"
+            handler.postDelayed(resetClickCountRunnable!!, 2000)
+
+            if (iconClickCount >= 5) {
+                binding.keypadContainer.visibility = View.VISIBLE
+                binding.mainContent.visibility = View.GONE
+                iconClickCount = 0 // Reset after showing
             }
         }
-    }
 
-    private fun getUnlockKey(): String? {
-        // Use device-protected storage for security
-        val deviceContext = createDeviceProtectedStorageContext()
-        val prefs = deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
-        return prefs.getString("UNLOCK_KEY", null)
-    }
+        binding.keypadSubmitButton.setOnClickListener {
+            val enteredKey = binding.keypadInput.text.toString().trim().uppercase(Locale.ROOT)
+            val deviceContext = createDeviceProtectedStorageContext()
+            val prefs = deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
+            val correctKey = prefs.getString("UNLOCK_KEY", null)
 
-    private fun unlockDevice() {
-        Toast.makeText(this, "Device Unlocked!", Toast.LENGTH_SHORT).show()
-        // Correctly exit kiosk mode before finishing the activity
-        stopLockTask()
-        finishAndRemoveTask()
+            // Enhanced check for debugging
+            if (correctKey.isNullOrEmpty()) {
+                Toast.makeText(this, "Error: Key not synced. Please connect to internet and reopen the main app screen.", Toast.LENGTH_LONG).show()
+            } else if (enteredKey == correctKey) {
+                Toast.makeText(this, "Device Unlocked!", Toast.LENGTH_SHORT).show()
+                // Set lock state to false and send broadcast to fully unlock
+                prefs.edit().putBoolean("IS_LOCKED", false).apply()
+                sendBroadcast(Intent("com.emiseure.customer.ACTION_UNLOCK"))
+            } else {
+                // TEMPORARY: Show both keys to help diagnose the mismatch.
+                // This gives the user immediate feedback on what the device *thinks* the key is.
+                val debugMessage = "Incorrect Key. App expects: $correctKey"
+                Toast.makeText(this, debugMessage, Toast.LENGTH_LONG).show()
+                binding.keypadInput.text.clear()
+            }
+        }
+
+        binding.keypadCancelButton.setOnClickListener {
+            binding.keypadContainer.visibility = View.GONE
+            binding.mainContent.visibility = View.VISIBLE
+            binding.keypadInput.text.clear()
+        }
     }
 
     override fun onDestroy() {
         super.onDestroy()
         unregisterReceiver(unlockReceiver)
+        stopLockTask()
     }
 
+    @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        // Explicitly disable the back button to prevent escaping the lock screen
-        Toast.makeText(this, "This action is disabled.", Toast.LENGTH_SHORT).show()
-    }
-
-    override fun onWindowFocusChanged(hasFocus: Boolean) {
-        super.onWindowFocusChanged(hasFocus)
-        if (!hasFocus) {
-            // Close system dialogs (like the notification shade) if the window loses focus
-            val closeDialogs = Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)
-            sendBroadcast(closeDialogs)
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    override fun onResume() {
-        super.onResume()
-        // Enforce immersive fullscreen mode
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            window.setDecorFitsSystemWindows(false)
-            val controller = window.insetsController
-            controller?.hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
-            controller?.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        } else {
-            window.decorView.systemUiVisibility = (View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    or View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                    or View.SYSTEM_UI_FLAG_FULLSCREEN)
-        }
+        // Do nothing. The user is locked in.
     }
 }
