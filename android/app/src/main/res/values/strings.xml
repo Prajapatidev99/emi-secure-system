@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">EMI Secure</string>
+    <string name="app_name">DEV MOBILE</string>
     <string name="your_device_id">Your Device ID: %s</string>
     <string name="device_admin_inactive">Security: Device Admin INACTIVE</string>
     <string name="device_admin_active">Security: Device Admin Active</string>

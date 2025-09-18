@@ -112,7 +112,7 @@
                 android:textSize="14sp"
                 android:textColor="@color/text_secondary"
                 tools:text="Device Status: Active" />
-
+            
             <LinearLayout
                 android:id="@+id/statusDetailsLayout"
                 android:layout_width="match_parent"

@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
@@ -18,16 +19,14 @@ import java.util.Locale
 class LockScreenActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityLockScreenBinding
+    private var offlineUnlockKey: String? = null
     private var iconClickCount = 0
     private val handler = Handler(Looper.getMainLooper())
     private var resetClickCountRunnable: Runnable? = null
 
-
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.emiseure.customer.ACTION_UNLOCK") {
-                // CRITICAL FIX: The activity must be taken out of Kiosk Mode (Lock Task)
-                // before it can be programmatically closed.
                 stopLockTask()
                 finishAndRemoveTask()
             }
@@ -53,53 +52,62 @@ class LockScreenActivity : AppCompatActivity() {
         }
         
         val filter = IntentFilter("com.emiseure.customer.ACTION_UNLOCK")
-        // FIX: Use RECEIVER_NOT_EXPORTED for better security, as this broadcast is internal to the app.
         registerReceiver(unlockReceiver, filter, RECEIVER_NOT_EXPORTED)
 
-        setupOfflineUnlock()
+        // --- DEFINITIVE FIX for "Key not synced" error ---
+        // This logic robustly retrieves the unlock key, prioritizing the one passed
+        // directly from MainActivity to avoid any file-system race conditions.
+        val keyFromIntent = intent.getStringExtra("UNLOCK_KEY_VIA_INTENT")
+        val deviceContext = createDeviceProtectedStorageContext()
+        val prefs = deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
 
+        if (!keyFromIntent.isNullOrEmpty()) {
+            // Path 1: Key was passed directly. This is the most reliable path.
+            Log.d("LockScreen", "Received unlock key directly via Intent. Saving it for future use.")
+            offlineUnlockKey = keyFromIntent
+            // Also save it to make sure it's available for future reboots.
+            prefs.edit().putString("UNLOCK_KEY", offlineUnlockKey).apply() // Can be async here
+        } else {
+            // Path 2: Launched from reboot or FCM. Rely on previously saved storage.
+            Log.d("LockScreen", "No key in Intent, reading from device-protected storage.")
+            offlineUnlockKey = prefs.getString("UNLOCK_KEY", null)
+        }
+
+        setupOfflineUnlock()
         startLockTask()
     }
 
     private fun setupOfflineUnlock() {
         binding.lockIcon.setOnClickListener {
             iconClickCount++
-
-            // If a reset timer is already running, cancel it
             resetClickCountRunnable?.let { handler.removeCallbacks(it) }
-
-            // Start a new timer to reset the click count after 2 seconds
-            resetClickCountRunnable = Runnable {
-                iconClickCount = 0
-            }
+            resetClickCountRunnable = Runnable { iconClickCount = 0 }
             handler.postDelayed(resetClickCountRunnable!!, 2000)
 
             if (iconClickCount >= 5) {
                 binding.keypadContainer.visibility = View.VISIBLE
                 binding.mainContent.visibility = View.GONE
-                iconClickCount = 0 // Reset after showing
+                iconClickCount = 0
             }
         }
 
         binding.keypadSubmitButton.setOnClickListener {
             val enteredKey = binding.keypadInput.text.toString().trim().uppercase(Locale.ROOT)
-            val deviceContext = createDeviceProtectedStorageContext()
-            val prefs = deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
-            val correctKey = prefs.getString("UNLOCK_KEY", null)
+            val correctKey = offlineUnlockKey
 
-            // Enhanced check for debugging
             if (correctKey.isNullOrEmpty()) {
-                Toast.makeText(this, "Error: Key not synced. Please connect to internet and reopen main app screen.", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Error: Key not synced. Connect to internet and reopen main app.", Toast.LENGTH_LONG).show()
+                val prefs = createDeviceProtectedStorageContext().getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
                 val prefsContents = prefs.all.toString()
-                Log.e("LockScreen", "Unlock key is null or empty. Current Prefs: $prefsContents")
+                Log.e("LockScreen", "Unlock key is null or empty. This can happen if the app was locked via reboot/FCM before a successful sync. Current Prefs: $prefsContents")
             } else if (enteredKey == correctKey) {
                 Toast.makeText(this, "Device Unlocked!", Toast.LENGTH_SHORT).show()
-                // Set lock state to false and send broadcast to fully unlock
+                // Save unlock state and send broadcast to finish this activity
+                val prefs = createDeviceProtectedStorageContext().getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
                 prefs.edit().putBoolean("IS_LOCKED", false).commit()
                 sendBroadcast(Intent("com.emiseure.customer.ACTION_UNLOCK"))
             } else {
-                val debugMessage = "Incorrect Key. App expects: $correctKey"
-                Toast.makeText(this, debugMessage, Toast.LENGTH_LONG).show()
+                Toast.makeText(this, "Incorrect Key.", Toast.LENGTH_LONG).show()
                 binding.keypadInput.text.clear()
             }
         }

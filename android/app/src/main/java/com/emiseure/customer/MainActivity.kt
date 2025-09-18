@@ -31,6 +31,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        // CRITICAL: You must change this IP address to your computer's local IP address.
+        // On Windows, open Command Prompt and type 'ipconfig'.
+        // On Mac/Linux, open Terminal and type 'ifconfig'.
+        // It will look like "192.168.1.X".
         private const val PUBLIC_BACKEND_URL = "https://emi-secure-system.onrender.com/api/public"
     }
 
@@ -82,6 +86,14 @@ class MainActivity : AppCompatActivity() {
                 Log.d("DeviceAdmin", "Account modification has been disabled.")
             } catch (e: SecurityException) {
                 Log.e("DeviceAdmin", "Failed to disable account modification", e)
+            }
+            
+            // CRITICAL SECURITY FIX: Block factory reset from settings to prevent bypass.
+            try {
+                dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
+                Log.d("DeviceAdmin", "Factory reset from Settings has been disabled.")
+            } catch (e: SecurityException) {
+                Log.e("DeviceAdmin", "Failed to disable factory reset", e)
             }
 
         } else if (dpm.isAdminActive(adminComponent)) {
@@ -152,14 +164,14 @@ class MainActivity : AppCompatActivity() {
                 binding.syncStatusTextView.text = getString(R.string.sync_status_success, currentTime)
                 binding.syncStatusTextView.setTextColor(ContextCompat.getColor(this, R.color.status_paid))
 
-                // Save the latest unlock key from the server to device-protected storage
+                var unlockKey: String? = null
                 if (response.has("unlockKey")) {
-                    val key = response.getString("unlockKey")
-                    val saved = prefs.edit().putString("UNLOCK_KEY", key).commit()
-                    Log.d("MainActivity", "Saved unlock key to device-protected storage: $key. Success: $saved")
+                    unlockKey = response.getString("unlockKey")
+                    val saved = prefs.edit().putString("UNLOCK_KEY", unlockKey).commit()
+                    Log.d("MainActivity", "Saved unlock key to device-protected storage: $unlockKey. Success: $saved")
                 }
                 
-                checkAndSyncLockState(response)
+                checkAndSyncLockState(response, unlockKey)
                 updateUiWithStatus(response)
             },
             { error ->
@@ -186,7 +198,7 @@ class MainActivity : AppCompatActivity() {
         requestQueue.add(jsonObjectRequest)
     }
 
-    private fun checkAndSyncLockState(status: JSONObject) {
+    private fun checkAndSyncLockState(status: JSONObject, unlockKey: String?) {
         val serverStatus = status.optString("deviceStatus", "Unknown")
         val isServerLocked = serverStatus == "Locked"
         val isLocalLocked = prefs.getBoolean("IS_LOCKED", false)
@@ -199,6 +211,11 @@ class MainActivity : AppCompatActivity() {
             prefs.edit().putBoolean("IS_LOCKED", true).commit()
             val lockIntent = Intent(this, LockScreenActivity::class.java).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                // CRITICAL FIX: Pass the key directly to the lock screen to avoid the race condition
+                // where the activity starts before the key is saved to storage.
+                if (unlockKey != null) {
+                    putExtra("UNLOCK_KEY_VIA_INTENT", unlockKey)
+                }
             }
             startActivity(lockIntent)
         } else if (!isServerLocked && isLocalLocked) {
