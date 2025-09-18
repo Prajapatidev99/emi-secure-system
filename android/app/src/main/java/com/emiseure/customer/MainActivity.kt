@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+       
         private const val PUBLIC_BACKEND_URL = "https://emi-secure-system.onrender.com/api/public"
     }
 
