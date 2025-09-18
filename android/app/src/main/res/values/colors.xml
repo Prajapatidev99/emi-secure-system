@@ -3,18 +3,18 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <!-- App Branding Colors -->
-    <color name="brand_primary">#0284c7</color>
-    <color name="brand_primary_dark">#0369a1</color>
-    <color name="brand_accent">#38bdf8</color>
-    
-    <!-- UI Colors -->
-    <color name="app_background">#f1f5f9</color>
-    <color name="text_primary">#1e293b</color>
-    <color name="text_secondary">#64748b</color>
+    <!-- Brand & Theme Colors -->
+    <color name="brand_primary">#0c4a6e</color> <!-- Dark Blue -->
+    <color name="brand_primary_dark">#07354f</color>
+    <color name="brand_accent">#38bdf8</color> <!-- Light Blue -->
+    <color name="app_background">#f8fafc</color>
+
+    <!-- Text Colors -->
+    <color name="text_primary">#1e293b</color> <!-- Slate 800 -->
+    <color name="text_secondary">#64748b</color> <!-- Slate 500 -->
 
     <!-- Status Colors -->
-    <color name="status_paid">#16a34a</color>
-    <color name="status_pending">#f59e0b</color>
-    <color name="status_overdue">#dc2626</color>
+    <color name="status_paid">#059669</color> <!-- Teal 600 -->
+    <color name="status_pending">#f59e0b</color> <!-- Amber 500 -->
+    <color name="status_overdue">#e11d48</color> <!-- Rose 600 -->
 </resources>
