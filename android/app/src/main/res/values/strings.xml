@@ -1,32 +1,32 @@
 <resources>
     <string name="app_name">EMI Secure</string>
-    
-    <!-- UI Labels -->
+    <string name="your_device_id">Your Device ID: %s</string>
+    <string name="device_admin_inactive">Security: Device Admin INACTIVE</string>
+    <string name="device_admin_active">Security: Device Admin Active</string>
     <string name="your_emi_status">Your EMI Status</string>
+    <string name="welcome_customer">Welcome, %s</string>
     <string name="next_due_date">Next Due Date</string>
     <string name="amount_due">Amount Due</string>
-    <string name="retry">Retry</string>
-    <string name="payment_was_due">Payment was Due</string>
-    <string name="your_device_id">Your Device ID: %s</string>
-    <string name="welcome_customer">Welcome, %s</string>
-    <string name="device_status_label">Device Status: %s</string>
-
-    <!-- Status Titles -->
-    <string name="status_all_clear">All Clear</string>
+    <string name="status_all_clear">All Clear!</string>
     <string name="status_pending">Payment Pending</string>
     <string name="status_overdue">Payment Overdue</string>
-    
-    <!-- Device Admin -->
-    <string name="device_admin_description">Enables remote locking and wiping for EMI security.</string>
-    <string name="device_admin_active">Security: Device Admin Active</string>
-    <string name="device_admin_inactive">Security: Device Admin INACTIVE</string>
+    <string name="payment_was_due">Payment was due on</string>
+    <string name="device_status_label">Device Status: %s</string>
+    <string name="retry">Retry</string>
     
     <!-- Lock Screen -->
     <string name="device_locked_title">Device Locked</string>
-    <string name="device_locked_message">Your device has been locked due to a pending EMI payment. Please contact the shop to resolve this issue.</string>
-    <string name="offline_unlock_prompt">Tap the lock icon 5 times for offline unlock</string>
+    <string name="device_locked_message">Your EMI payment is overdue. This device has been locked. Please contact the shop to make your payment and unlock the device.</string>
+
+    <!-- Device Admin -->
+    <string name="device_admin_description">This permission is required to remotely lock or wipe the device in case of payment failure.</string>
+    <string name="offline_unlock_prompt">For offline unlock, tap the lock icon 5 times.</string>
     <string name="enter_offline_key">Enter Offline Key</string>
     <string name="cancel">Cancel</string>
-    <string name="submit">Submit</string>
-
+    <string name="unlock">Unlock</string>
+    
+    <!-- Sync Status -->
+    <string name="sync_status_syncing">Sync Status: Syncing...</string>
+    <string name="sync_status_success">Sync Status: Success at %s</string>
+    <string name="sync_status_failed">Sync Status: Failed. Check connection/IP.</string>
 </resources>
