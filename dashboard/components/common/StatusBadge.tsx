@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { PaymentStatus, DeviceStatus } from '../../types';
 
@@ -17,6 +18,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({ status }) => {
     [DeviceStatus.Active]: 'bg-sky-900 text-sky-300',
     [DeviceStatus.Locked]: 'bg-slate-700 text-slate-200',
     [DeviceStatus.Compromised]: 'bg-purple-900 text-purple-300',
+    [DeviceStatus.Released]: 'bg-green-900 text-green-300',
   };
 
   const style = statusStyles[status] || 'bg-slate-700 text-slate-200';

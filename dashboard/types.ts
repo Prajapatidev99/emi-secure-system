@@ -1,4 +1,5 @@
 
+
 export enum PaymentStatus {
   Paid = 'Paid',
   Pending = 'Pending',
@@ -9,6 +10,7 @@ export enum DeviceStatus {
     Active = 'Active',
     Locked = 'Locked',
     Compromised = 'Compromised',
+    Released = 'Released',
 }
 
 export interface Customer {

@@ -1,5 +1,4 @@
-
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { getCustomers } from '../services/api';
 import { Customer } from '../types';
 import Card from './common/Card';
@@ -38,8 +37,11 @@ const CustomersView = () => {
   }, []);
 
   useEffect(() => {
-    fetchCustomers();
-  }, [fetchCustomers]);
+    // Only fetch customers when in the list view
+    if (!selectedCustomerId) {
+      fetchCustomers();
+    }
+  }, [fetchCustomers, selectedCustomerId]);
 
   const handleCustomerAdded = () => {
     setAddCustomerModalOpen(false);

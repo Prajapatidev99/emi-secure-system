@@ -1,425 +1,232 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { getDashboardStats, getPendingPayments, lockDevice, unlockDevice, markPaymentAsPaid, hardResetDevice, getOfflineUnlockKey } from '../services/api';
-import { EmiPayment, DeviceStatus } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { getCustomerById, getDevicesForCustomer, getPaymentsForCustomer, releaseDevice } from '../services/api';
+import { Customer, Device, EmiPayment, PaymentStatus, DeviceStatus } from '../types';
 import Card from './common/Card';
-import StatusBadge from './common/StatusBadge';
-import Button from './common/Button';
-import { LockClosedIcon, LockOpenIcon, CheckCircleIcon, ExclamationTriangleIcon, KeyIcon } from './icons';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Skeleton from './common/Skeleton';
+import Button from './common/Button';
 import Spinner from './common/Spinner';
+import StatusBadge from './common/StatusBadge';
 import ConfirmationModal from './common/ConfirmationModal';
-import Modal from './common/Modal';
+import { ShieldCheckIcon } from './icons';
 
-interface DashboardStats {
-    totalEmiCollected: number;
-    overduePayments: number;
-    lockedDevices: number;
-    monthlyData: { name: string; revenue: number }[];
+interface CustomerDetailViewProps {
+  customerId: string;
+  onBack: () => void;
 }
 
-const LockPanel = () => {
+const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => {
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [devices, setDevices] = useState<Device[]>([]);
   const [payments, setPayments] = useState<EmiPayment[]>([]);
-  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
-  const [paymentLoading, setPaymentLoading] = useState<Record<string, boolean>>({});
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
-  
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [confirmationDetails, setConfirmationDetails] = useState<{
-    payment: EmiPayment;
-    action: 'lock' | 'unlock' | 'reset';
-    title: string;
-    message: React.ReactNode;
-    variant: 'danger' | 'success';
-  } | null>(null);
-  
-  const [isOfflineKeyModalOpen, setOfflineKeyModalOpen] = useState(false);
-  const [offlineKey, setOfflineKey] = useState<string | null>(null);
-  const [offlineKeyLoading, setOfflineKeyLoading] = useState(false);
 
-  
-  const fetchPayments = useCallback(async () => {
-    try {
+  // State for the release confirmation modal
+  const [isReleaseModalOpen, setReleaseModalOpen] = useState(false);
+  const [deviceToRelease, setDeviceToRelease] = useState<Device | null>(null);
+  const [releaseLoading, setReleaseLoading] = useState(false);
+
+
+  const fetchCustomerData = async () => {
+      setLoading(true);
       setError(null);
-      const data = await getPendingPayments();
-      setPayments(data);
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Failed to fetch pending payments.');
+      try {
+        const customerData = getCustomerById(customerId);
+        const devicesData = getDevicesForCustomer(customerId);
+        const paymentsData = getPaymentsForCustomer(customerId);
+
+        const [customerResult, devicesResult, paymentsResult] = await Promise.all([
+          customerData,
+          devicesData,
+          paymentsData,
+        ]);
+        
+        setCustomer(customerResult);
+        setDevices(devicesResult);
+        setPayments(paymentsResult);
+
+      } catch (err) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Failed to fetch customer details.');
+        }
+      } finally {
+        setLoading(false);
       }
-    }
-  }, []);
+    };
 
   useEffect(() => {
-    setInitialLoading(true);
-    fetchPayments().finally(() => setInitialLoading(false));
-  }, [fetchPayments]);
+    fetchCustomerData();
+  }, [customerId]);
 
-  const handleDeviceAction = async (deviceId: string, action: 'lock' | 'unlock' | 'reset') => {
-    setActionLoading(prev => ({ ...prev, [deviceId]: true }));
-    try {
-      if (action === 'lock') {
-        await lockDevice(deviceId);
-      } else if (action === 'unlock') {
-        await unlockDevice(deviceId);
-      } else if (action === 'reset') {
-        await hardResetDevice(deviceId);
-      }
-      // Refresh data after action
-      fetchPayments();
-    } catch (err) {
-      console.error(`Failed to ${action} device`, err);
-       if (err instanceof Error) {
-        alert(`Error: ${err.message}`);
-      }
-    } finally {
-      setActionLoading(prev => ({ ...prev, [deviceId]: false }));
-    }
-  };
-
-  const confirmDeviceAction = (payment: EmiPayment, action: 'lock' | 'unlock' | 'reset') => {
-    let details: { title: string; message: React.ReactNode; variant: 'danger' | 'success' };
-    switch(action) {
-      case 'lock':
-        details = {
-          title: 'Confirm Device Lock',
-          message: (
-            <>
-              Are you sure you want to lock device{' '}
-              <strong className="font-semibold text-white">{payment.deviceModel} ({payment.deviceImei})</strong>?
-            </>
-          ),
-          variant: 'danger' as const,
-        };
-        break;
-      case 'unlock':
-         details = {
-          title: 'Confirm Device Unlock',
-          message: (
-            <>
-              Are you sure you want to unlock device{' '}
-              <strong className="font-semibold text-white">{payment.deviceModel} ({payment.deviceImei})</strong>?
-            </>
-          ),
-          variant: 'success' as const,
-        };
-        break;
-      case 'reset':
-         details = {
-          title: 'DANGER: Confirm Hard Reset',
-          message: (
-            <>
-              <p>This action is irreversible and will perform a <strong>factory reset</strong>, wiping all data from device{' '}
-              <strong className="font-semibold text-white">{payment.deviceModel} ({payment.deviceImei})</strong>.</p>
-              <p className="mt-2 text-amber-300">This command will only succeed if the app was provisioned as a "Device Owner" as per the guide. Are you absolutely sure?</p>
-            </>
-          ),
-          variant: 'danger' as const,
-        };
-        break;
-    }
-
-    setConfirmationDetails({
-      payment,
-      action,
-      ...details
-    });
-    setShowConfirmation(true);
-  };
+  const allPaymentsCleared = useMemo(() => {
+    if (payments.length === 0) return false; // Can't release if there are no payments
+    return payments.every(p => p.status === PaymentStatus.Paid);
+  }, [payments]);
   
-  const executeConfirmedAction = () => {
-    if (!confirmationDetails) return;
-    handleDeviceAction(confirmationDetails.payment.deviceId, confirmationDetails.action);
-    setShowConfirmation(false);
-    setConfirmationDetails(null);
-  };
-
-  const cancelAction = () => {
-    setShowConfirmation(false);
-    setConfirmationDetails(null);
-  };
-
-
-  const handleMarkAsPaid = async (paymentId: string) => {
-    setPaymentLoading(prev => ({ ...prev, [paymentId]: true }));
+  const handleReleaseDevice = async () => {
+    if (!deviceToRelease) return;
+    setReleaseLoading(true);
     try {
-      await markPaymentAsPaid(paymentId);
-      // Refresh data after action
-      fetchPayments();
+        await releaseDevice(deviceToRelease.id);
+        setReleaseModalOpen(false);
+        setDeviceToRelease(null);
+        // Refresh all data to show updated status
+        await fetchCustomerData(); 
     } catch (err) {
-      console.error(`Failed to mark payment as paid`, err);
-       if (err instanceof Error) {
-        alert(`Error: ${err.message}`);
-      }
-    } finally {
-      setPaymentLoading(prev => ({ ...prev, [paymentId]: false }));
-    }
-  };
-
-  const handleShowOfflineKey = async (deviceId: string) => {
-    setOfflineKeyModalOpen(true);
-    setOfflineKeyLoading(true);
-    setOfflineKey(null);
-    try {
-        const data = await getOfflineUnlockKey(deviceId);
-        setOfflineKey(data.unlockKey);
-    } catch (err) {
-        if (err instanceof Error) {
-            setOfflineKey(`Error: ${err.message}`);
-        } else {
-            setOfflineKey('An unknown error occurred.');
+         if (err instanceof Error) {
+          alert(`Error: ${err.message}`);
         }
     } finally {
-        setOfflineKeyLoading(false);
+        setReleaseLoading(false);
     }
   };
 
-  const filteredPayments = payments.filter(payment =>
-    payment.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    payment.deviceModel.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    payment.deviceImei.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-  
-  const getConfirmText = () => {
-    if (!confirmationDetails) return 'Confirm';
-    switch (confirmationDetails.action) {
-      case 'lock': return 'Yes, Lock Device';
-      case 'unlock': return 'Yes, Unlock Device';
-      case 'reset': return 'Yes, I Understand, Reset Device';
-      default: return 'Confirm';
-    }
+  const openReleaseConfirmation = (device: Device) => {
+    setDeviceToRelease(device);
+    setReleaseModalOpen(true);
   };
 
-  return (
-    <>
-      <Card>
-        <h3 className="text-xl font-semibold mb-4 text-white">Pending Payments & Device Control</h3>
-        
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="Search by customer, device model, or IMEI..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-700 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 bg-slate-800 placeholder-slate-400"
-            aria-label="Search pending payments"
-          />
-        </div>
 
-        {error && <p className="text-rose-400 text-center py-2">Error: {error}. Is the backend server running?</p>}
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-700">
-            <thead className="bg-slate-800">
-              <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Customer</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Device</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Due Date</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Payment Status</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Device Status</th>
-                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">Device Actions</th>
-                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">Record Payment</th>
-              </tr>
-            </thead>
-            <tbody className="bg-slate-900 divide-y divide-slate-800">
-              {initialLoading ? (
-                 [...Array(5)].map((_, index) => (
-                      <tr key={index}>
-                          <td className="px-6 py-4"><Skeleton className="h-4 w-24" /></td>
-                          <td className="px-6 py-4"><Skeleton className="h-4 w-32" /></td>
-                          <td className="px-6 py-4"><Skeleton className="h-4 w-20" /></td>
-                          <td className="px-6 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
-                          <td className="px-6 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
-                          <td className="px-6 py-4 text-center"><Skeleton className="h-8 w-24 mx-auto" /></td>
-                          <td className="px-6 py-4 text-center"><Skeleton className="h-8 w-24 mx-auto" /></td>
-                      </tr>
-                  ))
-              ) : filteredPayments.length > 0 ? filteredPayments.map((payment) => (
-                <tr key={payment.id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{payment.customerName}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{payment.deviceModel} ({payment.deviceImei})</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{new Date(payment.dueDate).toLocaleDateString()}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm"><StatusBadge status={payment.status} /></td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm"><StatusBadge status={payment.deviceStatus} /></td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
-                    {payment.deviceStatus === DeviceStatus.Active ? (
-                      <Button
-                        onClick={() => confirmDeviceAction(payment, 'lock')}
-                        variant="danger"
-                        size="sm"
-                        disabled={actionLoading[payment.deviceId]}
-                      >
-                        <LockClosedIcon /> {actionLoading[payment.deviceId] ? 'Locking...' : 'Lock'}
-                      </Button>
-                    ) : payment.deviceStatus === DeviceStatus.Locked ? (
-                      <>
-                        <Button
-                          onClick={() => confirmDeviceAction(payment, 'unlock')}
-                          variant="success"
-                          size="sm"
-                          disabled={actionLoading[payment.deviceId]}
-                        >
-                          <LockOpenIcon /> {actionLoading[payment.deviceId] ? 'Unlocking...' : 'Unlock'}
-                        </Button>
-                         <Button
-                          onClick={() => handleShowOfflineKey(payment.deviceId)}
-                          variant="secondary"
-                          size="sm"
-                        >
-                          <KeyIcon /> Offline Unlock
-                        </Button>
-                        <Button
-                          onClick={() => confirmDeviceAction(payment, 'reset')}
-                          variant="danger"
-                          size="sm"
-                          disabled={actionLoading[payment.deviceId]}
-                        >
-                          <ExclamationTriangleIcon /> {actionLoading[payment.deviceId] ? 'Resetting...' : 'Reset'}
-                        </Button>
-                      </>
-                    ) : null}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                     <Button
-                        onClick={() => handleMarkAsPaid(payment.id)}
-                        variant="success"
-                        size="sm"
-                        disabled={paymentLoading[payment.id]}
-                      >
-                        <CheckCircleIcon /> {paymentLoading[payment.id] ? 'Saving...' : 'Mark as Paid'}
-                      </Button>
-                  </td>
-                </tr>
-              )) : (
-                <tr>
-                  <td colSpan={8} className="text-center py-4 text-slate-400">
-                    No pending or overdue payments found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-      {confirmationDetails && (
-        <ConfirmationModal
-          isOpen={showConfirmation}
-          onClose={cancelAction}
-          onConfirm={executeConfirmedAction}
-          title={confirmationDetails.title}
-          variant={confirmationDetails.variant}
-          confirmText={getConfirmText()}
-        >
-          {confirmationDetails.message}
-        </ConfirmationModal>
-      )}
-      <Modal
-        isOpen={isOfflineKeyModalOpen}
-        onClose={() => setOfflineKeyModalOpen(false)}
-        title="Offline Unlock Key"
-      >
-        <div className="text-center">
-            <p className="text-slate-400 mb-4">Provide this permanent key to the customer to unlock their device without internet.</p>
-            {offlineKeyLoading ? <Spinner /> : (
-                <div className="bg-slate-900 p-4 rounded-lg">
-                    <p className="text-3xl font-mono tracking-widest text-amber-300">{offlineKey}</p>
-                </div>
-            )}
-        </div>
-      </Modal>
-    </>
-  );
-};
-
-interface StatCardProps {
-  title: string;
-  value: string | number;
-  loading: boolean;
-  colorClass?: string;
-}
-
-const StatCard = ({ title, value, loading, colorClass = '' }: StatCardProps) => (
-    <Card>
-        <h4 className="text-slate-400">{title}</h4>
-        {loading ? (
-            <Skeleton className="h-8 w-3/4 mt-1" />
-        ) : (
-            <p className={`text-3xl font-bold ${colorClass || 'text-white'}`}>{value}</p>
-        )}
-    </Card>
-);
-
-const DashboardView = () => {
-    const [stats, setStats] = useState<DashboardStats | null>(null);
-    const [loadingStats, setLoadingStats] = useState(true);
-
-    useEffect(() => {
-        setLoadingStats(true);
-        getDashboardStats()
-            .then(setStats)
-            .catch(err => {
-                console.error("Failed to fetch dashboard stats:", err);
-            })
-            .finally(() => setLoadingStats(false));
-    }, []);
-
+  if (loading) {
     return (
-        <div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                <StatCard 
-                    title="Total EMI Collected" 
-                    value={`₹${stats?.totalEmiCollected.toLocaleString() ?? '0'}`} 
-                    loading={loadingStats} 
-                />
-                <StatCard 
-                    title="Overdue Payments" 
-                    value={stats?.overduePayments ?? '0'} 
-                    loading={loadingStats} 
-                    colorClass="text-rose-500"
-                />
-                <StatCard 
-                    title="Locked Devices" 
-                    value={stats?.lockedDevices ?? '0'} 
-                    loading={loadingStats} 
-                    colorClass="text-amber-500"
-                />
-            </div>
-            
-            <div className="grid grid-cols-1 gap-6 mb-6">
-                <Card>
-                    <h3 className="text-xl font-semibold mb-4 text-white">Monthly Revenue</h3>
-                    <div style={{ width: '100%', height: 300 }}>
-                       {loadingStats ? (
-                            <div className="flex items-center justify-center h-full">
-                                <Spinner />
-                            </div>
-                        ) : (
-                            <ResponsiveContainer>
-                                <BarChart data={stats?.monthlyData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke={"#334155"} />
-                                    <XAxis dataKey="name" tick={{ fill: '#94a3b8' }} />
-                                    <YAxis tick={{ fill: '#94a3b8' }} />
-                                    <Tooltip 
-                                      contentStyle={{ 
-                                        backgroundColor: '#0f172a',
-                                        borderColor: '#1e293b'
-                                      }}
-                                    />
-                                    <Legend wrapperStyle={{ color: '#94a3b8' }}/>
-                                    <Bar dataKey="revenue" fill="#3b82f6" />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        )}
-                    </div>
-                </Card>
-            </div>
-
-            <LockPanel />
+        <div className="flex justify-center items-center h-64">
+            <Spinner size="lg" />
         </div>
     );
+  }
+  
+  if (error) {
+    return (
+        <Card className="border border-rose-500/30 bg-rose-900/20">
+            <p className="text-center font-bold text-rose-400">An Error Occurred</p>
+            <p className="text-center text-rose-500 mt-2">{error}</p>
+        </Card>
+    );
+  }
+
+  if (!customer) {
+    return <p className="text-center py-4">Customer not found.</p>;
+  }
+
+  return (
+    <div>
+        <div className="mb-4">
+            <Button onClick={onBack} variant="secondary">{'<'} Back to Customer List</Button>
+        </div>
+        
+        <Card className="mb-6">
+            <h2 className="text-3xl font-bold mb-2 text-white">{customer.name}</h2>
+            <p className="text-slate-400"><strong>Phone:</strong> {customer.phone}</p>
+            <p className="text-slate-400"><strong>Address:</strong> {customer.address}</p>
+        </Card>
+        
+        {/* Device Finalization Section - only shows when all payments are cleared */}
+        {allPaymentsCleared && (
+          <Card className="mb-6 border-2 border-teal-500 bg-teal-900/20">
+            <h3 className="text-xl font-semibold mb-2 text-teal-300">Device Finalization</h3>
+            <p className="text-teal-400 mb-4">All EMIs for this customer have been paid. You can now release their devices from security management.</p>
+            <div className="space-y-2">
+                {devices.map(device => (
+                    <div key={device.id} className="flex justify-between items-center bg-slate-800 p-3 rounded-md">
+                        <div>
+                            <p className="font-semibold text-white">{device.model}</p>
+                            <p className="text-sm text-slate-400">{device.imei}</p>
+                        </div>
+                        {device.status !== DeviceStatus.Released ? (
+                            <Button 
+                                variant="success" 
+                                size="sm" 
+                                onClick={() => openReleaseConfirmation(device)}
+                                disabled={releaseLoading}
+                            >
+                                <ShieldCheckIcon /> Release Device
+                            </Button>
+                        ) : (
+                            <StatusBadge status={DeviceStatus.Released} />
+                        )}
+                    </div>
+                ))}
+            </div>
+          </Card>
+        )}
+
+
+        <div className="grid grid-cols-1 gap-6">
+            <Card>
+                <h3 className="text-xl font-semibold mb-4 text-white">Registered Devices</h3>
+                 <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-700">
+                        <thead className="bg-slate-800">
+                            <tr>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Model</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">IMEI</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Android ID</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                         <tbody className="bg-slate-900 divide-y divide-slate-800">
+                            {devices.length > 0 ? devices.map(d => (
+                                <tr key={d.id}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-white">{d.model}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-slate-400">{d.imei}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap font-mono text-slate-400">{d.androidId}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={d.status} /></td>
+                                </tr>
+                            )) : (
+                                <tr><td colSpan={4} className="text-center py-4 text-slate-400">No devices found.</td></tr>
+                            )}
+                         </tbody>
+                    </table>
+                 </div>
+            </Card>
+            
+            <Card>
+                <h3 className="text-xl font-semibold mb-4 text-white">Payment History</h3>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-slate-700">
+                        <thead className="bg-slate-800">
+                            <tr>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Device Model</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Amount</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Due Date</th>
+                                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                            </tr>
+                        </thead>
+                         <tbody className="bg-slate-900 divide-y divide-slate-800">
+                             {payments.length > 0 ? payments.map(p => (
+                                <tr key={p.id}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-white">{p.deviceModel}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-slate-400">₹{p.amount.toFixed(2)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-slate-400">{new Date(p.dueDate).toLocaleDateString()}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={p.status} /></td>
+                                </tr>
+                             )) : (
+                                <tr><td colSpan={4} className="text-center py-4 text-slate-400">No payment history found.</td></tr>
+                             )}
+                         </tbody>
+                    </table>
+                </div>
+            </Card>
+        </div>
+
+        {deviceToRelease && (
+            <ConfirmationModal
+                isOpen={isReleaseModalOpen}
+                onClose={() => setReleaseModalOpen(false)}
+                onConfirm={handleReleaseDevice}
+                title="Confirm Device Release"
+                variant="success"
+                confirmText={releaseLoading ? 'Releasing...' : 'Yes, Release Device'}
+            >
+                Are you sure you want to permanently remove all security restrictions from device 
+                <strong className="font-semibold text-white"> {deviceToRelease.model} ({deviceToRelease.imei})</strong>? 
+                This action cannot be undone.
+            </ConfirmationModal>
+        )}
+    </div>
+  );
 };
 
-export default DashboardView;
+export default CustomerDetailView;

@@ -86,6 +86,16 @@ export const getOfflineUnlockKey = async (deviceId: string): Promise<{ unlockKey
     return handleResponse(response);
 };
 
+// --- NEW: Device Release Action ---
+export const releaseDevice = async (deviceId: string) => {
+    const response = await fetch(`${API_BASE_URL}/release/${deviceId}`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+};
+
+
 // --- PAYMENT ACTIONS ---
 export const markPaymentAsPaid = async (paymentId: string) => {
     const response = await fetch(`${API_BASE_URL}/payments/${paymentId}/pay`, {

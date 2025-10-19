@@ -5,6 +5,7 @@ const DeviceStatus = Object.freeze({
     Active: 'Active',
     Locked: 'Locked',
     Compromised: 'Compromised', // e.g., if rooting is detected
+    Released: 'Released', // When all payments are done and ownership is released
 });
 
 const deviceSchema = new Schema({

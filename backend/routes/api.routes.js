@@ -1,4 +1,3 @@
-
 const express = require('express');
 const admin = require('firebase-admin');
 const Customer = require('../models/customer.model');
@@ -12,7 +11,7 @@ const sendFcmCommand = async (fcmToken, command, message) => {
     const payload = {
         token: fcmToken,
         data: {
-            action: command, // 'LOCK', 'UNLOCK', or 'WIPE'
+            action: command, // 'LOCK', 'UNLOCK', 'WIPE', 'RELEASE_OWNERSHIP'
             message: message,
         },
         // --- URGENT FIX: Ensure immediate delivery for critical commands ---
@@ -135,90 +134,48 @@ router.post('/devices/register', async (req, res) => {
             totalPrice, downPayment, numberOfEmis, emiStartDate 
         } = req.body;
 
-        // --- Robust Server-Side Validation ---
-        // FIX: Explicitly check for undefined/null for numeric fields to allow a value of 0.
-        if (!customerId || !imei || !androidId || !model || totalPrice === undefined || totalPrice === null || downPayment === undefined || downPayment === null || !numberOfEmis || !emiStartDate) {
-            return res.status(400).json({ message: 'One or more required fields are missing.' });
+        // --- Validation ---
+        if (!customerId || !imei || !model || !totalPrice || !downPayment || !numberOfEmis || !emiStartDate || !androidId) {
+             return res.status(400).json({ message: 'All fields including EMI details and Android ID are required.' });
         }
-
-        const numTotalPrice = Number(totalPrice);
-        const numDownPayment = Number(downPayment);
-        const numEmis = Number(numberOfEmis);
-
-        if (isNaN(numTotalPrice) || numTotalPrice <= 0) {
-            return res.status(400).json({ message: 'Total price must be a valid positive number.' });
-        }
-        if (isNaN(numDownPayment) || numDownPayment < 0) {
-            return res.status(400).json({ message: 'Down payment must be a valid non-negative number.' });
-        }
-        if (isNaN(numEmis) || !Number.isInteger(numEmis) || numEmis <= 0) {
-            return res.status(400).json({ message: 'Number of EMIs must be a valid positive whole number.' });
-        }
-        if (numTotalPrice <= numDownPayment) {
+        if (totalPrice <= downPayment) {
             return res.status(400).json({ message: 'Total price must be greater than the down payment.' });
         }
 
-        let device; // This will hold the device document, whether new or existing.
-
-        // Use IMEI as the primary key for finding a physical device
-        const existingDevice = await Device.findOne({ imei });
+        // --- Step 1: Check for existing device and register or update ---
         
+        // FIX: Add a robust check to prevent duplicate devices and provide a clear error.
+        // The unique constraints on the model will throw a generic error, so we catch it here first.
+        const existingDevice = await Device.findOne({ $or: [{ imei }, { androidId }] });
         if (existingDevice) {
-            // --- Logic for an existing device ---
-            console.log("Found existing device, checking for active payments...");
-            const activePaymentCount = await Payment.countDocuments({
-                deviceId: existingDevice._id,
-                status: { $in: [PaymentStatus.Pending, PaymentStatus.Overdue] }
-            });
-
-            if (activePaymentCount > 0) {
-                console.log(`Device has ${activePaymentCount} active payments. Rejecting.`);
-                return res.status(400).json({ message: 'This device is already associated with an active or overdue EMI plan.' });
-            }
-
-            console.log("No active payments found. Re-registering device for new plan.");
-            
-            // FIX: Check for and add an unlock key if it's missing. This makes the feature backwards-compatible.
-            if (!existingDevice.unlockKey) {
-                console.log("Existing device is missing an unlock key. Generating one now.");
-                existingDevice.unlockKey = Math.random().toString(36).substring(2, 8).toUpperCase();
-            }
-
-            // Update the device with the new customer, status, and the NEW Android ID
-            existingDevice.customerId = customerId;
-            existingDevice.status = DeviceStatus.Active;
-            existingDevice.androidId = androidId; // CRITICAL FIX: Update the Android ID
-            await existingDevice.save();
-            device = existingDevice;
-
-        } else {
-            // --- Logic for a brand new device ---
-            console.log("No existing device found. Creating a new one.");
-            // Generate a permanent, unique 6-character alphanumeric unlock key.
-            const unlockKey = Math.random().toString(36).substring(2, 8).toUpperCase();
-            
-            const newDevice = new Device({ customerId, imei, androidId, model, unlockKey });
-            await newDevice.save();
-            device = newDevice;
+            return res.status(400).json({ message: 'A device with this IMEI or Android ID already exists.' });
         }
         
-        // --- Step 2: Generate EMI Payment Schedule (Common for both new and existing devices) ---
-        const loanAmount = numTotalPrice - numDownPayment;
-        const emiAmount = loanAmount / numEmis;
+        // Generate a permanent, unique 6-character alphanumeric unlock key.
+        const unlockKey = Math.random().toString(36).substring(2, 8).toUpperCase();
+        
+        // Create the new device since it doesn't exist
+        const device = new Device({ customerId, imei, androidId, model, unlockKey });
+        await device.save();
+        
+        // --- Step 2: Generate EMI Payment Schedule ---
+        const loanAmount = totalPrice - downPayment;
+        const emiAmount = loanAmount / numberOfEmis;
         const startDate = new Date(emiStartDate);
         
         const paymentPromises = [];
 
-        for (let i = 0; i < numEmis; i++) {
+        for (let i = 1; i <= numberOfEmis; i++) {
             const dueDate = new Date(startDate);
-            // Set the date correctly for each month's EMI
+            // The first EMI (i=1) is due one month after the start date.
+            // The second EMI (i=2) is due two months after, and so on.
             dueDate.setMonth(dueDate.getMonth() + i);
 
             const newPayment = new Payment({
                 customerId,
-                deviceId: device._id, // Use the ID from the correct device variable
+                deviceId: device._id,
                 amount: emiAmount,
-                dueDate: dueDate,
+                dueDate,
                 status: PaymentStatus.Pending,
             });
             paymentPromises.push(newPayment.save());
@@ -231,8 +188,8 @@ router.post('/devices/register', async (req, res) => {
     } catch (error) {
         console.error("Error in device registration:", error);
         // Handle potential race conditions or other DB errors
-        if (error.code === 11000) { // MongoDB duplicate key error for IMEI
-             return res.status(400).json({ message: 'A device with this IMEI already exists.' });
+        if (error.code === 11000) { // MongoDB duplicate key error
+             return res.status(400).json({ message: 'A device with this IMEI or Android ID already exists.' });
         }
         res.status(400).json({ message: 'Error registering device', error: error.message });
     }
@@ -296,38 +253,22 @@ router.patch('/payments/:paymentId/pay', async (req, res) => {
         // 1. Update Payment Status
         payment.status = PaymentStatus.Paid;
         await payment.save();
-        console.log(`Payment ${payment._id} marked as Paid for device ${payment.deviceId}.`);
 
-        // 2. CRITICAL FIX: Check if there are ANY other pending/overdue payments for this device
-        const outstandingPayments = await Payment.countDocuments({
-            deviceId: payment.deviceId,
-            status: { $in: [PaymentStatus.Pending, PaymentStatus.Overdue] }
-        });
+        // 2. Check and Unlock associated device
+        const device = await Device.findById(payment.deviceId);
+        if (device && device.status === DeviceStatus.Locked) {
+            device.status = DeviceStatus.Active;
+            await device.save();
 
-        console.log(`Found ${outstandingPayments} other outstanding payments for this device.`);
-
-        // 3. Only unlock if ALL payments are cleared.
-        if (outstandingPayments === 0) {
-            console.log('All payments cleared. Proceeding to unlock device.');
-            const device = await Device.findById(payment.deviceId);
-            if (device && device.status === DeviceStatus.Locked) {
-                device.status = DeviceStatus.Active;
-                await device.save();
-
-                if (device.fcmToken) {
-                    await sendFcmCommand(device.fcmToken, 'UNLOCK', 'Your device has been unlocked. Thank you for your payment.');
-                }
-                 res.status(200).json({ message: 'Payment marked as paid and device unlocked.' });
-            } else {
-                 res.status(200).json({ message: 'Payment marked as paid. Device was already active.' });
+            // 3. Send Unlock command if FCM token exists
+            if (device.fcmToken) {
+                await sendFcmCommand(device.fcmToken, 'UNLOCK', 'Your device has been unlocked. Thank you for your payment.');
             }
-        } else {
-            console.log('Device remains locked due to other outstanding payments.');
-            res.status(200).json({ message: `Payment marked as paid. Device remains locked due to ${outstandingPayments} other outstanding EMIs.` });
         }
 
+        res.status(200).json({ message: 'Payment marked as paid and device unlocked if applicable.' });
+
     } catch (error) {
-        console.error("Error processing payment:", error);
         res.status(500).json({ message: 'Server error while processing payment', error: error.message });
     }
 });
@@ -369,7 +310,7 @@ router.post('/lock/:deviceId', async (req, res) => {
     try {
         const device = await Device.findById(req.params.deviceId);
         if (!device) return res.status(404).json({ message: 'Device not found' });
-        if (device.status === DeviceStatus.Compromised) return res.status(400).json({ message: 'Cannot lock a compromised device.' });
+        if (device.status === DeviceStatus.Compromised || device.status === DeviceStatus.Released) return res.status(400).json({ message: 'Cannot lock a device that is compromised or released.' });
         if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send command.' });
 
         const result = await sendFcmCommand(device.fcmToken, 'LOCK', 'Your EMI payment is overdue. Please contact the shop.');
@@ -415,16 +356,39 @@ router.post('/reset/:deviceId', async (req, res) => {
         const result = await sendFcmCommand(device.fcmToken, 'WIPE', 'This device is being factory reset due to non-compliance.');
         
         if (result.success) {
-            // We only send the command. The app on the device will execute it if it has
-            // the correct "Device Owner" permissions. We DO NOT change the status here,
-            // as this provides misleading feedback if the device isn't provisioned.
+            // While we can't confirm the wipe, we can log the action.
             console.log(`Hard Reset command sent to device ${device.imei}.`);
-            res.status(200).json({ message: 'Hard Reset command sent. The device will wipe if correctly provisioned.' });
+            // Optionally, update status to indicate a reset command was sent.
+            device.status = DeviceStatus.Compromised; // Re-purposing status after reset
+            await device.save();
+            res.status(200).json({ message: 'Hard Reset command sent successfully.' });
         } else {
             res.status(500).json({ message: 'Failed to send Hard Reset command via FCM.', error: result.error });
         }
     } catch (error) {
         res.status(500).json({ message: 'Server error during hard reset.', error: error.message });
+    }
+});
+
+// --- NEW: Route to release device ownership ---
+router.post('/release/:deviceId', async (req, res) => {
+    try {
+        const device = await Device.findById(req.params.deviceId);
+        if (!device) return res.status(404).json({ message: 'Device not found' });
+        if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send release command.' });
+        
+        const result = await sendFcmCommand(device.fcmToken, 'RELEASE_OWNERSHIP', 'Device ownership has been released.');
+
+        if (result.success) {
+            device.status = DeviceStatus.Released;
+            await device.save();
+            res.status(200).json({ message: 'Device release command sent successfully.' });
+        } else {
+            res.status(500).json({ message: 'Failed to send release command via FCM.', error: result.error });
+        }
+
+    } catch (error) {
+        res.status(500).json({ message: 'Server error during device release.', error: error.message });
     }
 });
 
@@ -436,15 +400,9 @@ router.get('/devices/:deviceId/unlock-key', async (req, res) => {
         if (!device) {
             return res.status(404).json({ message: 'Device not found' });
         }
-        
-        // FIX: If a key is missing, generate one on-the-fly, save it, and return it.
-        // This makes the feature backwards-compatible for devices registered before the key feature was added.
         if (!device.unlockKey) {
-            console.log(`Device ${device.imei} is missing an unlock key. Generating one now.`);
-            device.unlockKey = Math.random().toString(36).substring(2, 8).toUpperCase();
-            await device.save();
+            return res.status(404).json({ message: 'No unlock key is set for this device.' });
         }
-
         res.json({ unlockKey: device.unlockKey });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
