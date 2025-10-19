@@ -4,7 +4,7 @@ import { EmiPayment, DeviceStatus } from '../types';
 import Card from './common/Card';
 import StatusBadge from './common/StatusBadge';
 import Button from './common/Button';
-import { LockClosedIcon, LockOpenIcon, CheckCircleIcon, ExclamationTriangleIcon, KeyIcon, WarningIcon } from './icons';
+import { LockClosedIcon, LockOpenIcon, CheckCircleIcon, ExclamationTriangleIcon, KeyIcon } from './icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Skeleton from './common/Skeleton';
 import Spinner from './common/Spinner';
