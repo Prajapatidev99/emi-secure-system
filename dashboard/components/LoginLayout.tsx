@@ -1,6 +1,5 @@
-
-
 import React from 'react';
+import Logo from './Logo';
 
 const LoginFeature = ({ title, description }: { title: string, description: string }) => (
     <div className="relative pl-9">
@@ -22,9 +21,7 @@ const LoginLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <div className="relative hidden w-0 flex-1 bg-slate-900 md:block">
              <div className="flex h-full flex-col justify-between p-12">
                 <div>
-                     <h1 className="text-4xl font-bold tracking-tight text-white sm:text-5xl">
-                        <span className="bg-gradient-to-r from-brand-500 to-purple-500 bg-clip-text text-transparent">EMI Secure</span>
-                    </h1>
+                     <Logo />
                     <p className="mt-4 text-lg leading-8 text-slate-300">Your complete phone financing and security solution.</p>
                 </div>
                 <div className="space-y-6">
@@ -45,5 +42,5 @@ const LoginLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     </div>
   );
 };
-
+// FIX: Add default export to allow the component to be imported in App.tsx.
 export default LoginLayout;
