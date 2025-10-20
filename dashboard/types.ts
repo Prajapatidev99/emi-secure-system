@@ -1,6 +1,4 @@
 
-
-
 export enum PaymentStatus {
   Paid = 'Paid',
   Pending = 'Pending',
@@ -16,6 +14,7 @@ export enum DeviceStatus {
 
 export interface Customer {
   id: string;
+  _id: string;
   name: string;
   phone: string;
   address: string;
@@ -24,6 +23,7 @@ export interface Customer {
 
 export interface Device {
   id: string;
+  _id: string;
   imei: string;
   androidId: string;
   model: string;
@@ -32,6 +32,7 @@ export interface Device {
 
 export interface EmiPayment {
   id: string;
+  _id: string;
   customerId: string;
   customerName: string;
   deviceImei: string;

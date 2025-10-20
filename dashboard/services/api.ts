@@ -165,8 +165,8 @@ export const registerDevice = async (saleData: RegisterDeviceData) => {
     return handleResponse(response);
 };
 
-// FIX: Update the return type to match the shape of data returned by the API, which includes a populated customerId and a MongoDB _id. This resolves the type error in DevicesView.tsx.
-export const getDevices = async (): Promise<(Device & { customerId: { name: string } | null; _id: string; })[]> => {
+// FIX: Update the return type to match the shape of data returned by the API, which includes a populated customerId.
+export const getDevices = async (): Promise<(Device & { customerId: { name: string } | null; })[]> => {
     const response = await fetch(`${API_BASE_URL}/devices`, { headers: getAuthHeaders() });
     return handleResponse(response);
 };

@@ -7,7 +7,6 @@ import Skeleton from './common/Skeleton';
 // Extend the Device type to include populated customer data from the backend
 type DeviceWithCustomer = Device & {
   customerId: { name: string } | null;
-  _id: string;
 };
 
 const DevicesView: React.FC = () => {

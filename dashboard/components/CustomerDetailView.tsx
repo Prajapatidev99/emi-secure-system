@@ -68,7 +68,7 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
     if (!deviceToRelease) return;
     setReleaseLoading(true);
     try {
-        await releaseDevice(deviceToRelease.id);
+        await releaseDevice(deviceToRelease._id);
         setReleaseModalOpen(false);
         setDeviceToRelease(null);
         // Refresh all data to show updated status
@@ -128,7 +128,7 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
             <p className="text-teal-400 mb-4">All EMIs for this customer have been paid. You can now release their devices from security management.</p>
             <div className="space-y-2">
                 {devices.map(device => (
-                    <div key={device.id} className="flex justify-between items-center bg-slate-800 p-3 rounded-md">
+                    <div key={device._id} className="flex justify-between items-center bg-slate-800 p-3 rounded-md">
                         <div>
                             <p className="font-semibold text-white">{device.model}</p>
                             <p className="text-sm text-slate-400">{device.imei}</p>
@@ -167,7 +167,7 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
                         </thead>
                          <tbody className="bg-slate-900 divide-y divide-slate-800">
                             {devices.length > 0 ? devices.map(d => (
-                                <tr key={d.id}>
+                                <tr key={d._id}>
                                     <td className="px-6 py-4 whitespace-nowrap text-white">{d.model}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-slate-400">{d.imei}</td>
                                     <td className="px-6 py-4 whitespace-nowrap font-mono text-slate-400">{d.androidId}</td>
@@ -195,7 +195,7 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
                         </thead>
                          <tbody className="bg-slate-900 divide-y divide-slate-800">
                              {payments.length > 0 ? payments.map(p => (
-                                <tr key={p.id}>
+                                <tr key={p._id}>
                                     <td className="px-6 py-4 whitespace-nowrap text-white">{p.deviceModel}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-slate-400">₹{p.amount.toFixed(2)}</td>
                                     <td className="px-6 py-4 whitespace-nowrap text-slate-400">{new Date(p.dueDate).toLocaleDateString()}</td>
