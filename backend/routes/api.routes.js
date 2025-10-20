@@ -91,11 +91,20 @@ router.get('/customers/:id', async (req, res) => {
 router.get('/customers/:id/devices', async (req, res) => {
     try {
         const devices = await Device.find({ customerId: req.params.id }).sort({ createdAt: -1 });
-        // By explicitly calling .toObject() on each document, we ensure that Mongoose virtuals
-        // (like the 'id' field) are applied before sending the response. This resolves
-        // inconsistencies where the 'id' field might be missing.
-        const deviceObjects = devices.map(doc => doc.toObject());
-        res.json(deviceObjects);
+
+        // --- FIX: Manually map to plain objects to ensure the 'id' virtual is included ---
+        // This provides a more robust solution than relying on implicit toJSON transforms,
+        // ensuring the frontend always receives the expected 'id' field, fixing the 'undefined' error.
+        const response = devices.map(d => ({
+            id: d.id, // Use the 'id' virtual getter from the Mongoose document
+            customerId: d.customerId,
+            imei: d.imei,
+            androidId: d.androidId,
+            model: d.model,
+            status: d.status,
+        }));
+        
+        res.json(response);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching customer devices', error: error.message });
     }
