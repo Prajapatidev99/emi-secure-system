@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getCustomerById, getDevicesForCustomer, getPaymentsForCustomer, releaseDevice } from '../services/api';
 import { Customer, Device, EmiPayment, PaymentStatus, DeviceStatus } from '../types';
 import Card from './common/Card';
-import Skeleton from './common/Skeleton';
 import Button from './common/Button';
 import Spinner from './common/Spinner';
 import StatusBadge from './common/StatusBadge';
