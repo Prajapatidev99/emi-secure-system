@@ -175,7 +175,6 @@ router.post('/devices/register', async (req, res) => {
                 customerId,
                 deviceId: device._id,
                 amount: emiAmount,
-                dueDate,
                 status: PaymentStatus.Pending,
             });
             paymentPromises.push(newPayment.save());
@@ -249,24 +248,56 @@ router.patch('/payments/:paymentId/pay', async (req, res) => {
         if (!payment) {
             return res.status(404).json({ message: 'Payment record not found.' });
         }
+        if (payment.status === PaymentStatus.Paid) {
+            return res.status(200).json({ message: 'Payment was already marked as paid.' });
+        }
 
         // 1. Update Payment Status
         payment.status = PaymentStatus.Paid;
         await payment.save();
 
-        // 2. Check and Unlock associated device
-        const device = await Device.findById(payment.deviceId);
-        if (device && device.status === DeviceStatus.Locked) {
-            device.status = DeviceStatus.Active;
-            await device.save();
+        const customerId = payment.customerId;
 
-            // 3. Send Unlock command if FCM token exists
-            if (device.fcmToken) {
-                await sendFcmCommand(device.fcmToken, 'UNLOCK', 'Your device has been unlocked. Thank you for your payment.');
+        // 2. Check if all payments for this customer are now paid.
+        const pendingPaymentsCount = await Payment.countDocuments({
+            customerId: customerId,
+            status: { $in: [PaymentStatus.Pending, PaymentStatus.Overdue] }
+        });
+
+        // 3. If all payments are cleared, release devices. Otherwise, just unlock the specific device.
+        if (pendingPaymentsCount === 0) {
+            console.log(`All payments cleared for customer ${customerId}. Initiating device release process.`);
+            const devicesToRelease = await Device.find({
+                customerId: customerId,
+                status: { $ne: DeviceStatus.Released } // Find devices not already released
+            });
+
+            for (const device of devicesToRelease) {
+                console.log(`Releasing device ${device.model} (${device.imei})`);
+                if (device.fcmToken) {
+                    await sendFcmCommand(
+                        device.fcmToken,
+                        'RELEASE_OWNERSHIP',
+                        'All payments are cleared. Device security has been removed. You can uninstall this app.'
+                    );
+                }
+                device.status = DeviceStatus.Released;
+                await device.save();
             }
-        }
+            res.status(200).json({ message: 'Final payment processed. All associated customer devices have been released.' });
 
-        res.status(200).json({ message: 'Payment marked as paid and device unlocked if applicable.' });
+        } else {
+            // Not the final payment, just unlock the specific device if it was locked.
+            const device = await Device.findById(payment.deviceId);
+            if (device && device.status === DeviceStatus.Locked) {
+                device.status = DeviceStatus.Active;
+                await device.save();
+                if (device.fcmToken) {
+                    await sendFcmCommand(device.fcmToken, 'UNLOCK', 'Your device has been unlocked. Thank you for your payment.');
+                }
+            }
+            res.status(200).json({ message: 'Payment marked as paid and device unlocked if applicable.' });
+        }
 
     } catch (error) {
         res.status(500).json({ message: 'Server error while processing payment', error: error.message });
