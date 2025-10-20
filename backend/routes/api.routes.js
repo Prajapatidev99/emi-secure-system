@@ -92,11 +92,11 @@ router.get('/customers/:id/devices', async (req, res) => {
     try {
         const devices = await Device.find({ customerId: req.params.id }).sort({ createdAt: -1 });
 
-        // --- FIX: Manually map to plain objects to ensure the 'id' virtual is included ---
-        // This provides a more robust solution than relying on implicit toJSON transforms,
-        // ensuring the frontend always receives the expected 'id' field, fixing the 'undefined' error.
+        // --- DEFINITIVE FIX: Manually build the response object from scratch ---
+        // This bypasses any potential issues with Mongoose virtuals not being applied correctly
+        // by explicitly taking the `_id` and converting it to a string for the `id` field.
         const response = devices.map(d => ({
-            id: d.id, // Use the 'id' virtual getter from the Mongoose document
+            id: d._id.toString(),
             customerId: d.customerId,
             imei: d.imei,
             androidId: d.androidId,
