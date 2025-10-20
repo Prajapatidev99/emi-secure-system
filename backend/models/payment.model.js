@@ -33,7 +33,20 @@ const paymentSchema = new Schema({
   },
 }, {
   timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
 });
+
+// Check for overdue payments before finding
+paymentSchema.pre('find', function() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  this.model.updateMany(
+    { dueDate: { $lt: today }, status: 'Pending' },
+    { $set: { status: 'Overdue' } }
+  ).exec();
+});
+
 
 const Payment = mongoose.model('Payment', paymentSchema);
 

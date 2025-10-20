@@ -51,6 +51,8 @@ const deviceSchema = new Schema({
   }
 }, {
   timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true },
 });
 
 const Device = mongoose.model('Device', deviceSchema);

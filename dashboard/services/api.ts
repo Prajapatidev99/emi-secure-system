@@ -1,4 +1,3 @@
-
 // FIX: Import the 'Device' type to resolve 'Cannot find name' error in 'registerDevice' function.
 import { Customer, EmiPayment, Device } from '../types';
 
@@ -15,24 +14,33 @@ const getAuthHeaders = () => {
 };
 
 const handleResponse = async (response: Response) => {
-    // For login, a 401 is a specific "Invalid credentials" message.
+    // Handle auth failures first, as they might redirect or have non-JSON bodies.
     if (response.status === 401 && !response.url.endsWith('/login')) {
-        // Any other 401 means the token is invalid/expired.
         sessionStorage.removeItem('authToken');
-        // FIX: Complete the line to force a reload, which will redirect to the login page.
         window.location.reload();
-        // We throw an error here to stop the promise chain.
         throw new Error('Your session has expired. Please log in again.');
     }
-    
-    const data = await response.json();
 
+    // Get the response body as text, as we don't know yet if it's JSON.
+    const responseBody = await response.text();
+
+    // If the response was not successful, throw an error.
     if (!response.ok) {
-        // Use the error message from the backend if available, otherwise use a default.
-        const errorMessage = data.message || `An error occurred: ${response.statusText}`;
-        throw new Error(errorMessage);
+        // Try to parse the text as JSON to find a 'message' field.
+        try {
+            const errorJson = JSON.parse(responseBody);
+            throw new Error(errorJson.message || `Server error: ${response.status}`);
+        } catch (e) {
+            // If parsing failed, it's not a JSON error from our API.
+            // This is where an HTML error page would be caught.
+            console.error("Received non-JSON error response:", responseBody);
+            throw new Error(`An unexpected network error occurred (Status: ${response.status}).`);
+        }
     }
-    return data;
+
+    // If the response was successful, parse the body (if it's not empty).
+    // An empty object is a safe default for successful but empty responses (e.g., 204 No Content).
+    return responseBody ? JSON.parse(responseBody) : {};
 };
 
 
