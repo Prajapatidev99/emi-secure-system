@@ -91,7 +91,11 @@ router.get('/customers/:id', async (req, res) => {
 router.get('/customers/:id/devices', async (req, res) => {
     try {
         const devices = await Device.find({ customerId: req.params.id }).sort({ createdAt: -1 });
-        res.json(devices);
+        // By explicitly calling .toObject() on each document, we ensure that Mongoose virtuals
+        // (like the 'id' field) are applied before sending the response. This resolves
+        // inconsistencies where the 'id' field might be missing.
+        const deviceObjects = devices.map(doc => doc.toObject());
+        res.json(deviceObjects);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching customer devices', error: error.message });
     }
@@ -175,6 +179,7 @@ router.post('/devices/register', async (req, res) => {
                 customerId,
                 deviceId: device._id,
                 amount: emiAmount,
+                dueDate: dueDate,
                 status: PaymentStatus.Pending,
             });
             paymentPromises.push(newPayment.save());
