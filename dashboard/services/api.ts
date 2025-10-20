@@ -1,3 +1,4 @@
+
 // FIX: Import the 'Device' type to resolve 'Cannot find name' error in 'registerDevice' function.
 import { Customer, EmiPayment, Device } from '../types';
 

@@ -1,5 +1,6 @@
 
 
+
 import React from 'react';
 import { PaymentStatus, DeviceStatus } from '../../types';
 

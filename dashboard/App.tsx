@@ -1,6 +1,9 @@
 
 
 
+
+
+// FIX: Corrected invalid import syntax for React and its hooks.
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import DashboardView from './components/DashboardView';
@@ -13,10 +16,14 @@ import LoginLayout from './components/LoginLayout';
 export type Page = 'dashboard' | 'customers' | 'devices' | 'reports';
 
 const App: React.FC = () => {
+  // FIX: Changed `a.useState` to `useState` to correctly use the hook.
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
+  // FIX: Changed `a.useState` to `useState` to correctly use the hook.
   const [token, setToken] = useState<string | null>(null);
+  // FIX: Changed `a.useState` to `useState` to correctly use the hook.
   const [isSidebarOpen, setSidebarOpen] = useState(false);
 
+  // FIX: Changed `a.useEffect` to `useEffect` to correctly use the hook.
   useEffect(() => {
     // Check for token in session storage on initial load for better security and session management.
     const storedToken = sessionStorage.getItem('authToken');

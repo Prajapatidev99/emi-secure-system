@@ -1,11 +1,13 @@
-
-import { useState, useEffect } from 'react';
-import { getCustomerById, getDevicesForCustomer, getPaymentsForCustomer } from '../services/api';
-import { Customer, Device, EmiPayment } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { getCustomerById, getDevicesForCustomer, getPaymentsForCustomer, releaseDevice } from '../services/api';
+import { Customer, Device, EmiPayment, PaymentStatus, DeviceStatus } from '../types';
 import Card from './common/Card';
+import Skeleton from './common/Skeleton';
 import Button from './common/Button';
 import Spinner from './common/Spinner';
 import StatusBadge from './common/StatusBadge';
+import ConfirmationModal from './common/ConfirmationModal';
+import { ShieldCheckIcon } from './icons';
 
 interface CustomerDetailViewProps {
   customerId: string;
@@ -19,8 +21,13 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const fetchCustomerData = async () => {
+  // State for the release confirmation modal
+  const [isReleaseModalOpen, setReleaseModalOpen] = useState(false);
+  const [deviceToRelease, setDeviceToRelease] = useState<Device | null>(null);
+  const [releaseLoading, setReleaseLoading] = useState(false);
+
+
+  const fetchCustomerData = async () => {
       setLoading(true);
       setError(null);
       try {
@@ -49,8 +56,38 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
       }
     };
 
+  useEffect(() => {
     fetchCustomerData();
   }, [customerId]);
+
+  const allPaymentsCleared = useMemo(() => {
+    if (payments.length === 0) return false; // Can't release if there are no payments
+    return payments.every(p => p.status === PaymentStatus.Paid);
+  }, [payments]);
+  
+  const handleReleaseDevice = async () => {
+    if (!deviceToRelease) return;
+    setReleaseLoading(true);
+    try {
+        await releaseDevice(deviceToRelease.id);
+        setReleaseModalOpen(false);
+        setDeviceToRelease(null);
+        // Refresh all data to show updated status
+        await fetchCustomerData(); 
+    } catch (err) {
+         if (err instanceof Error) {
+          alert(`Error: ${err.message}`);
+        }
+    } finally {
+        setReleaseLoading(false);
+    }
+  };
+
+  const openReleaseConfirmation = (device: Device) => {
+    setDeviceToRelease(device);
+    setReleaseModalOpen(true);
+  };
+
 
   if (loading) {
     return (
@@ -76,7 +113,7 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
   return (
     <div>
         <div className="mb-4">
-            <Button onClick={onBack} variant="secondary">{'\u2190'} Back to Customer List</Button>
+            <Button onClick={onBack} variant="secondary">{'<'} Back to Customer List</Button>
         </div>
         
         <Card className="mb-6">
@@ -84,6 +121,37 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
             <p className="text-slate-400"><strong>Phone:</strong> {customer.phone}</p>
             <p className="text-slate-400"><strong>Address:</strong> {customer.address}</p>
         </Card>
+        
+        {/* Device Finalization Section - only shows when all payments are cleared */}
+        {allPaymentsCleared && (
+          <Card className="mb-6 border-2 border-teal-500 bg-teal-900/20">
+            <h3 className="text-xl font-semibold mb-2 text-teal-300">Device Finalization</h3>
+            <p className="text-teal-400 mb-4">All EMIs for this customer have been paid. You can now release their devices from security management.</p>
+            <div className="space-y-2">
+                {devices.map(device => (
+                    <div key={device.id} className="flex justify-between items-center bg-slate-800 p-3 rounded-md">
+                        <div>
+                            <p className="font-semibold text-white">{device.model}</p>
+                            <p className="text-sm text-slate-400">{device.imei}</p>
+                        </div>
+                        {device.status !== DeviceStatus.Released ? (
+                            <Button 
+                                variant="success" 
+                                size="sm" 
+                                onClick={() => openReleaseConfirmation(device)}
+                                disabled={releaseLoading}
+                            >
+                                <ShieldCheckIcon /> Release Device
+                            </Button>
+                        ) : (
+                            <StatusBadge status={DeviceStatus.Released} />
+                        )}
+                    </div>
+                ))}
+            </div>
+          </Card>
+        )}
+
 
         <div className="grid grid-cols-1 gap-6">
             <Card>
@@ -142,6 +210,21 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
                 </div>
             </Card>
         </div>
+
+        {deviceToRelease && (
+            <ConfirmationModal
+                isOpen={isReleaseModalOpen}
+                onClose={() => setReleaseModalOpen(false)}
+                onConfirm={handleReleaseDevice}
+                title="Confirm Device Release"
+                variant="success"
+                confirmText={releaseLoading ? 'Releasing...' : 'Yes, Release Device'}
+            >
+                Are you sure you want to permanently remove all security restrictions from device 
+                <strong className="font-semibold text-white"> {deviceToRelease.model} ({deviceToRelease.imei})</strong>? 
+                This action cannot be undone.
+            </ConfirmationModal>
+        )}
     </div>
   );
 };
