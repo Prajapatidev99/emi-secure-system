@@ -416,7 +416,7 @@ router.post('/reset/:deviceId', async (req, res) => {
 });
 
 // --- NEW: Route to release device ownership ---
-router.post('/release/:deviceId', async (req, res) => {
+router.post('/devices/release/:deviceId', async (req, res) => {
     try {
         const device = await Device.findById(req.params.deviceId);
         if (!device) return res.status(404).json({ message: 'Device not found' });
