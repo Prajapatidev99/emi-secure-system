@@ -97,6 +97,7 @@ router.get('/customers/:id/devices', async (req, res) => {
         // by explicitly taking the `_id` and converting it to a string for the `id` field.
         const response = devices.map(d => ({
             id: d._id.toString(),
+            _id: d._id.toString(),
             customerId: d.customerId,
             imei: d.imei,
             androidId: d.androidId,
