@@ -97,7 +97,7 @@ export const getOfflineUnlockKey = async (deviceId: string): Promise<{ unlockKey
 
 // --- NEW: Device Release Action ---
 export const releaseDevice = async (deviceId: string) => {
-    const response = await fetch(`${API_BASE_URL}/release/${deviceId}`, {
+    const response = await fetch(`${API_BASE_URL}/devices/release/${deviceId}`, {
         method: 'POST',
         headers: getAuthHeaders(),
     });
