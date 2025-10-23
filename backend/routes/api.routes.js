@@ -91,21 +91,9 @@ router.get('/customers/:id', async (req, res) => {
 router.get('/customers/:id/devices', async (req, res) => {
     try {
         const devices = await Device.find({ customerId: req.params.id }).sort({ createdAt: -1 });
-
-        // --- DEFINITIVE FIX: Manually build the response object from scratch ---
-        // This bypasses any potential issues with Mongoose virtuals not being applied correctly
-        // by explicitly taking the `_id` and converting it to a string for the `id` field.
-        const response = devices.map(d => ({
-            id: d._id.toString(),
-            _id: d._id.toString(),
-            customerId: d.customerId,
-            imei: d.imei,
-            androidId: d.androidId,
-            model: d.model,
-            status: d.status,
-        }));
-        
-        res.json(response);
+        // Rely on the Mongoose toJSON virtuals to add the 'id' property.
+        // The frontend will receive objects with an 'id' and an '_id'.
+        res.json(devices);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching customer devices', error: error.message });
     }
