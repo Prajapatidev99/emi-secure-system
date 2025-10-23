@@ -91,9 +91,24 @@ router.get('/customers/:id', async (req, res) => {
 router.get('/customers/:id/devices', async (req, res) => {
     try {
         const devices = await Device.find({ customerId: req.params.id }).sort({ createdAt: -1 });
-        // Rely on the Mongoose toJSON virtuals to add the 'id' property.
-        // The frontend will receive objects with an 'id' and an '_id'.
-        res.json(devices);
+        // DEFINITIVE FIX: Manually map the response to ensure the '_id' field is always
+        // present and correctly formatted as a string. This prevents issues with
+        // Mongoose's toJSON virtuals in some environments.
+        const response = devices.map(d => ({
+            id: d._id.toString(),
+            _id: d._id.toString(),
+            imei: d.imei,
+            androidId: d.androidId,
+            model: d.model,
+            status: d.status,
+            customerId: d.customerId,
+            fcmToken: d.fcmToken,
+            unlockKey: d.unlockKey,
+            isCompromised: d.isCompromised,
+            createdAt: d.createdAt,
+            updatedAt: d.updatedAt,
+        }));
+        res.json(response);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching customer devices', error: error.message });
     }
@@ -112,6 +127,7 @@ router.get('/customers/:id/payments', async (req, res) => {
         
         const response = payments.map(p => ({
             id: p._id,
+            _id: p._id,
             deviceModel: p.deviceId ? p.deviceId.model : 'N/A',
             deviceStatus: p.deviceId ? p.deviceId.status : 'N/A',
             amount: p.amount,
