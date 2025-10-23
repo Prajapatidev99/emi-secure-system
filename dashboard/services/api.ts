@@ -67,7 +67,7 @@ export const getPendingPayments = async (): Promise<EmiPayment[]> => {
 
 // --- DEVICE ACTIONS ---
 export const lockDevice = async (deviceId: string) => {
-    const response = await fetch(`${API_BASE_URL}/lock/${deviceId}`, {
+    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/lock`, {
         method: 'POST',
         headers: getAuthHeaders(),
     });
@@ -75,7 +75,7 @@ export const lockDevice = async (deviceId: string) => {
 };
 
 export const unlockDevice = async (deviceId: string) => {
-    const response = await fetch(`${API_BASE_URL}/unlock/${deviceId}`, {
+    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/unlock`, {
         method: 'POST',
         headers: getAuthHeaders(),
     });
@@ -83,7 +83,7 @@ export const unlockDevice = async (deviceId: string) => {
 };
 
 export const hardResetDevice = async (deviceId: string) => {
-    const response = await fetch(`${API_BASE_URL}/reset/${deviceId}`, {
+    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/reset`, {
         method: 'POST',
         headers: getAuthHeaders(),
     });
@@ -97,7 +97,7 @@ export const getOfflineUnlockKey = async (deviceId: string): Promise<{ unlockKey
 
 // --- NEW: Device Release Action ---
 export const releaseDevice = async (deviceId: string) => {
-    const response = await fetch(`${API_BASE_URL}/devices/release/${deviceId}`, {
+    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/release`, {
         method: 'POST',
         headers: getAuthHeaders(),
     });

@@ -350,8 +350,8 @@ router.get('/stats', async (req, res) => {
     }
 });
 
-// --- Security Routes: Lock, Unlock, Hard Reset ---
-router.post('/lock/:deviceId', async (req, res) => {
+// --- Security Routes: Lock, Unlock, Hard Reset, Release ---
+router.post('/devices/:deviceId/lock', async (req, res) => {
     try {
         const device = await Device.findById(req.params.deviceId);
         if (!device) return res.status(404).json({ message: 'Device not found' });
@@ -371,7 +371,7 @@ router.post('/lock/:deviceId', async (req, res) => {
     }
 });
 
-router.post('/unlock/:deviceId', async (req, res) => {
+router.post('/devices/:deviceId/unlock', async (req, res) => {
     try {
         const device = await Device.findById(req.params.deviceId);
         if (!device) return res.status(404).json({ message: 'Device not found' });
@@ -391,7 +391,7 @@ router.post('/unlock/:deviceId', async (req, res) => {
     }
 });
 
-router.post('/reset/:deviceId', async (req, res) => {
+router.post('/devices/:deviceId/reset', async (req, res) => {
     try {
         const device = await Device.findById(req.params.deviceId);
         if (!device) return res.status(404).json({ message: 'Device not found' });
@@ -415,8 +415,7 @@ router.post('/reset/:deviceId', async (req, res) => {
     }
 });
 
-// --- NEW: Route to release device ownership ---
-router.post('/devices/release/:deviceId', async (req, res) => {
+router.post('/devices/:deviceId/release', async (req, res) => {
     try {
         const device = await Device.findById(req.params.deviceId);
         if (!device) return res.status(404).json({ message: 'Device not found' });
@@ -438,7 +437,6 @@ router.post('/devices/release/:deviceId', async (req, res) => {
 });
 
 
-// --- NEW: Route to get permanent offline unlock key ---
 router.get('/devices/:deviceId/unlock-key', async (req, res) => {
     try {
         const device = await Device.findById(req.params.deviceId);
