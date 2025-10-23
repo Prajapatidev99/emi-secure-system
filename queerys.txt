@@ -2,6 +2,10 @@ https://aistudio.google.com/apps/drive/19e01jk8PLNdzf6tdr89ZDuUFPL9BtHA5?showAss
 
 "https://emi-secure-system.onrender.com/api/public"
 
-ime : 862605040214614
+ime : 867150063324979
 
-e232523c235012e7
+49b6317556b0ccd4
+
+.\adb shell dpm set-device-owner com.emiseure.customer/.MyDeviceAdminReceiver
+.\adb shell dpm remove-active-admin com.emiseure.customer/.MyDeviceAdminReceiver
+
