@@ -2,6 +2,7 @@ const config = require('./config/config'); // Use centralized config
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const path = require('path'); // Import path module
 
 const authRoutes = require('./routes/auth.routes');
 const apiRoutes = require('./routes/api.routes');
@@ -21,6 +22,10 @@ const corsOptions = {
 app.use(cors(corsOptions));
 // Increase the payload size limit to handle base64 image uploads
 app.use(express.json({ limit: '10mb' }));
+
+// --- NEW: Host the APK for QR Code Provisioning ---
+// This serves files from the 'apk' directory at the '/apk' public URL.
+app.use('/apk', express.static(path.join(__dirname, 'apk')));
 
 // --- Initialize Firebase Admin SDK ---
 try {
