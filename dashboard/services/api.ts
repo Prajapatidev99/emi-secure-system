@@ -1,5 +1,5 @@
-// FIX: Import the 'Device' type to resolve 'Cannot find name' error in 'registerDevice' function.
-import { Customer, EmiPayment, Device } from '../types';
+// FIX: Import the 'Device' and 'KycDocument' types to resolve errors.
+import { Customer, EmiPayment, Device, KycDocument } from '../types';
 
 const API_BASE_URL = 'https://emi-secure-system.onrender.com/api';
 
@@ -120,7 +120,7 @@ export const getCustomers = async (): Promise<Customer[]> => {
     return handleResponse(response);
 };
 
-export const addCustomer = async (customerData: { name: string; phone: string; address: string }): Promise<Customer> => {
+export const addCustomer = async (customerData: { name: string; phone: string; address: string, kycDocs?: KycDocument[] }): Promise<Customer> => {
     const response = await fetch(`${API_BASE_URL}/customers`, {
         method: 'POST',
         headers: getAuthHeaders(),

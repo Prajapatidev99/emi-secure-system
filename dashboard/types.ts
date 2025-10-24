@@ -1,4 +1,5 @@
 
+
 export enum PaymentStatus {
   Paid = 'Paid',
   Pending = 'Pending',
@@ -12,13 +13,20 @@ export enum DeviceStatus {
     Released = 'Released',
 }
 
+// NEW: Add an interface for a single KYC document
+export interface KycDocument {
+  docType: string;
+  docUrl: string;
+}
+
 export interface Customer {
   id: string;
   _id: string;
   name: string;
   phone: string;
   address: string;
-  kycDocs: string[]; // URLs to documents
+  // UPDATED: Change kycDocs to be an array of the new KycDocument interface and make it optional
+  kycDocs?: KycDocument[];
 }
 
 export interface Device {

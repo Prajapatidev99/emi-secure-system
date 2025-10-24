@@ -47,7 +47,7 @@ const sendFcmCommand = async (fcmToken, command, message) => {
 // --- Customer Routes ---
 router.post('/customers', async (req, res) => {
     try {
-        const { name, phone, address } = req.body;
+        const { name, phone, address, kycDocs } = req.body;
         if (!name || !phone || !address) {
             return res.status(400).json({ message: 'All fields are required.' });
         }
@@ -57,7 +57,7 @@ router.post('/customers', async (req, res) => {
             return res.status(400).json({ message: 'A customer with this phone number already exists.' });
         }
 
-        const newCustomer = new Customer({ name, phone, address });
+        const newCustomer = new Customer({ name, phone, address, kycDocs });
         await newCustomer.save();
         res.status(201).json(newCustomer);
     } catch (error) {

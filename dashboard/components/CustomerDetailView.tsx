@@ -7,6 +7,7 @@ import Spinner from './common/Spinner';
 import StatusBadge from './common/StatusBadge';
 import ConfirmationModal from './common/ConfirmationModal';
 import { ShieldCheckIcon } from './icons';
+import Modal from './common/Modal';
 
 interface CustomerDetailViewProps {
   customerId: string;
@@ -24,6 +25,9 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
   const [isReleaseModalOpen, setReleaseModalOpen] = useState(false);
   const [deviceToRelease, setDeviceToRelease] = useState<Device | null>(null);
   const [releaseLoading, setReleaseLoading] = useState(false);
+  
+  // State for viewing KYC image
+  const [viewingImage, setViewingImage] = useState<string | null>(null);
 
 
   const fetchCustomerData = async () => {
@@ -121,6 +125,27 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
             <p className="text-slate-400"><strong>Address:</strong> {customer.address}</p>
         </Card>
         
+        {/* KYC Documents Card */}
+        {customer.kycDocs && customer.kycDocs.length > 0 && (
+            <Card className="mb-6">
+                <h3 className="text-xl font-semibold mb-4 text-white">KYC Documents</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {customer.kycDocs.map((doc, index) => (
+                        <div key={index} className="relative group cursor-pointer" onClick={() => setViewingImage(doc.docUrl)}>
+                            <img 
+                                src={doc.docUrl} 
+                                alt={doc.docType} 
+                                className="w-full h-32 object-cover rounded-md transition-transform duration-200 group-hover:scale-105"
+                            />
+                            <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-md">
+                                <p className="text-white text-center text-sm font-bold">{doc.docType}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </Card>
+        )}
+
         {/* Device Finalization Section - only shows when all payments are cleared */}
         {allPaymentsCleared && (
           <Card className="mb-6 border-2 border-teal-500 bg-teal-900/20">
@@ -223,6 +248,12 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
                 <strong className="font-semibold text-white"> {deviceToRelease.model} ({deviceToRelease.imei})</strong>? 
                 This action cannot be undone.
             </ConfirmationModal>
+        )}
+
+        {viewingImage && (
+            <Modal isOpen={!!viewingImage} onClose={() => setViewingImage(null)} title="View KYC Document">
+                <img src={viewingImage} alt="KYC Document Preview" className="max-w-full max-h-[80vh] mx-auto rounded-md" />
+            </Modal>
         )}
     </div>
   );

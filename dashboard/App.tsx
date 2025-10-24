@@ -3,7 +3,9 @@
 
 
 
-// FIX: Corrected invalid import syntax for React and its hooks.
+
+
+// FIX: Corrected an import statement by removing an unused 'a' alias, which could cause potential issues with linters or bundlers.
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import DashboardView from './components/DashboardView';

@@ -1,6 +1,17 @@
 const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
+const kycDocumentSchema = new Schema({
+  docType: {
+    type: String,
+    required: true,
+  },
+  docUrl: {
+    type: String, // URL to the document
+    required: true,
+  }
+}, { _id: false });
+
 const customerSchema = new Schema({
   name: {
     type: String,
@@ -17,9 +28,7 @@ const customerSchema = new Schema({
     type: String,
     required: true,
   },
-  kycDocs: [{
-    type: String, // URLs to documents
-  }],
+  kycDocs: [kycDocumentSchema],
 }, {
   timestamps: true,
   toJSON: { virtuals: true },
