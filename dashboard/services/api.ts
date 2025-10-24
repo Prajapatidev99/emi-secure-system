@@ -20,6 +20,10 @@ const handleResponse = async (response: Response) => {
         window.location.reload();
         throw new Error('Your session has expired. Please log in again.');
     }
+    
+    if (response.status === 413) {
+        throw new Error('Upload failed: The file(s) are too large. Please ensure each image is under 2MB.');
+    }
 
     // Get the response body as text, as we don't know yet if it's JSON.
     const responseBody = await response.text();

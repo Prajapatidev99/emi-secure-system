@@ -145,7 +145,7 @@ const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
               </div>
             )}
 
-            <div className="flex items-end gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-end gap-2">
               <div className="flex-grow">
                 <label htmlFor="docType" className="block text-xs font-medium text-slate-400">Document Type</label>
                 <select id="docType" value={currentDocType} onChange={e => setCurrentDocType(e.target.value)} className="mt-1 block w-full px-3 py-2 border border-slate-600 bg-slate-700 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 text-white text-sm">
@@ -157,7 +157,7 @@ const AddCustomerForm: React.FC<AddCustomerFormProps> = ({ onSuccess }) => {
                 <input type="file" id="docFile" accept="image/png, image/jpeg, image/webp" onChange={handleFileSelect} className="mt-1 block w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-slate-600 file:text-slate-200 hover:file:bg-slate-500" />
                  {currentFile && <span className="text-xs text-slate-400 mt-1 block truncate">Selected: {currentFile.name}</span>}
               </div>
-              <Button type="button" variant="secondary" size="md" onClick={handleAddKycDoc} disabled={!currentFile}>Add</Button>
+              <Button type="button" variant="secondary" size="md" onClick={handleAddKycDoc} disabled={!currentFile} className="w-full sm:w-auto">Add</Button>
             </div>
           </div>
 
