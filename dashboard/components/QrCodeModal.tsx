@@ -2,21 +2,7 @@ import React, { useState, useEffect } from 'react';
 import Modal from './common/Modal';
 import Spinner from './common/Spinner';
 import { QRCodeSVG } from 'qrcode.react';
-
-// A simple API function, could be in api.ts but fine here for a single use.
-const getQrCodeData = async (deviceId: string): Promise<{ qrCodeData: string }> => {
-    const token = sessionStorage.getItem('authToken');
-    const response = await fetch(`/api/devices/${deviceId}/provisioning-qr`, {
-        headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
-        }
-    });
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to fetch QR code data.');
-    }
-    return response.json();
-}
+import { getQrCodeData } from '../services/api';
 
 interface QrCodeModalProps {
   isOpen: boolean;
@@ -36,7 +22,13 @@ const QrCodeModal: React.FC<QrCodeModalProps> = ({ isOpen, onClose, deviceId }) 
             setQrData(null);
             getQrCodeData(deviceId)
                 .then(data => setQrData(data.qrCodeData))
-                .catch(err => setError(err.message))
+                .catch(err => {
+                    if (err instanceof Error) {
+                        setError(err.message);
+                    } else {
+                        setError('An unknown error occurred while fetching QR data.');
+                    }
+                })
                 .finally(() => setLoading(false));
         }
     }, [isOpen, deviceId]);

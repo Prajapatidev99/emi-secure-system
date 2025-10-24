@@ -185,3 +185,9 @@ export const getDevices = async (): Promise<(Device & { customerId: { name: stri
     const response = await fetch(`${API_BASE_URL}/devices`, { headers: getAuthHeaders() });
     return handleResponse(response);
 };
+
+// --- QR CODE PROVISIONING ---
+export const getQrCodeData = async (deviceId: string): Promise<{ qrCodeData: string }> => {
+    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/provisioning-qr`, { headers: getAuthHeaders() });
+    return handleResponse(response);
+};
