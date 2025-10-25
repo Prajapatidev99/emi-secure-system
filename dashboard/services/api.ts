@@ -43,8 +43,19 @@ const handleResponse = async (response: Response) => {
     }
 
     // If the response was successful, parse the body (if it's not empty).
-    // An empty object is a safe default for successful but empty responses (e.g., 204 No Content).
-    return responseBody ? JSON.parse(responseBody) : {};
+    if (!responseBody) {
+        return {}; // An empty object is a safe default for successful but empty responses (e.g., 204 No Content).
+    }
+    
+    // CRITICAL FIX: Wrap the final parse in a try-catch block.
+    // This prevents a crash if the server returns a successful status (200)
+    // but the body is not valid JSON (e.g., an HTML error page from a proxy).
+    try {
+        return JSON.parse(responseBody);
+    } catch (e) {
+        console.error("Failed to parse successful response as JSON:", responseBody);
+        throw new Error("Received a malformed response from the server.");
+    }
 };
 
 
@@ -172,5 +183,11 @@ export const registerDevice = async (saleData: RegisterDeviceData) => {
 // FIX: Update the return type to match the shape of data returned by the API, which includes a populated customerId.
 export const getDevices = async (): Promise<(Device & { customerId: { name: string } | null; })[]> => {
     const response = await fetch(`${API_BASE_URL}/devices`, { headers: getAuthHeaders() });
+    return handleResponse(response);
+};
+
+// --- QR CODE PROVISIONING ---
+export const getQrCodeData = async (deviceId: string): Promise<{ qrCodeData: string }> => {
+    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/provisioning-qr`, { headers: getAuthHeaders() });
     return handleResponse(response);
 };

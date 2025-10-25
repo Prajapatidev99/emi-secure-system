@@ -8,6 +8,7 @@ import StatusBadge from './common/StatusBadge';
 import ConfirmationModal from './common/ConfirmationModal';
 import { ShieldCheckIcon } from './icons';
 import Modal from './common/Modal';
+import QrCodeModal from './QrCodeModal';
 
 interface CustomerDetailViewProps {
   customerId: string;
@@ -28,6 +29,15 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
   
   // State for viewing KYC image
   const [viewingImage, setViewingImage] = useState<string | null>(null);
+
+  // State for QR Code modal
+  const [isQrModalOpen, setQrModalOpen] = useState(false);
+  const [selectedDeviceIdForQr, setSelectedDeviceIdForQr] = useState<string | null>(null);
+
+  const openQrCodeModal = (deviceId: string) => {
+    setSelectedDeviceIdForQr(deviceId);
+    setQrModalOpen(true);
+  };
 
 
   const fetchCustomerData = async () => {
@@ -64,9 +74,10 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
   }, [customerId]);
 
   const allPaymentsCleared = useMemo(() => {
-    if (payments.length === 0) return false; // Can't release if there are no payments
+    if (payments.length === 0 && devices.length > 0) return true; // Allows release if no EMI plan was created, but device exists
+    if (payments.length === 0) return false;
     return payments.every(p => p.status === PaymentStatus.Paid);
-  }, [payments]);
+  }, [payments, devices]);
   
   const handleReleaseDevice = async () => {
     if (!deviceToRelease) return;
@@ -188,6 +199,7 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
                                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">IMEI</th>
                                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Android ID</th>
                                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
+                                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">Provisioning</th>
                             </tr>
                         </thead>
                          <tbody className="bg-slate-900 divide-y divide-slate-800">
@@ -197,9 +209,18 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
                                     <td className="px-6 py-4 whitespace-nowrap text-slate-400">{d.imei}</td>
                                     <td className="px-6 py-4 whitespace-nowrap font-mono text-slate-400">{d.androidId}</td>
                                     <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={d.status} /></td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-center">
+                                        <Button 
+                                            variant="secondary" 
+                                            size="sm"
+                                            onClick={() => openQrCodeModal(d._id)}
+                                        >
+                                            QR Code
+                                        </Button>
+                                    </td>
                                 </tr>
                             )) : (
-                                <tr><td colSpan={4} className="text-center py-4 text-slate-400">No devices found.</td></tr>
+                                <tr><td colSpan={5} className="text-center py-4 text-slate-400">No devices found.</td></tr>
                             )}
                          </tbody>
                     </table>
@@ -254,6 +275,14 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
             <Modal isOpen={!!viewingImage} onClose={() => setViewingImage(null)} title="View KYC Document">
                 <img src={viewingImage} alt="KYC Document Preview" className="max-w-full max-h-[80vh] mx-auto rounded-md" />
             </Modal>
+        )}
+
+        {selectedDeviceIdForQr && (
+            <QrCodeModal
+                isOpen={isQrModalOpen}
+                onClose={() => setQrModalOpen(false)}
+                deviceId={selectedDeviceIdForQr}
+            />
         )}
     </div>
   );

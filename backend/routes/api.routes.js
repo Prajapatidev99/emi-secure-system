@@ -355,6 +355,46 @@ router.get('/stats', async (req, res) => {
     }
 });
 
+// --- NEW: QR Code Provisioning Endpoint ---
+// Generates the JSON payload required for Android's QR code enrollment.
+router.get('/devices/:deviceId/provisioning-qr', async (req, res) => {
+    try {
+        const device = await Device.findById(req.params.deviceId);
+        if (!device) {
+            return res.status(404).json({ message: 'Device not found' });
+        }
+
+        // --- CRITICAL ---
+        // 1. You MUST place the compiled `app-release.apk` in the `backend/apk/` directory.
+        // 2. You MUST calculate the SHA-256 checksum of that APK and replace the placeholder below.
+        // On Linux/macOS: shasum -a 256 backend/apk/app-release.apk
+        // On Windows: CertUtil -hashfile backend\apk\app-release.apk SHA256
+        const apkChecksum = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"; // <-- REPLACE THIS DUMMY CHECKSUM
+        
+        // This dynamically determines the server's public URL.
+        // In production, you MUST use a fixed, publicly accessible URL from an environment variable.
+        const serverUrl = `http://${req.get('host').split(':')[0]}:${process.env.PORT || 3001}`;
+        const downloadUrl = `${serverUrl}/apk/app-release.apk`;
+        
+        const provisioningPayload = {
+            "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.emiseure.customer/.MyDeviceAdminReceiver",
+            "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": downloadUrl,
+            "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM": apkChecksum,
+            "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": true,
+        };
+
+        res.json({
+            // The QR code needs the entire JSON object as a single string.
+            qrCodeData: JSON.stringify(provisioningPayload)
+        });
+
+    } catch (error) {
+        console.error('Error generating provisioning QR data:', error);
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+
 // --- Security Routes: Lock, Unlock, Hard Reset, Release ---
 router.post('/devices/:deviceId/lock', async (req, res) => {
     try {
