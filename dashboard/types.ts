@@ -1,5 +1,3 @@
-
-
 export enum PaymentStatus {
   Paid = 'Paid',
   Pending = 'Pending',
@@ -33,7 +31,7 @@ export interface Device {
   id: string;
   _id: string;
   imei: string;
-  androidId: string;
+  androidId?: string; // CRITICAL: Made optional for new registration flow
   model: string;
   status: DeviceStatus;
 }
@@ -50,4 +48,12 @@ export interface EmiPayment {
   amount: number;
   dueDate: string;
   status: PaymentStatus;
+}
+
+// Type for the devices view, which includes populated customer data
+// FIX: Refactored from a type alias using an intersection (&) to an interface 
+// that uses 'extends'. This resolves a potential TypeScript module resolution error 
+// while making the type definition clearer.
+export interface DeviceWithCustomer extends Device { 
+  customerId: { _id: string; name: string } | null; 
 }

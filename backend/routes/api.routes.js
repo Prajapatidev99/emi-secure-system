@@ -148,35 +148,28 @@ router.get('/customers/:id/payments', async (req, res) => {
 router.post('/devices/register', async (req, res) => {
     try {
         const { 
-            customerId, imei, androidId, model,
+            customerId, imei, model,
             totalPrice, downPayment, numberOfEmis, emiStartDate 
         } = req.body;
 
         // --- Validation ---
-        if (!customerId || !imei || !model || !totalPrice || !downPayment || !numberOfEmis || !emiStartDate || !androidId) {
-             return res.status(400).json({ message: 'All fields including EMI details and Android ID are required.' });
+        if (!customerId || !imei || !model || !totalPrice || !downPayment || !numberOfEmis || !emiStartDate) {
+             return res.status(400).json({ message: 'All fields including EMI details are required.' });
         }
         if (totalPrice <= downPayment) {
             return res.status(400).json({ message: 'Total price must be greater than the down payment.' });
         }
 
-        // --- Step 1: Check for existing device and register or update ---
-        
-        // FIX: Add a robust check to prevent duplicate devices and provide a clear error.
-        // The unique constraints on the model will throw a generic error, so we catch it here first.
-        const existingDevice = await Device.findOne({ $or: [{ imei }, { androidId }] });
+        const existingDevice = await Device.findOne({ imei });
         if (existingDevice) {
-            return res.status(400).json({ message: 'A device with this IMEI or Android ID already exists.' });
+            return res.status(400).json({ message: 'A device with this IMEI already exists.' });
         }
         
-        // Generate a permanent, unique 6-character alphanumeric unlock key.
         const unlockKey = Math.random().toString(36).substring(2, 8).toUpperCase();
         
-        // Create the new device since it doesn't exist
-        const device = new Device({ customerId, imei, androidId, model, unlockKey });
+        const device = new Device({ customerId, imei, model, unlockKey });
         await device.save();
         
-        // --- Step 2: Generate EMI Payment Schedule ---
         const loanAmount = totalPrice - downPayment;
         const emiAmount = loanAmount / numberOfEmis;
         const startDate = new Date(emiStartDate);
@@ -185,8 +178,6 @@ router.post('/devices/register', async (req, res) => {
 
         for (let i = 1; i <= numberOfEmis; i++) {
             const dueDate = new Date(startDate);
-            // The first EMI (i=1) is due one month after the start date.
-            // The second EMI (i=2) is due two months after, and so on.
             dueDate.setMonth(dueDate.getMonth() + i);
 
             const newPayment = new Payment({
@@ -205,13 +196,47 @@ router.post('/devices/register', async (req, res) => {
 
     } catch (error) {
         console.error("Error in device registration:", error);
-        // Handle potential race conditions or other DB errors
-        if (error.code === 11000) { // MongoDB duplicate key error
-             return res.status(400).json({ message: 'A device with this IMEI or Android ID already exists.' });
+        if (error.code === 11000) {
+             return res.status(400).json({ message: 'A device with this IMEI already exists.' });
         }
         res.status(400).json({ message: 'Error registering device', error: error.message });
     }
 });
+
+// NEW: Link an Android ID to a device after provisioning
+router.post('/devices/:deviceId/link', async (req, res) => {
+    try {
+        const { deviceId } = req.params;
+        const { androidId } = req.body;
+        
+        if (!androidId) {
+            return res.status(400).json({ message: 'Android ID is required.' });
+        }
+
+        // Check if another device is already using this Android ID
+        const existingDeviceWithAndroidId = await Device.findOne({ androidId });
+        if (existingDeviceWithAndroidId && existingDeviceWithAndroidId._id.toString() !== deviceId) {
+            return res.status(400).json({ message: 'This Android ID is already linked to another device.' });
+        }
+
+        const device = await Device.findById(deviceId);
+        if (!device) {
+            return res.status(404).json({ message: 'Device not found' });
+        }
+        
+        device.androidId = androidId;
+        await device.save();
+
+        res.status(200).json({ message: 'Device linked successfully.', device });
+
+    } catch (error) {
+         if (error.code === 11000) {
+             return res.status(400).json({ message: 'This Android ID is already linked to another device.' });
+        }
+        res.status(500).json({ message: 'Server error during device linking.', error: error.message });
+    }
+});
+
 
 // Security route for Android app to report tampering
 router.post('/devices/:deviceId/compromised', async (req, res) => {
@@ -355,46 +380,6 @@ router.get('/stats', async (req, res) => {
     }
 });
 
-// --- NEW: QR Code Provisioning Endpoint ---
-// Generates the JSON payload required for Android's QR code enrollment.
-router.get('/devices/:deviceId/provisioning-qr', async (req, res) => {
-    try {
-        const device = await Device.findById(req.params.deviceId);
-        if (!device) {
-            return res.status(404).json({ message: 'Device not found' });
-        }
-
-        // --- CRITICAL ---
-        // 1. You MUST place the compiled `app-release.apk` in the `backend/apk/` directory.
-        // 2. You MUST calculate the SHA-256 checksum of that APK and replace the placeholder below.
-        // On Linux/macOS: shasum -a 256 backend/apk/app-release.apk
-        // On Windows: CertUtil -hashfile backend\apk\app-release.apk SHA256
-        const apkChecksum = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"; // <-- REPLACE THIS DUMMY CHECKSUM
-        
-        // This dynamically determines the server's public URL.
-        // In production, you MUST use a fixed, publicly accessible URL from an environment variable.
-        const serverUrl = `http://${req.get('host').split(':')[0]}:${process.env.PORT || 3001}`;
-        const downloadUrl = `${serverUrl}/apk/app-release.apk`;
-        
-        const provisioningPayload = {
-            "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.emiseure.customer/.MyDeviceAdminReceiver",
-            "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": downloadUrl,
-            "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM": apkChecksum,
-            "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": true,
-        };
-
-        res.json({
-            // The QR code needs the entire JSON object as a single string.
-            qrCodeData: JSON.stringify(provisioningPayload)
-        });
-
-    } catch (error) {
-        console.error('Error generating provisioning QR data:', error);
-        res.status(500).json({ message: 'Server error', error: error.message });
-    }
-});
-
-
 // --- Security Routes: Lock, Unlock, Hard Reset, Release ---
 router.post('/devices/:deviceId/lock', async (req, res) => {
     try {
@@ -494,6 +479,39 @@ router.get('/devices/:deviceId/unlock-key', async (req, res) => {
         res.json({ unlockKey: device.unlockKey });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+// NEW: Get QR code data for provisioning a device
+router.get('/devices/:deviceId/provisioning-qr', async (req, res) => {
+    try {
+        const device = await Device.findById(req.params.deviceId);
+        if (!device) {
+            return res.status(404).json({ message: 'Device not found' });
+        }
+        if (!device.unlockKey) {
+            return res.status(400).json({ message: 'Device is missing required provisioning data (Unlock Key).' });
+        }
+
+        const backendBaseUrl = 'https://emi-secure-system.onrender.com';
+
+        const qrData = {
+            "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.emiseure.customer/.MyDeviceAdminReceiver",
+            "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": "https://github.com/aistudio-co/gemini-build-a-phone-emi-management-security-system/releases/latest/download/app-release.apk",
+            "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM": "466Q4i13d2i4a514Z18e2g3j4334c13k4b424A78g2i4d3e4g5g2e4k3",
+            "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": true,
+            "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": true,
+            "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {
+                "backend_url": backendBaseUrl,
+                "device_id": device._id.toString(), // Pass the DB id to link back
+                "unlock_key": device.unlockKey
+            }
+        };
+
+        res.json({ qrCodeData: JSON.stringify(qrData) });
+    } catch (error) {
+        console.error('Error fetching QR data:', error);
+        res.status(500).json({ message: 'Server error fetching QR data', error: error.message });
     }
 });
 

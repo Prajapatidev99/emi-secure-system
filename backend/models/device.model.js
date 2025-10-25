@@ -23,9 +23,9 @@ const deviceSchema = new Schema({
   },
   androidId: {
     type: String,
-    required: true,
     unique: true,
     trim: true,
+    sparse: true, // Allows multiple null values, but unique if not null
   },
   model: {
     type: String,

@@ -1,5 +1,5 @@
-// FIX: Import the 'Device' and 'KycDocument' types to resolve errors.
-import { Customer, EmiPayment, Device, KycDocument } from '../types';
+// FIX: Import the 'DeviceWithCustomer' type to resolve errors.
+import { Customer, EmiPayment, Device, KycDocument, DeviceWithCustomer } from '../types';
 
 const API_BASE_URL = 'https://emi-secure-system.onrender.com/api';
 
@@ -163,7 +163,6 @@ export const getPaymentsForCustomer = async (customerId: string): Promise<EmiPay
 type RegisterDeviceData = {
   customerId: string;
   imei: string;
-  androidId: string;
   model: string;
   totalPrice: number;
   downPayment: number;
@@ -180,8 +179,18 @@ export const registerDevice = async (saleData: RegisterDeviceData) => {
     return handleResponse(response);
 };
 
-// FIX: Update the return type to match the shape of data returned by the API, which includes a populated customerId.
-export const getDevices = async (): Promise<(Device & { customerId: { name: string } | null; })[]> => {
+// NEW: Link an Android ID to a device after provisioning
+export const linkDevice = async (deviceId: string, androidId: string) => {
+    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/link`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ androidId }),
+    });
+    return handleResponse(response);
+};
+
+
+export const getDevices = async (): Promise<DeviceWithCustomer[]> => {
     const response = await fetch(`${API_BASE_URL}/devices`, { headers: getAuthHeaders() });
     return handleResponse(response);
 };
