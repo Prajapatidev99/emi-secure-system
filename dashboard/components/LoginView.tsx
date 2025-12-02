@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { login } from '../services/api';
 import Button from './common/Button';
@@ -54,8 +55,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 <input
                     type="email"
                     id="email"
-                    name="email"
-                    autoComplete="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -74,8 +73,6 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess }) => {
                 <input
                     type="password"
                     id="password"
-                    name="password"
-                    autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
