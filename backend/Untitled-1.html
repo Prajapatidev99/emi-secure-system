@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMI Secure - Device Security Activator</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f8f9fa; margin: 0; padding: 2rem; }
+        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 2.5rem; border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+        h1, h2, h3 { color: #1d4ed8; }
+        h1 { font-size: 2.5rem; text-align: center; border-bottom: 3px solid #dbeafe; padding-bottom: 1rem; margin-bottom: 1.5rem; }
+        h2 { font-size: 1.8rem; margin-top: 2.5rem; border-bottom: 2px solid #e0f2fe; padding-bottom: 0.5rem; display: flex; align-items: center;}
+        .step-number { background-color: #1d4ed8; color: white; border-radius: 50%; width: 32px; height: 32px; display: inline-flex; justify-content: center; align-items: center; font-weight: bold; margin-right: 12px; }
+        code { background-color: #eef; color: #3d3d3d; padding: 0.2rem 0.5rem; border-radius: 4px; font-family: "Courier New", Courier, monospace; word-break: break-all; }
+        pre { background-color: #2d2d2d; color: #f4f4f4; padding: 1rem; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; position: relative; }
+        .note { background-color: #fffbe6; border-left: 5px solid #f59e0b; padding: 1.2rem; margin-top: 1.5rem; border-radius: 4px; }
+        .critical { background-color: #fef2f2; border-left: 5px solid #dc2626; padding: 1.2rem; margin-top: 1.5rem; border-radius: 4px; }
+        .success { background-color: #f0fdf4; border-left: 5px solid #16a34a; padding: 1.2rem; margin-top: 1.5rem; border-radius: 4px; }
+        .step { margin-bottom: 1.5rem; }
+        li { margin-bottom: 0.75rem; }
+        a { color: #1d4ed8; font-weight: bold; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .command-container { display: flex; align-items: center; gap: 1rem; margin-top: 1rem; }
+        .copy-btn { background-color: #2563eb; color: white; border: none; padding: 0.8rem 1.5rem; border-radius: 6px; cursor: pointer; font-size: 1rem; font-weight: bold; transition: background-color 0.2s; }
+        .copy-btn:hover { background-color: #1d4ed8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Device Security Activator</h1>
+        <p>Follow these simple steps for every phone before selling it. This activates the security features to prevent customers from uninstalling the app or resetting the phone.</p>
+
+        <div class="critical">
+            <strong>Requirement:</strong> This must be done on a <strong>brand new</strong> or <strong>factory-reset</strong> phone before any Google account is added.
+        </div>
+
+        <h2><span class="step-number">1</span> Prepare the Phone</h2>
+        <div class="step">
+            <ol>
+                <li>Turn on the phone. During setup, <strong>skip connecting to Wi-Fi</strong> and <strong>skip adding a Google Account</strong>.</li>
+                <li>Go to <strong>Settings &gt; About phone</strong>.</li>
+                <li>Tap on <strong>"Build number"</strong> seven (7) times fast. A message "You are now a developer!" will appear.</li>
+                <li>Go back to <strong>Settings &gt; System</strong> and find <strong>Developer options</strong>.</li>
+                <li>Turn on <strong>USB debugging</strong>.</li>
+            </ol>
+        </div>
+
+        <h2><span class="step-number">2</span> Install the App</h2>
+         <div class="step">
+            <ol>
+                <li>Connect the phone to your computer with a USB cable.</li>
+                <li>Allow the connection on your phone if a popup appears.</li>
+                <li>Install the <strong>EMI Secure APK</strong> file onto the phone (your app provider will give you this file).</li>
+            </ol>
+        </div>
+
+        <h2><span class="step-number">3</span> Download PC Tool</h2>
+        <div class="step">
+             <p>You need a small tool from Google to send the security command. Click the link for your computer type:</p>
+             <ul>
+                 <li><a href="https://dl.google.com/android/repository/platform-tools-latest-windows.zip" target="_blank">Download for Windows</a></li>
+                 <li><a href="https://dl.google.com/android/repository/platform-tools-latest-darwin.zip" target="_blank">Download for Mac</a></li>
+                 <li><a href="https://dl.google.com/android/repository/platform-tools-latest-linux.zip" target="_blank">Download for Linux</a></li>
+             </ul>
+             <p>After downloading, <strong>unzip the file</strong> to your Desktop or another easy-to-find location.</p>
+        </div>
+
+        <h2><span class="step-number">4</span> Run the Security Command</h2>
+        <div class="step">
+            <ol>
+                <li>Open the unzipped <strong>platform-tools</strong> folder.</li>
+                <li>
+                    <strong>Open a terminal/command window inside this folder:</strong>
+                    <ul>
+                        <li><strong>Windows:</strong> Hold the `Shift` key and right-click on an empty space inside the folder, then select "Open PowerShell window here" or "Open Command Prompt here".</li>
+                        <li><strong>Mac:</strong> Right-click on the folder, select "New Terminal at Folder".</li>
+                    </ul>
+                </li>
+                <li>Click the button below to copy the security command:</li>
+            </ol>
+            <div class="command-container">
+                <code id="commandText">adb shell dpm set-device-owner com.emiseure.customer/.MyDeviceAdminReceiver</code>
+                <button id="copyButton" class="copy-btn">Copy Command</button>
+            </div>
+            <ol start="3">
+                <li>Go back to your terminal/PowerShell window, right-click to paste the command, and press <strong>Enter</strong>.</li>
+            </ol>
+            <div class="success">
+                If it worked, you will see a "Success" message. The phone is now secure!
+            </div>
+        </div>
+        
+        <h2><span class="step-number">5</span> Final Step: Add Google Account</h2>
+        <div class="step">
+            <div class="note">
+                <strong>This is the final and most important security lock.</strong> It makes the phone unusable if someone tries to reset it using the hardware buttons.
+            </div>
+             <ol>
+                <li>On the phone, go to <strong>Settings &gt; Accounts &gt; Add account</strong>.</li>
+                <li>Sign in with a <strong>Google account your shop controls</strong>.</li>
+                <li>Open the EMI Secure app and verify you see "Device Admin Active" at the bottom.</li>
+            </ol>
+        </div>
+
+        <h2>Troubleshooting</h2>
+        <p><strong>Error: "device not found"</strong><br>Make sure the phone is connected, USB debugging is on, and you authorized the connection on the phone's screen.</p>
+        <p><strong>Error: "...some accounts on the device"</strong><br>The phone was not factory reset properly. You must factory reset the phone and start over from Step 1.</p>
+        <p><strong>Error: "Invalid component" or "already an admin"</strong><br>This happens if you accidentally made the app a regular admin in the phone's settings before running the command. You must factory reset the phone and follow the steps exactly, without opening the app or changing any security settings manually.</p>
+    </div>
+
+<script>
+    document.getElementById('copyButton').addEventListener('click', () => {
+        const commandText = document.getElementById('commandText').innerText;
+        const button = document.getElementById('copyButton');
+        
+        navigator.clipboard.writeText(commandText).then(() => {
+            const originalText = button.textContent;
+            button.textContent = 'Copied!';
+            button.style.backgroundColor = '#16a34a'; // Green color for success
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.style.backgroundColor = ''; // Revert to original color
+            }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+            button.textContent = 'Failed!';
+             button.style.backgroundColor = '#dc2626'; // Red color for error
+        });
+    });
+</script>
+
+</body>
+</html>
