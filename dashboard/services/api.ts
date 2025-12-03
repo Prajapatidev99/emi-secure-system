@@ -1,7 +1,10 @@
 // FIX: Import the 'DeviceWithCustomer' type to resolve errors.
 import { Customer, EmiPayment, Device, KycDocument, DeviceWithCustomer } from '../types';
 
-const API_BASE_URL = '';
+// Detect if we are running locally to switch the API URL automatically.
+const hostname = window.location.hostname;
+const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
+const API_BASE_URL = isLocal ? 'http://localhost:3001/api' : 'https://emi-secure-system.onrender.com/api';
 
 const getAuthHeaders = () => {
     // Retrieve token from sessionStorage to authorize API requests.
@@ -30,16 +33,25 @@ const handleResponse = async (response: Response) => {
 
     // If the response was not successful, throw an error.
     if (!response.ok) {
-        // Try to parse the text as JSON to find a 'message' field.
+        let errorMessage = `Server error: ${response.status}`;
         try {
-            const errorJson = JSON.parse(responseBody);
-            throw new Error(errorJson.message || `Server error: ${response.status}`);
+            // Try to parse JSON only if content exists
+            if (responseBody && responseBody.trim().length > 0) {
+                const errorJson = JSON.parse(responseBody);
+                if (errorJson.message) {
+                    errorMessage = errorJson.message;
+                }
+                // Append detailed error if available
+                if (errorJson.error) {
+                    errorMessage += ` (${errorJson.error})`;
+                }
+            }
         } catch (e) {
             // If parsing failed, it's not a JSON error from our API.
-            // This is where an HTML error page would be caught.
             console.error("Received non-JSON error response:", responseBody);
-            throw new Error(`An unexpected network error occurred (Status: ${response.status}).`);
+            errorMessage = `An unexpected network error occurred (Status: ${response.status}).`;
         }
+        throw new Error(errorMessage);
     }
 
     // If the response was successful, parse the body (if it's not empty).
@@ -48,8 +60,6 @@ const handleResponse = async (response: Response) => {
     }
     
     // CRITICAL FIX: Wrap the final parse in a try-catch block.
-    // This prevents a crash if the server returns a successful status (200)
-    // but the body is not valid JSON (e.g., an HTML error page from a proxy).
     try {
         return JSON.parse(responseBody);
     } catch (e) {

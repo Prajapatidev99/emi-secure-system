@@ -1,68 +1,64 @@
-const config = require('./config/config'); // Use centralized config
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const path = require('path'); // Import path module
+const morgan = require('morgan');
+const { initializeFirebaseAdmin } = require('./firebase/firebaseAdmin');
 
 const authRoutes = require('./routes/auth.routes');
 const apiRoutes = require('./routes/api.routes');
 const publicApiRoutes = require('./routes/public.api.routes');
 const authMiddleware = require('./middleware/auth.middleware');
-const { initializeFirebaseAdmin } = require('./firebase/firebaseAdmin');
+const config = require('./config/config');
 
 const app = express();
-const PORT = config.port;
 
-// --- Middleware ---
-const corsOptions = {
-  origin: '*', // In production, you should restrict this to your frontend's domain
-  methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-};
-app.use(cors(corsOptions));
-// Increase the payload size limit to handle base64 image uploads
-app.use(express.json({ limit: '10mb' }));
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(morgan('dev')); // Log requests
 
-// --- NEW: Host the APK for QR Code Provisioning ---
-// This serves files from the 'apk' directory at the '/apk' public URL.
-app.use('/apk', express.static(path.join(__dirname, 'apk')));
-
-// --- Initialize Firebase Admin SDK ---
+// Initialize Firebase Admin SDK
 try {
-  initializeFirebaseAdmin();
-  console.log('Firebase Admin SDK initialized successfully.');
+    initializeFirebaseAdmin();
+    console.log('Firebase Admin Initialized');
 } catch (error) {
-  console.error('Error initializing Firebase Admin SDK:', error);
-  process.exit(1);
+    console.error('Firebase Admin Initialization Warning:', error.message);
 }
 
-// --- Database Connection ---
+// Connect to MongoDB
+console.log('Attempting to connect to MongoDB...');
 mongoose.connect(config.mongodbUri)
-  .then(() => console.log('Successfully connected to MongoDB.'))
-  .catch(err => {
-    console.error('MongoDB connection error:', err);
-    process.exit(1);
-  });
-
-// --- API Routes Setup (Refactored for Correctness and Simplicity) ---
-
-// 1. PUBLIC ROUTES - No token required.
-// These are defined first and will not be affected by the auth middleware below.
-app.use('/api/auth', authRoutes);
-app.use('/api/public', publicApiRoutes);
-
-// 2. PROTECTED ROUTES - Token is required.
-// The authMiddleware is applied to all routes in `apiRoutes`.
-// This router will handle all requests to /api that were not handled by the public routers above.
-app.use('/api', authMiddleware, apiRoutes);
-
-
-// --- Root Endpoint ---
-app.get('/', (req, res) => {
-  res.send('EMI Secure Backend is running.');
+.then(() => {
+    console.log('MongoDB Connected Successfully');
+})
+.catch(err => {
+    console.error('MongoDB Connection Error:', err.message);
+    if (err.name === 'MongooseServerSelectionError') {
+        console.error('---------------------------------------------------------');
+        console.error('ERROR: Could not connect to MongoDB Atlas.');
+        console.error('Likely Cause: Your IP address is not whitelisted.');
+        console.error('ACTION REQUIRED: Go to MongoDB Atlas -> Network Access -> Add IP Address -> Add Current IP.');
+        console.error('---------------------------------------------------------');
+    }
 });
 
-// --- Start Server ---
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server is running and accessible on your network at port ${PORT}`);
+// Routes
+// 1. Auth routes (Login/Register) - Public
+app.use('/api/auth', authRoutes);
+
+// 2. Public Android API routes (Status checks, FCM updates) - Public
+app.use('/api/public', publicApiRoutes);
+
+// 3. Main Dashboard routes - Protected by Authentication
+app.use('/api', authMiddleware, apiRoutes);
+
+// Health Check
+app.get('/', (req, res) => {
+    res.send('EMI Secure API is running');
+});
+
+const PORT = config.port || 3001;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
