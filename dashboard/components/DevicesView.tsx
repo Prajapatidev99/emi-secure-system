@@ -1,12 +1,13 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
-import { getDevices, linkDevice } from '../services/api';
+import { getDevices, linkDevice, deleteDevice } from '../services/api';
 import { DeviceWithCustomer } from '../types';
 import Card from './common/Card';
 import Skeleton from './common/Skeleton';
 import Button from './common/Button';
 import Modal from './common/Modal';
-import QrCodeModal from './QrCodeModal';
 import StatusBadge from './common/StatusBadge';
+import ConfirmationModal from './common/ConfirmationModal';
 
 const LinkDeviceForm = ({ device, onSuccess, onCancel }: { device: DeviceWithCustomer, onSuccess: () => void, onCancel: () => void }) => {
     const [androidId, setAndroidId] = useState('');
@@ -32,7 +33,7 @@ const LinkDeviceForm = ({ device, onSuccess, onCancel }: { device: DeviceWithCus
         <form onSubmit={handleSubmit}>
             {error && <p className="bg-rose-900/50 text-rose-300 border border-rose-500/30 p-3 rounded-md mb-4 text-center">{error}</p>}
             <p className="text-slate-400 mb-4">
-                After provisioning the phone with the QR code, the app will start and display its permanent Android ID. Enter that ID here to complete the process.
+                After running the ADB command, the app will display its permanent Android ID. Enter it here.
             </p>
             <div>
                 <label htmlFor="androidId" className="block text-sm font-medium text-slate-300">Android ID from Device</label>
@@ -43,7 +44,6 @@ const LinkDeviceForm = ({ device, onSuccess, onCancel }: { device: DeviceWithCus
                     onChange={(e) => setAndroidId(e.target.value)}
                     required
                     className="mt-1 block w-full px-3 py-2 border border-slate-600 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 bg-slate-700 text-white"
-                    placeholder="e.g., 1a2b3c4d5e6f7g8h"
                 />
             </div>
             <div className="flex justify-end mt-6 space-x-2">
@@ -54,96 +54,73 @@ const LinkDeviceForm = ({ device, onSuccess, onCancel }: { device: DeviceWithCus
     );
 };
 
-
 const DevicesView: React.FC = () => {
   const [devices, setDevices] = useState<DeviceWithCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  // State for modals
-  const [qrModalDeviceId, setQrModalDeviceId] = useState<string | null>(null);
   const [linkModalDevice, setLinkModalDevice] = useState<DeviceWithCustomer | null>(null);
   
+  // Deletion state
+  const [deviceToDelete, setDeviceToDelete] = useState<DeviceWithCustomer | null>(null);
+  const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
   const fetchDevices = useCallback(() => {
     setLoading(true);
-    setError(null);
     getDevices()
-      .then(setDevices)
-      .catch(err => {
-        if (err instanceof Error) setError(err.message);
-        else setError('Failed to fetch devices.');
-      })
-      .finally(() => setLoading(false));
+        .then(setDevices)
+        .catch(err => setError(err.message))
+        .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    fetchDevices();
-  }, [fetchDevices]);
-  
-  const handleLinkSuccess = () => {
-    setLinkModalDevice(null);
-    fetchDevices(); // Refresh list after successful link
+  useEffect(() => { fetchDevices(); }, [fetchDevices]);
+
+  const handleDeleteConfirm = async () => {
+    if (!deviceToDelete) return;
+    setDeleteLoading(true);
+    try {
+        await deleteDevice(deviceToDelete._id);
+        setDeleteModalOpen(false);
+        setDeviceToDelete(null);
+        fetchDevices();
+    } catch (err) {
+        if (err instanceof Error) alert(err.message);
+    } finally {
+        setDeleteLoading(false);
+    }
   };
 
-  const DeviceTableSkeleton = () => (
-    [...Array(5)].map((_, index) => (
-      <tr key={index}>
-        <td className="px-6 py-4"><Skeleton className="h-4 w-24" /></td>
-        <td className="px-6 py-4"><Skeleton className="h-4 w-32" /></td>
-        <td className="px-6 py-4"><Skeleton className="h-4 w-40" /></td>
-        <td className="px-6 py-4"><Skeleton className="h-6 w-24 rounded-full" /></td>
-        <td className="px-6 py-4"><Skeleton className="h-6 w-24 rounded-full" /></td>
-        <td className="px-6 py-4 text-center"><Skeleton className="h-8 w-32 mx-auto" /></td>
-      </tr>
-    ))
-  );
-
+  const openDeleteModal = (device: DeviceWithCustomer) => {
+    setDeviceToDelete(device);
+    setDeleteModalOpen(true);
+  };
+  
   return (
     <>
       <Card>
-        <h2 className="text-2xl font-bold mb-4 text-white">Device Provisioning & Management</h2>
-        {error && <p className="text-rose-400 text-center py-4">Error: {error}</p>}
+        <h2 className="text-2xl font-bold mb-4 text-white">Device Management</h2>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-700">
             <thead className="bg-slate-800">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Customer</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Device Model</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">IMEI</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Link Status</th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Device Status</th>
-                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase">Customer</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase">Model</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase">Status</th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-slate-900 divide-y divide-slate-800">
-              {loading ? (
-                <DeviceTableSkeleton />
-              ) : devices.map(device => (
+              {loading ? [...Array(5)].map((_, i) => <tr key={i}><td colSpan={4}><Skeleton className="h-8 w-full my-2"/></td></tr>) : 
+                devices.map(device => (
                 <tr key={device._id}>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{device.customerId?.name || 'N/A'}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{device.model}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-slate-400">{device.imei}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    {device.androidId ? (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-teal-900 text-teal-300">
-                            Linked
-                        </span>
-                    ) : (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-900 text-amber-300">
-                            Not Linked
-                        </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm"><StatusBadge status={device.status} /></td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
-                    <Button variant="secondary" size="sm" onClick={() => setQrModalDeviceId(device._id)}>
-                        Provision (QR)
-                    </Button>
+                  <td className="px-6 py-4 text-white">{device.customerId?.name || 'N/A'}</td>
+                  <td className="px-6 py-4 text-slate-400">{device.model}</td>
+                  <td className="px-6 py-4"><StatusBadge status={device.status} /></td>
+                  <td className="px-6 py-4 text-right space-x-2">
                     {!device.androidId && (
-                        <Button variant="primary" size="sm" onClick={() => setLinkModalDevice(device)}>
-                            Link Device
-                        </Button>
+                        <Button variant="primary" size="sm" onClick={() => setLinkModalDevice(device)}>Link Device</Button>
                     )}
+                    <Button variant="danger" size="sm" onClick={() => openDeleteModal(device)}>Delete</Button>
                   </td>
                 </tr>
               ))}
@@ -151,27 +128,25 @@ const DevicesView: React.FC = () => {
           </table>
         </div>
       </Card>
-
-      {qrModalDeviceId && (
-        <QrCodeModal 
-            isOpen={!!qrModalDeviceId}
-            onClose={() => setQrModalDeviceId(null)}
-            deviceId={qrModalDeviceId}
-        />
-      )}
-      
       {linkModalDevice && (
-        <Modal 
-            isOpen={!!linkModalDevice} 
-            onClose={() => setLinkModalDevice(null)} 
-            title={`Link Device: ${linkModalDevice.model}`}
-        >
-            <LinkDeviceForm 
-                device={linkModalDevice}
-                onSuccess={handleLinkSuccess}
-                onCancel={() => setLinkModalDevice(null)}
-            />
+        <Modal isOpen={!!linkModalDevice} onClose={() => setLinkModalDevice(null)} title="Link Device">
+            <LinkDeviceForm device={linkModalDevice} onSuccess={() => { setLinkModalDevice(null); fetchDevices(); }} onCancel={() => setLinkModalDevice(null)} />
         </Modal>
+      )}
+
+      {deviceToDelete && (
+          <ConfirmationModal
+            isOpen={isDeleteModalOpen}
+            onClose={() => setDeleteModalOpen(false)}
+            onConfirm={handleDeleteConfirm}
+            title="Delete Device"
+            variant="danger"
+            confirmText={deleteLoading ? "Deleting..." : "Delete Permanently"}
+          >
+            Are you sure you want to delete device <strong className="text-white">{deviceToDelete.model}</strong>?
+            <br/><br/>
+            <span className="text-rose-400 font-bold">WARNING:</span> This will also delete all associated EMI payment records for this device. This action cannot be undone.
+          </ConfirmationModal>
       )}
     </>
   );

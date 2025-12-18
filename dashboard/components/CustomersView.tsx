@@ -1,5 +1,6 @@
+
 import { useState, useEffect, useCallback } from 'react';
-import { getCustomers } from '../services/api';
+import { getCustomers, deleteCustomer } from '../services/api';
 import { Customer } from '../types';
 import Card from './common/Card';
 import Skeleton from './common/Skeleton';
@@ -8,6 +9,7 @@ import Modal from './common/Modal';
 import AddCustomerForm from './AddCustomerForm';
 import RegisterDeviceForm from './RegisterDeviceForm';
 import CustomerDetailView from './CustomerDetailView';
+import ConfirmationModal from './common/ConfirmationModal';
 
 const CustomersView = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -17,9 +19,12 @@ const CustomersView = () => {
   const [isAddCustomerModalOpen, setAddCustomerModalOpen] = useState(false);
   const [isRegisterDeviceModalOpen, setRegisterDeviceModalOpen] = useState(false);
   
-  // State to manage which view to show
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
 
+  // Deletion state
+  const [customerToDelete, setCustomerToDelete] = useState<Customer | null>(null);
+  const [isDeleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchCustomers = useCallback(() => {
     setLoading(true);
@@ -37,7 +42,6 @@ const CustomersView = () => {
   }, []);
 
   useEffect(() => {
-    // Only fetch customers when in the list view
     if (!selectedCustomerId) {
       fetchCustomers();
     }
@@ -45,7 +49,28 @@ const CustomersView = () => {
 
   const handleCustomerAdded = () => {
     setAddCustomerModalOpen(false);
-    fetchCustomers(); // Refresh the list
+    fetchCustomers();
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!customerToDelete) return;
+    setDeleteLoading(true);
+    try {
+        await deleteCustomer(customerToDelete.id);
+        setDeleteModalOpen(false);
+        setCustomerToDelete(null);
+        fetchCustomers();
+    } catch (err) {
+        if (err instanceof Error) alert(err.message);
+    } finally {
+        setDeleteLoading(false);
+    }
+  };
+
+  const openDeleteModal = (e: React.MouseEvent, customer: Customer) => {
+    e.stopPropagation(); // Don't trigger the row click (detail view)
+    setCustomerToDelete(customer);
+    setDeleteModalOpen(true);
   };
 
   const filteredCustomers = customers.filter(customer =>
@@ -53,7 +78,6 @@ const CustomersView = () => {
     customer.phone.toLowerCase().includes(searchTerm.toLowerCase())
   );
   
-  // If a customer is selected, show the detail view
   if (selectedCustomerId) {
     return <CustomerDetailView customerId={selectedCustomerId} onBack={() => setSelectedCustomerId(null)} />;
   }
@@ -65,6 +89,7 @@ const CustomersView = () => {
         <td className="px-6 py-4 whitespace-nowrap"><Skeleton className="h-4 w-32" /></td>
         <td className="px-6 py-4 whitespace-nowrap"><Skeleton className="h-4 w-24" /></td>
         <td className="px-6 py-4 whitespace-nowrap"><Skeleton className="h-4 w-48" /></td>
+        <td className="px-6 py-4 whitespace-nowrap"><Skeleton className="h-8 w-16 ml-auto" /></td>
       </tr>
     ))
   );
@@ -99,6 +124,7 @@ const CustomersView = () => {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Name</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Phone</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Address</th>
+                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-400 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-slate-900 divide-y divide-slate-800">
@@ -113,10 +139,19 @@ const CustomersView = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{customer.name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{customer.phone}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{customer.address}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                    <Button 
+                        variant="danger" 
+                        size="sm" 
+                        onClick={(e) => openDeleteModal(e, customer)}
+                    >
+                        Delete
+                    </Button>
+                  </td>
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={3} className="text-center py-4 text-slate-400">
+                  <td colSpan={4} className="text-center py-4 text-slate-400">
                     No customers found.
                   </td>
                 </tr>
@@ -136,6 +171,21 @@ const CustomersView = () => {
             fetchCustomers();
         }} />
       </Modal>
+
+      {customerToDelete && (
+          <ConfirmationModal
+            isOpen={isDeleteModalOpen}
+            onClose={() => setDeleteModalOpen(false)}
+            onConfirm={handleDeleteConfirm}
+            title="Delete Customer"
+            variant="danger"
+            confirmText={deleteLoading ? "Deleting..." : "Delete Permanently"}
+          >
+            Are you sure you want to delete <strong className="text-white">{customerToDelete.name}</strong>? 
+            <br/><br/>
+            <span className="text-rose-400 font-bold">WARNING:</span> This will also delete all registered devices and payment records associated with this customer. This action cannot be undone.
+          </ConfirmationModal>
+      )}
     </>
   );
 };

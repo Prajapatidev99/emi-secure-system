@@ -1,13 +1,11 @@
-// FIX: Import the 'DeviceWithCustomer' type to resolve errors.
+
 import { Customer, EmiPayment, Device, KycDocument, DeviceWithCustomer } from '../types';
 
-// Detect if we are running locally to switch the API URL automatically.
 const hostname = window.location.hostname;
 const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
 const API_BASE_URL = isLocal ? 'http://localhost:3001/api' : 'https://emi-secure-system.onrender.com/api';
 
 const getAuthHeaders = () => {
-    // Retrieve token from sessionStorage to authorize API requests.
     const token = sessionStorage.getItem('authToken');
     
     return {
@@ -17,7 +15,6 @@ const getAuthHeaders = () => {
 };
 
 const handleResponse = async (response: Response) => {
-    // Handle auth failures first, as they might redirect or have non-JSON bodies.
     if (response.status === 401 && !response.url.endsWith('/login')) {
         sessionStorage.removeItem('authToken');
         window.location.reload();
@@ -28,38 +25,31 @@ const handleResponse = async (response: Response) => {
         throw new Error('Upload failed: The file(s) are too large. Please ensure each image is under 2MB.');
     }
 
-    // Get the response body as text, as we don't know yet if it's JSON.
     const responseBody = await response.text();
 
-    // If the response was not successful, throw an error.
     if (!response.ok) {
         let errorMessage = `Server error: ${response.status}`;
         try {
-            // Try to parse JSON only if content exists
             if (responseBody && responseBody.trim().length > 0) {
                 const errorJson = JSON.parse(responseBody);
                 if (errorJson.message) {
                     errorMessage = errorJson.message;
                 }
-                // Append detailed error if available
                 if (errorJson.error) {
                     errorMessage += ` (${errorJson.error})`;
                 }
             }
         } catch (e) {
-            // If parsing failed, it's not a JSON error from our API.
             console.error("Received non-JSON error response:", responseBody);
             errorMessage = `An unexpected network error occurred (Status: ${response.status}).`;
         }
         throw new Error(errorMessage);
     }
 
-    // If the response was successful, parse the body (if it's not empty).
     if (!responseBody) {
-        return {}; // An empty object is a safe default for successful but empty responses (e.g., 204 No Content).
+        return {};
     }
     
-    // CRITICAL FIX: Wrap the final parse in a try-catch block.
     try {
         return JSON.parse(responseBody);
     } catch (e) {
@@ -120,10 +110,17 @@ export const getOfflineUnlockKey = async (deviceId: string): Promise<{ unlockKey
     return handleResponse(response);
 };
 
-// --- NEW: Device Release Action ---
 export const releaseDevice = async (deviceId: string) => {
     const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/release`, {
         method: 'POST',
+        headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+};
+
+export const deleteDevice = async (deviceId: string) => {
+    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}`, {
+        method: 'DELETE',
         headers: getAuthHeaders(),
     });
     return handleResponse(response);
@@ -159,6 +156,14 @@ export const getCustomerById = async (customerId: string): Promise<Customer> => 
     return handleResponse(response);
 };
 
+export const deleteCustomer = async (customerId: string) => {
+    const response = await fetch(`${API_BASE_URL}/customers/${customerId}`, {
+        method: 'DELETE',
+        headers: getAuthHeaders(),
+    });
+    return handleResponse(response);
+};
+
 export const getDevicesForCustomer = async (customerId: string): Promise<Device[]> => {
     const response = await fetch(`${API_BASE_URL}/customers/${customerId}/devices`, { headers: getAuthHeaders() });
     return handleResponse(response);
@@ -189,7 +194,6 @@ export const registerDevice = async (saleData: RegisterDeviceData) => {
     return handleResponse(response);
 };
 
-// NEW: Link an Android ID to a device after provisioning
 export const linkDevice = async (deviceId: string, androidId: string) => {
     const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/link`, {
         method: 'POST',

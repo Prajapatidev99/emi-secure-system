@@ -1,3 +1,4 @@
+
 const express = require('express');
 const admin = require('firebase-admin');
 const Customer = require('../models/customer.model');
@@ -14,21 +15,16 @@ const sendFcmCommand = async (fcmToken, command, message) => {
             action: command, // 'LOCK', 'UNLOCK', 'WIPE', 'RELEASE_OWNERSHIP'
             message: message,
         },
-        // --- URGENT FIX: Ensure immediate delivery for critical commands ---
-        // By setting priority to 'high', we instruct FCM to wake the device
-        // and deliver the message immediately, bypassing battery-saving optimizations.
-        // This is essential for time-sensitive commands like LOCK and WIPE.
         android: {
             priority: 'high',
         },
-        // It's good practice to include APNS config for potential future iOS support
         apns: {
             headers: {
-                'apns-priority': '10', // Maps to high priority on iOS
+                'apns-priority': '10',
             },
             payload: {
                 aps: {
-                    'content-available': 1, // Wakes up the app on iOS
+                    'content-available': 1,
                 },
             },
         },
@@ -74,7 +70,6 @@ router.get('/customers', async (req, res) => {
     }
 });
 
-// NEW: Get a single customer by ID
 router.get('/customers/:id', async (req, res) => {
     try {
         const customer = await Customer.findById(req.params.id);
@@ -87,13 +82,33 @@ router.get('/customers/:id', async (req, res) => {
     }
 });
 
-// NEW: Get all devices for a specific customer
+// DELETE Customer (Cascade)
+router.delete('/customers/:id', async (req, res) => {
+    try {
+        const customerId = req.params.id;
+        
+        // 1. Delete all payments associated with this customer
+        await Payment.deleteMany({ customerId });
+        
+        // 2. Delete all devices associated with this customer
+        await Device.deleteMany({ customerId });
+        
+        // 3. Delete the customer record itself
+        const result = await Customer.findByIdAndDelete(customerId);
+        
+        if (!result) {
+            return res.status(404).json({ message: 'Customer not found' });
+        }
+        
+        res.json({ message: 'Customer and all associated data deleted successfully.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting customer', error: error.message });
+    }
+});
+
 router.get('/customers/:id/devices', async (req, res) => {
     try {
         const devices = await Device.find({ customerId: req.params.id }).sort({ createdAt: -1 });
-        // DEFINITIVE FIX: Manually map the response to ensure the '_id' field is always
-        // present and correctly formatted as a string. This prevents issues with
-        // Mongoose's toJSON virtuals in some environments.
         const response = devices.map(d => ({
             id: d._id.toString(),
             _id: d._id.toString(),
@@ -114,14 +129,12 @@ router.get('/customers/:id/devices', async (req, res) => {
     }
 });
 
-
-// NEW: Get all payments for a specific customer
 router.get('/customers/:id/payments', async (req, res) => {
     try {
         const payments = await Payment.find({ customerId: req.params.id })
             .populate({
                 path: 'deviceId',
-                select: 'model status' // Include status along with model
+                select: 'model status'
             })
             .sort({ dueDate: 'desc' });
         
@@ -142,8 +155,6 @@ router.get('/customers/:id/payments', async (req, res) => {
     }
 });
 
-
-
 // --- Device and Sale Registration ---
 router.post('/devices/register', async (req, res) => {
     try {
@@ -152,7 +163,6 @@ router.post('/devices/register', async (req, res) => {
             totalPrice, downPayment, numberOfEmis, emiStartDate 
         } = req.body;
 
-        // --- Validation ---
         if (!customerId || !imei || !model || !totalPrice || !downPayment || !numberOfEmis || !emiStartDate) {
              return res.status(400).json({ message: 'All fields including EMI details are required.' });
         }
@@ -203,7 +213,27 @@ router.post('/devices/register', async (req, res) => {
     }
 });
 
-// NEW: Link an Android ID to a device after provisioning
+// DELETE Device (and its payments)
+router.delete('/devices/:id', async (req, res) => {
+    try {
+        const deviceId = req.params.id;
+        
+        // 1. Delete associated payments
+        await Payment.deleteMany({ deviceId });
+        
+        // 2. Delete device
+        const result = await Device.findByIdAndDelete(deviceId);
+        
+        if (!result) {
+            return res.status(404).json({ message: 'Device not found' });
+        }
+        
+        res.json({ message: 'Device and its payment records deleted successfully.' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error deleting device', error: error.message });
+    }
+});
+
 router.post('/devices/:deviceId/link', async (req, res) => {
     try {
         const { deviceId } = req.params;
@@ -213,7 +243,6 @@ router.post('/devices/:deviceId/link', async (req, res) => {
             return res.status(400).json({ message: 'Android ID is required.' });
         }
 
-        // Check if another device is already using this Android ID
         const existingDeviceWithAndroidId = await Device.findOne({ androidId });
         if (existingDeviceWithAndroidId && existingDeviceWithAndroidId._id.toString() !== deviceId) {
             return res.status(400).json({ message: 'This Android ID is already linked to another device.' });
@@ -237,8 +266,6 @@ router.post('/devices/:deviceId/link', async (req, res) => {
     }
 });
 
-
-// Security route for Android app to report tampering
 router.post('/devices/:deviceId/compromised', async (req, res) => {
     try {
         const device = await Device.findById(req.params.deviceId);
@@ -255,18 +282,15 @@ router.post('/devices/:deviceId/compromised', async (req, res) => {
     }
 });
 
-
-// --- Payment Routes ---
 router.get('/payments/pending', async (req, res) => {
     try {
-        // This query fetches pending/overdue payments and populates related data
         const pendingPayments = await Payment.find({ status: { $in: ['Pending', 'Overdue'] } })
             .populate('customerId', 'name')
             .populate('deviceId', 'imei model status')
             .sort({ dueDate: 'asc' });
         
         const response = pendingPayments
-            .filter(p => p.customerId && p.deviceId) // Filter out payments with missing refs
+            .filter(p => p.customerId && p.deviceId)
             .map(p => ({
                 id: p._id,
                 customerId: p.customerId._id,
@@ -296,28 +320,23 @@ router.patch('/payments/:paymentId/pay', async (req, res) => {
             return res.status(200).json({ message: 'Payment was already marked as paid.' });
         }
 
-        // 1. Update Payment Status
         payment.status = PaymentStatus.Paid;
         await payment.save();
 
         const customerId = payment.customerId;
 
-        // 2. Check if all payments for this customer are now paid.
         const pendingPaymentsCount = await Payment.countDocuments({
             customerId: customerId,
             status: { $in: [PaymentStatus.Pending, PaymentStatus.Overdue] }
         });
 
-        // 3. If all payments are cleared, release devices. Otherwise, just unlock the specific device.
         if (pendingPaymentsCount === 0) {
-            console.log(`All payments cleared for customer ${customerId}. Initiating device release process.`);
             const devicesToRelease = await Device.find({
                 customerId: customerId,
-                status: { $ne: DeviceStatus.Released } // Find devices not already released
+                status: { $ne: DeviceStatus.Released }
             });
 
             for (const device of devicesToRelease) {
-                console.log(`Releasing device ${device.model} (${device.imei})`);
                 if (device.fcmToken) {
                     await sendFcmCommand(
                         device.fcmToken,
@@ -331,7 +350,6 @@ router.patch('/payments/:paymentId/pay', async (req, res) => {
             res.status(200).json({ message: 'Final payment processed. All associated customer devices have been released.' });
 
         } else {
-            // Not the final payment, just unlock the specific device if it was locked.
             const device = await Device.findById(payment.deviceId);
             if (device && device.status === DeviceStatus.Locked) {
                 device.status = DeviceStatus.Active;
@@ -348,8 +366,6 @@ router.patch('/payments/:paymentId/pay', async (req, res) => {
     }
 });
 
-
-// --- Dashboard Stats Route ---
 router.get('/stats', async (req, res) => {
     try {
         const overduePayments = await Payment.countDocuments({ status: PaymentStatus.Overdue });
@@ -361,7 +377,6 @@ router.get('/stats', async (req, res) => {
         ]);
         const totalEmiCollected = totalResult.length > 0 ? totalResult[0].total : 0;
 
-        // Mock data for the chart, as a real implementation would be more complex
         const monthlyData = [
             { name: 'Jan', revenue: 4000 }, { name: 'Feb', revenue: 3000 },
             { name: 'Mar', revenue: 5000 }, { name: 'Apr', revenue: 4500 },
@@ -380,7 +395,6 @@ router.get('/stats', async (req, res) => {
     }
 });
 
-// --- Security Routes: Lock, Unlock, Hard Reset, Release ---
 router.post('/devices/:deviceId/lock', async (req, res) => {
     try {
         const device = await Device.findById(req.params.deviceId);
@@ -427,14 +441,11 @@ router.post('/devices/:deviceId/reset', async (req, res) => {
         if (!device) return res.status(404).json({ message: 'Device not found' });
         if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send command.' });
 
-        // The WIPE command is irreversible.
         const result = await sendFcmCommand(device.fcmToken, 'WIPE', 'This device is being factory reset due to non-compliance.');
         
         if (result.success) {
-            // While we can't confirm the wipe, we can log the action.
             console.log(`Hard Reset command sent to device ${device.imei}.`);
-            // Optionally, update status to indicate a reset command was sent.
-            device.status = DeviceStatus.Compromised; // Re-purposing status after reset
+            device.status = DeviceStatus.Compromised; 
             await device.save();
             res.status(200).json({ message: 'Hard Reset command sent successfully.' });
         } else {
@@ -482,7 +493,6 @@ router.get('/devices/:deviceId/unlock-key', async (req, res) => {
     }
 });
 
-// NEW: Get QR code data for provisioning a device
 router.get('/devices/:deviceId/provisioning-qr', async (req, res) => {
     try {
         const device = await Device.findById(req.params.deviceId);
@@ -503,7 +513,7 @@ router.get('/devices/:deviceId/provisioning-qr', async (req, res) => {
             "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": true,
             "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {
                 "backend_url": backendBaseUrl,
-                "device_id": device._id.toString(), // Pass the DB id to link back
+                "device_id": device._id.toString(),
                 "unlock_key": device.unlockKey
             }
         };
@@ -516,11 +526,10 @@ router.get('/devices/:deviceId/provisioning-qr', async (req, res) => {
 });
 
 
-// --- Device List Route ---
 router.get('/devices', async (req, res) => {
     try {
         const devices = await Device.find({})
-            .populate('customerId', 'name') // Populate customer name
+            .populate('customerId', 'name')
             .sort({ createdAt: -1 });
         res.json(devices);
     } catch (error) {
