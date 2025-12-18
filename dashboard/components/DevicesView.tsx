@@ -67,9 +67,13 @@ const DevicesView: React.FC = () => {
 
   const fetchDevices = useCallback(() => {
     setLoading(true);
+    setError(null);
     getDevices()
         .then(setDevices)
-        .catch(err => setError(err.message))
+        .catch(err => {
+            if (err instanceof Error) setError(err.message);
+            else setError('Failed to fetch devices.');
+        })
         .finally(() => setLoading(false));
   }, []);
 
@@ -99,6 +103,9 @@ const DevicesView: React.FC = () => {
     <>
       <Card>
         <h2 className="text-2xl font-bold mb-4 text-white">Device Management</h2>
+        
+        {error && <p className="text-rose-400 text-center py-4">Error: {error}</p>}
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-700">
             <thead className="bg-slate-800">
@@ -111,7 +118,7 @@ const DevicesView: React.FC = () => {
             </thead>
             <tbody className="bg-slate-900 divide-y divide-slate-800">
               {loading ? [...Array(5)].map((_, i) => <tr key={i}><td colSpan={4}><Skeleton className="h-8 w-full my-2"/></td></tr>) : 
-                devices.map(device => (
+                devices.length > 0 ? devices.map(device => (
                 <tr key={device._id}>
                   <td className="px-6 py-4 text-white">{device.customerId?.name || 'N/A'}</td>
                   <td className="px-6 py-4 text-slate-400">{device.model}</td>
@@ -123,7 +130,13 @@ const DevicesView: React.FC = () => {
                     <Button variant="danger" size="sm" onClick={() => openDeleteModal(device)}>Delete</Button>
                   </td>
                 </tr>
-              ))}
+              )) : (
+                <tr>
+                  <td colSpan={4} className="text-center py-4 text-slate-400">
+                    No devices found.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
