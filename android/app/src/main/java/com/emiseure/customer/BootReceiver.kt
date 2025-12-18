@@ -8,25 +8,47 @@ import android.util.Log
 class BootReceiver : BroadcastReceiver() {
 
     private val TAG = "BootReceiver"
-    
-    override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED || intent.action == Intent.ACTION_LOCKED_BOOT_COMPLETED) {
-            Log.d(TAG, "Received boot action: ${intent.action}. Checking local lock status...")
 
-            // Use device-protected storage to read the state before the user unlocks the phone
+    override fun onReceive(context: Context, intent: Intent) {
+
+        val action = intent.action
+        if (action != Intent.ACTION_BOOT_COMPLETED &&
+            action != Intent.ACTION_LOCKED_BOOT_COMPLETED
+        ) {
+            return
+        }
+
+        Log.d(TAG, "Boot event received: $action")
+
+        try {
+            // 🔐 CRITICAL: Use Device-Protected Storage (Direct Boot safe)
             val deviceContext = context.createDeviceProtectedStorageContext()
-            val prefs = deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
+            val prefs = deviceContext.getSharedPreferences(
+                "EMI_SECURE_PREFS",
+                Context.MODE_PRIVATE
+            )
+
             val isLocked = prefs.getBoolean("IS_LOCKED", false)
+            Log.d(TAG, "Local lock state after boot: $isLocked")
 
             if (isLocked) {
-                Log.w(TAG, "Device state is LOCKED. Relaunching LockScreenActivity.")
+                Log.w(TAG, "Device is LOCKED → launching LockScreenActivity")
+
                 val lockIntent = Intent(context, LockScreenActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(
+                        Intent.FLAG_ACTIVITY_NEW_TASK or
+                                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    )
                 }
+
                 context.startActivity(lockIntent)
+
             } else {
-                Log.d(TAG, "Device state is UNLOCKED. No action needed.")
+                Log.d(TAG, "Device is UNLOCKED → no action required")
             }
+
+        } catch (e: Exception) {
+            Log.e(TAG, "BootReceiver failed to enforce lock state", e)
         }
     }
 }

@@ -12,63 +12,103 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
     private val TAG = "FCM_Service"
 
-    private fun setLockedState(context: Context, isLocked: Boolean) {
-        // Use device-protected storage to be accessible before the user unlocks the phone
-        val deviceContext = context.createDeviceProtectedStorageContext()
-        val prefs = deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
-        prefs.edit().putBoolean("IS_LOCKED", isLocked).commit()
-        Log.d(TAG, "Device locked state saved synchronously as: $isLocked")
+    // ------------------------------
+    // 🔐 DIRECT BOOT SAFE STORAGE
+    // ------------------------------
+    private fun getSecurePrefs(context: Context) =
+        context.createDeviceProtectedStorageContext()
+            .getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
+
+    private fun saveLockState(context: Context, locked: Boolean) {
+        getSecurePrefs(context)
+            .edit()
+            .putBoolean("IS_LOCKED", locked)
+            .commit() // MUST be sync (reboot safety)
+        Log.d(TAG, "IS_LOCKED saved as $locked")
     }
 
     override fun onMessageReceived(remoteMessage: RemoteMessage) {
         super.onMessageReceived(remoteMessage)
-        Log.d(TAG, "From: ${remoteMessage.from}")
 
-        if (remoteMessage.data.isNotEmpty()) {
-            Log.d(TAG, "Message data payload: " + remoteMessage.data)
+        val data = remoteMessage.data
+        if (data.isEmpty()) return
 
-            val action = remoteMessage.data["action"]
-            val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-            val adminComponent = ComponentName(this, MyDeviceAdminReceiver::class.java)
+        val action = data["action"]
+        val unlockKey = data["unlock_key"] // Server-synced offline key
 
-            val isAdmin = dpm.isDeviceOwnerApp(applicationContext.packageName) || dpm.isAdminActive(adminComponent)
-            if (!isAdmin) {
-                Log.e(TAG, "Action '$action' ignored: App is not a device admin.")
-                return
+        Log.d(TAG, "FCM received → action=$action")
+
+        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+        val adminComponent = ComponentName(this, MyDeviceAdminReceiver::class.java)
+
+        val isAuthorized =
+            dpm.isDeviceOwnerApp(packageName) || dpm.isAdminActive(adminComponent)
+
+        if (!isAuthorized) {
+            Log.e(TAG, "Command ignored. App is not Device Owner / Admin.")
+            return
+        }
+
+        val prefs = getSecurePrefs(this)
+
+        // ------------------------------------
+        // 🔑 UPDATE OFFLINE MASTER KEY (IF ANY)
+        // ------------------------------------
+        unlockKey?.let {
+            prefs.edit().putString("UNLOCK_KEY", it).apply()
+            Log.d(TAG, "Offline unlock key updated from server")
+        }
+
+        // ------------------------------
+        // 🚨 COMMAND HANDLER
+        // ------------------------------
+        when (action) {
+
+            "LOCK" -> {
+                Log.w(TAG, "LOCK command received")
+
+                saveLockState(this, true)
+
+                val lockIntent = Intent(this, LockScreenActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    putExtra("UNLOCK_KEY_VIA_INTENT", unlockKey)
+                }
+                startActivity(lockIntent)
             }
 
-            when (action) {
-                "LOCK" -> {
-                    Log.w(TAG, "DEVICE LOCK COMMAND RECEIVED!")
-                    setLockedState(this, true)
-                    val lockIntent = Intent(this, LockScreenActivity::class.java).apply {
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            "UNLOCK" -> {
+                Log.i(TAG, "UNLOCK command received")
+
+                saveLockState(this, false)
+
+                sendBroadcast(
+                    Intent("com.emiseure.customer.ACTION_UNLOCK")
+                )
+            }
+
+            "WIPE" -> {
+                Log.e(TAG, "WIPE command received")
+
+                if (dpm.isDeviceOwnerApp(packageName)) {
+                    try {
+                        dpm.wipeData(0)
+                    } catch (e: SecurityException) {
+                        Log.e(TAG, "Device wipe failed", e)
                     }
-                    startActivity(lockIntent)
+                } else {
+                    Log.e(TAG, "WIPE denied. Not device owner.")
                 }
-                "UNLOCK" -> {
-                    Log.i(TAG, "DEVICE UNLOCK COMMAND RECEIVED!")
-                    setLockedState(this, false)
-                    val unlockIntent = Intent("com.emiseure.customer.ACTION_UNLOCK")
-                    sendBroadcast(unlockIntent)
-                }
-                "WIPE" -> {
-                    Log.e(TAG, "DEVICE WIPE COMMAND RECEIVED! THIS IS IRREVERSIBLE.")
-                    if (dpm.isDeviceOwnerApp(applicationContext.packageName)) {
-                        try {
-                            dpm.wipeData(0)
-                        } catch (e: SecurityException) {
-                            Log.e(TAG, "Failed to wipe device even as device owner", e)
-                        }
-                    } else {
-                        Log.e(TAG, "WIPE COMMAND FAILED: App is not the device owner.")
-                    }
-                }
+            }
+
+            else -> {
+                Log.w(TAG, "Unknown action: $action")
             }
         }
     }
 
     override fun onNewToken(token: String) {
-        Log.d(TAG, "Refreshed token: $token")
+        super.onNewToken(token)
+        Log.d(TAG, "New FCM token: $token")
+        // Send token to your server here
     }
 }
