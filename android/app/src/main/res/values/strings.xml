@@ -31,4 +31,12 @@
     <string name="sync_status_syncing">Sync Status: Syncing...</string>
     <string name="sync_status_success">Sync Status: Success at %s</string>
     <string name="sync_status_failed">Sync Status: Failed. Check connection/IP.</string>
+    <string name="retrying_status">Retrying... (%d/3)</string>
+    
+    <!-- Error Messages -->
+    <string name="error_no_internet">No internet connection. Please check your network.</string>
+    <string name="error_device_not_found">Device not found. Please register this device.</string>
+    <string name="error_server_error">Server error. Please try again later.</string>
+    <string name="error_server_code">Server error (%d)</string>
+    <string name="error_connection_failed">Connection failed. Please try again.</string>
 </resources>

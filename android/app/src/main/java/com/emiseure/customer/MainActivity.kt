@@ -7,6 +7,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.UserManager
 import android.provider.Settings
 import android.util.Log
@@ -229,7 +231,7 @@ class MainActivity : AppCompatActivity() {
                     // Retry logic: retry up to 3 times with exponential backoff
                     if (retryCount < 3) {
                         val delayMs = (retryCount + 1) * 1000L // 1s, 2s, 3s
-                        binding.syncStatusTextView.text = "Retrying... (${retryCount + 1}/3)"
+                        binding.syncStatusTextView.text = getString(R.string.retrying_status, retryCount + 1)
                         
                         Handler(Looper.getMainLooper()).postDelayed({
                             fetchDeviceStatus(androidId, retryCount + 1)
@@ -237,11 +239,11 @@ class MainActivity : AppCompatActivity() {
                     } else {
                         // Better error messages
                         val errorMessage = when {
-                            error.networkResponse == null -> "No internet connection. Please check your network."
-                            error.networkResponse.statusCode == 404 -> "Device not found. Please register this device."
-                            error.networkResponse.statusCode == 500 -> "Server error. Please try again later."
-                            error.networkResponse.statusCode >= 400 -> "Server error (${error.networkResponse.statusCode})"
-                            else -> error.message ?: "Connection failed. Please try again."
+                            error.networkResponse == null -> getString(R.string.error_no_internet)
+                            error.networkResponse.statusCode == 404 -> getString(R.string.error_device_not_found)
+                            error.networkResponse.statusCode == 500 -> getString(R.string.error_server_error)
+                            error.networkResponse.statusCode >= 400 -> getString(R.string.error_server_code, error.networkResponse.statusCode)
+                            else -> error.message ?: getString(R.string.error_connection_failed)
                         }
                         showError(errorMessage)
                     }
