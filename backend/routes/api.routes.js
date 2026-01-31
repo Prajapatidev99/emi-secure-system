@@ -4,6 +4,9 @@ const admin = require('firebase-admin');
 const Customer = require('../models/customer.model');
 const { Device, DeviceStatus } = require('../models/device.model');
 const { Payment, PaymentStatus } = require('../models/payment.model');
+const { validate, validators } = require('../utils/validators');
+const logger = require('../utils/logger');
+const cache = require('../utils/cache');
 
 const router = express.Router();
 
@@ -32,22 +35,26 @@ const sendFcmCommand = async (fcmToken, command, message) => {
 
     try {
         const response = await admin.messaging().send(payload);
-        console.log(`Successfully sent '${command}' command:`, response);
+        logger.info(`Successfully sent '${command}' command`, { response });
         return { success: true, response };
     } catch (error) {
-        console.error(`Error sending '${command}' command:`, error);
+        logger.error(`Error sending '${command}' command`, { error: error.message });
         return { success: false, error };
     }
 };
 
 // --- Customer Routes ---
-router.post('/customers', async (req, res) => {
+router.post('/customers', validate([
+    validators.customerName,
+    validators.customerPhone,
+    validators.customerAddress
+]), async (req, res) => {
     try {
         const { name, phone, address, kycDocs } = req.body;
         if (!name || !phone || !address) {
             return res.status(400).json({ message: 'All fields are required.' });
         }
-        
+
         const existingCustomer = await Customer.findOne({ phone });
         if (existingCustomer) {
             return res.status(400).json({ message: 'A customer with this phone number already exists.' });
@@ -63,9 +70,28 @@ router.post('/customers', async (req, res) => {
 
 router.get('/customers', async (req, res) => {
     try {
-        const customers = await Customer.find({}).sort({ createdAt: -1 });
-        res.json(customers);
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 50;
+        const skip = (page - 1) * limit;
+
+        const customers = await Customer.find({})
+            .sort({ createdAt: -1 })
+            .skip(skip)
+            .limit(limit);
+
+        const total = await Customer.countDocuments();
+
+        res.json({
+            customers,
+            pagination: {
+                page,
+                limit,
+                total,
+                pages: Math.ceil(total / limit)
+            }
+        });
     } catch (error) {
+        logger.error('Error fetching customers', { error: error.message });
         res.status(500).json({ message: 'Error fetching customers', error: error.message });
     }
 });
@@ -86,20 +112,20 @@ router.get('/customers/:id', async (req, res) => {
 router.delete('/customers/:id', async (req, res) => {
     try {
         const customerId = req.params.id;
-        
+
         // 1. Delete all payments associated with this customer
         await Payment.deleteMany({ customerId });
-        
+
         // 2. Delete all devices associated with this customer
         await Device.deleteMany({ customerId });
-        
+
         // 3. Delete the customer record itself
         const result = await Customer.findByIdAndDelete(customerId);
-        
+
         if (!result) {
             return res.status(404).json({ message: 'Customer not found' });
         }
-        
+
         res.json({ message: 'Customer and all associated data deleted successfully.' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting customer', error: error.message });
@@ -137,7 +163,7 @@ router.get('/customers/:id/payments', async (req, res) => {
                 select: 'model status'
             })
             .sort({ dueDate: 'desc' });
-        
+
         const response = payments.map(p => ({
             id: p._id,
             _id: p._id,
@@ -158,13 +184,13 @@ router.get('/customers/:id/payments', async (req, res) => {
 // --- Device and Sale Registration ---
 router.post('/devices/register', async (req, res) => {
     try {
-        const { 
+        const {
             customerId, imei, model,
-            totalPrice, downPayment, numberOfEmis, emiStartDate 
+            totalPrice, downPayment, numberOfEmis, emiStartDate
         } = req.body;
 
         if (!customerId || !imei || !model || !totalPrice || !downPayment || !numberOfEmis || !emiStartDate) {
-             return res.status(400).json({ message: 'All fields including EMI details are required.' });
+            return res.status(400).json({ message: 'All fields including EMI details are required.' });
         }
         if (totalPrice <= downPayment) {
             return res.status(400).json({ message: 'Total price must be greater than the down payment.' });
@@ -174,16 +200,16 @@ router.post('/devices/register', async (req, res) => {
         if (existingDevice) {
             return res.status(400).json({ message: 'A device with this IMEI already exists.' });
         }
-        
+
         const unlockKey = Math.random().toString(36).substring(2, 8).toUpperCase();
-        
+
         const device = new Device({ customerId, imei, model, unlockKey });
         await device.save();
-        
+
         const loanAmount = totalPrice - downPayment;
         const emiAmount = loanAmount / numberOfEmis;
         const startDate = new Date(emiStartDate);
-        
+
         const paymentPromises = [];
 
         for (let i = 1; i <= numberOfEmis; i++) {
@@ -207,7 +233,7 @@ router.post('/devices/register', async (req, res) => {
     } catch (error) {
         console.error("Error in device registration:", error);
         if (error.code === 11000) {
-             return res.status(400).json({ message: 'A device with this IMEI already exists.' });
+            return res.status(400).json({ message: 'A device with this IMEI already exists.' });
         }
         res.status(400).json({ message: 'Error registering device', error: error.message });
     }
@@ -217,17 +243,17 @@ router.post('/devices/register', async (req, res) => {
 router.delete('/devices/:id', async (req, res) => {
     try {
         const deviceId = req.params.id;
-        
+
         // 1. Delete associated payments
         await Payment.deleteMany({ deviceId });
-        
+
         // 2. Delete device
         const result = await Device.findByIdAndDelete(deviceId);
-        
+
         if (!result) {
             return res.status(404).json({ message: 'Device not found' });
         }
-        
+
         res.json({ message: 'Device and its payment records deleted successfully.' });
     } catch (error) {
         res.status(500).json({ message: 'Error deleting device', error: error.message });
@@ -238,7 +264,7 @@ router.post('/devices/:deviceId/link', async (req, res) => {
     try {
         const { deviceId } = req.params;
         const { androidId } = req.body;
-        
+
         if (!androidId) {
             return res.status(400).json({ message: 'Android ID is required.' });
         }
@@ -252,15 +278,15 @@ router.post('/devices/:deviceId/link', async (req, res) => {
         if (!device) {
             return res.status(404).json({ message: 'Device not found' });
         }
-        
+
         device.androidId = androidId;
         await device.save();
 
         res.status(200).json({ message: 'Device linked successfully.', device });
 
     } catch (error) {
-         if (error.code === 11000) {
-             return res.status(400).json({ message: 'This Android ID is already linked to another device.' });
+        if (error.code === 11000) {
+            return res.status(400).json({ message: 'This Android ID is already linked to another device.' });
         }
         res.status(500).json({ message: 'Server error during device linking.', error: error.message });
     }
@@ -274,7 +300,7 @@ router.post('/devices/:deviceId/compromised', async (req, res) => {
         device.isCompromised = true;
         device.status = DeviceStatus.Compromised;
         await device.save();
-        
+
         res.status(200).json({ message: 'Device status updated to compromised.' });
 
     } catch (error) {
@@ -288,7 +314,7 @@ router.get('/payments/pending', async (req, res) => {
             .populate('customerId', 'name')
             .populate('deviceId', 'imei model status')
             .sort({ dueDate: 'asc' });
-        
+
         const response = pendingPayments
             .filter(p => p.customerId && p.deviceId)
             .map(p => ({
@@ -366,11 +392,12 @@ router.patch('/payments/:paymentId/pay', async (req, res) => {
     }
 });
 
-router.get('/stats', async (req, res) => {
+// --- Dashboard Stats (with 2-minute cache) ---
+router.get('/stats', cache.middleware(2 * 60 * 1000), async (req, res) => {
     try {
         const overduePayments = await Payment.countDocuments({ status: PaymentStatus.Overdue });
         const lockedDevices = await Device.countDocuments({ status: DeviceStatus.Locked });
-        
+
         const totalResult = await Payment.aggregate([
             { $match: { status: PaymentStatus.Paid } },
             { $group: { _id: null, total: { $sum: '$amount' } } }
@@ -423,7 +450,7 @@ router.post('/devices/:deviceId/unlock', async (req, res) => {
         if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send command.' });
 
         const result = await sendFcmCommand(device.fcmToken, 'UNLOCK', 'Your device has been unlocked. Thank you for your payment.');
-         if (result.success) {
+        if (result.success) {
             device.status = DeviceStatus.Active;
             await device.save();
             res.status(200).json({ message: 'Unlock command sent successfully.' });
@@ -442,10 +469,10 @@ router.post('/devices/:deviceId/reset', async (req, res) => {
         if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send command.' });
 
         const result = await sendFcmCommand(device.fcmToken, 'WIPE', 'This device is being factory reset due to non-compliance.');
-        
+
         if (result.success) {
             console.log(`Hard Reset command sent to device ${device.imei}.`);
-            device.status = DeviceStatus.Compromised; 
+            device.status = DeviceStatus.Compromised;
             await device.save();
             res.status(200).json({ message: 'Hard Reset command sent successfully.' });
         } else {
@@ -461,7 +488,7 @@ router.post('/devices/:deviceId/release', async (req, res) => {
         const device = await Device.findById(req.params.deviceId);
         if (!device) return res.status(404).json({ message: 'Device not found' });
         if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send release command.' });
-        
+
         const result = await sendFcmCommand(device.fcmToken, 'RELEASE_OWNERSHIP', 'Device ownership has been released.');
 
         if (result.success) {
@@ -490,38 +517,6 @@ router.get('/devices/:deviceId/unlock-key', async (req, res) => {
         res.json({ unlockKey: device.unlockKey });
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
-    }
-});
-
-router.get('/devices/:deviceId/provisioning-qr', async (req, res) => {
-    try {
-        const device = await Device.findById(req.params.deviceId);
-        if (!device) {
-            return res.status(404).json({ message: 'Device not found' });
-        }
-        if (!device.unlockKey) {
-            return res.status(400).json({ message: 'Device is missing required provisioning data (Unlock Key).' });
-        }
-
-        const backendBaseUrl = 'https://emi-secure-system.onrender.com';
-
-        const qrData = {
-            "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": "com.emiseure.customer/.MyDeviceAdminReceiver",
-            "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": "https://github.com/aistudio-co/gemini-build-a-phone-emi-management-security-system/releases/latest/download/app-release.apk",
-            "android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM": "466Q4i13d2i4a514Z18e2g3j4334c13k4b424A78g2i4d3e4g5g2e4k3",
-            "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": true,
-            "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": true,
-            "android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE": {
-                "backend_url": backendBaseUrl,
-                "device_id": device._id.toString(),
-                "unlock_key": device.unlockKey
-            }
-        };
-
-        res.json({ qrCodeData: JSON.stringify(qrData) });
-    } catch (error) {
-        console.error('Error fetching QR data:', error);
-        res.status(500).json({ message: 'Server error fetching QR data', error: error.message });
     }
 });
 

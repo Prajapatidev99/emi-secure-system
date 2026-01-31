@@ -7,11 +7,72 @@ const API_BASE_URL = isLocal ? 'http://localhost:3001/api' : 'https://emi-secure
 
 const getAuthHeaders = () => {
     const token = sessionStorage.getItem('authToken');
-    
+
     return {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : '',
     };
+};
+
+// Fetch with timeout
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 30000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(id);
+        return response;
+    } catch (error: any) {
+        clearTimeout(id);
+        if (error.name === 'AbortError') {
+            throw new Error('Request timeout - please check your connection');
+        }
+        throw error;
+    }
+};
+
+// Fetch with retry logic
+const fetchWithRetry = async (url: string, options: RequestInit = {}, retries = 3) => {
+    for (let i = 0; i < retries; i++) {
+        try {
+            return await fetchWithTimeout(url, options);
+        } catch (error) {
+            if (i === retries - 1) throw error;
+            // Exponential backoff: wait 1s, 2s, 3s
+            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
+    }
+    throw new Error('Max retries reached');
+};
+
+// User-friendly error messages
+const getUserFriendlyError = (error: Error): string => {
+    const message = error.message.toLowerCase();
+
+    if (message.includes('network') || message.includes('fetch')) {
+        return 'Unable to connect to server. Please check your internet connection.';
+    }
+    if (message.includes('timeout')) {
+        return 'Request timed out. The server is taking too long to respond.';
+    }
+    if (message.includes('already exists')) {
+        return 'This record already exists. Please check your input.';
+    }
+    if (message.includes('not found')) {
+        return 'The requested resource was not found.';
+    }
+    if (message.includes('unauthorized') || message.includes('401')) {
+        return 'Your session has expired. Please log in again.';
+    }
+    if (message.includes('forbidden') || message.includes('403')) {
+        return 'You do not have permission to perform this action.';
+    }
+
+    return error.message;
 };
 
 const handleResponse = async (response: Response) => {
@@ -20,7 +81,7 @@ const handleResponse = async (response: Response) => {
         window.location.reload();
         throw new Error('Your session has expired. Please log in again.');
     }
-    
+
     if (response.status === 413) {
         throw new Error('Upload failed: The file(s) are too large. Please ensure each image is under 2MB.');
     }
@@ -43,13 +104,13 @@ const handleResponse = async (response: Response) => {
             console.error("Received non-JSON error response:", responseBody);
             errorMessage = `An unexpected network error occurred (Status: ${response.status}).`;
         }
-        throw new Error(errorMessage);
+        throw new Error(getUserFriendlyError(new Error(errorMessage)));
     }
 
     if (!responseBody) {
         return {};
     }
-    
+
     try {
         return JSON.parse(responseBody);
     } catch (e) {
@@ -61,7 +122,7 @@ const handleResponse = async (response: Response) => {
 
 // --- AUTH ---
 export const login = async (email: string, password: string): Promise<{ token: string }> => {
-    const response = await fetch(`${API_BASE_URL}/auth/login`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -71,18 +132,18 @@ export const login = async (email: string, password: string): Promise<{ token: s
 
 // --- DASHBOARD ---
 export const getDashboardStats = async () => {
-    const response = await fetch(`${API_BASE_URL}/stats`, { headers: getAuthHeaders() });
+    const response = await fetchWithRetry(`${API_BASE_URL}/stats`, { headers: getAuthHeaders() });
     return handleResponse(response);
 };
 
 export const getPendingPayments = async (): Promise<EmiPayment[]> => {
-    const response = await fetch(`${API_BASE_URL}/payments/pending`, { headers: getAuthHeaders() });
+    const response = await fetchWithRetry(`${API_BASE_URL}/payments/pending`, { headers: getAuthHeaders() });
     return handleResponse(response);
 };
 
 // --- DEVICE ACTIONS ---
 export const lockDevice = async (deviceId: string) => {
-    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/lock`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/devices/${deviceId}/lock`, {
         method: 'POST',
         headers: getAuthHeaders(),
     });
@@ -90,7 +151,7 @@ export const lockDevice = async (deviceId: string) => {
 };
 
 export const unlockDevice = async (deviceId: string) => {
-    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/unlock`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/devices/${deviceId}/unlock`, {
         method: 'POST',
         headers: getAuthHeaders(),
     });
@@ -98,7 +159,7 @@ export const unlockDevice = async (deviceId: string) => {
 };
 
 export const hardResetDevice = async (deviceId: string) => {
-    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/reset`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/devices/${deviceId}/reset`, {
         method: 'POST',
         headers: getAuthHeaders(),
     });
@@ -106,12 +167,12 @@ export const hardResetDevice = async (deviceId: string) => {
 };
 
 export const getOfflineUnlockKey = async (deviceId: string): Promise<{ unlockKey: string }> => {
-    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/unlock-key`, { headers: getAuthHeaders() });
+    const response = await fetchWithRetry(`${API_BASE_URL}/devices/${deviceId}/unlock-key`, { headers: getAuthHeaders() });
     return handleResponse(response);
 };
 
 export const releaseDevice = async (deviceId: string) => {
-    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/release`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/devices/${deviceId}/release`, {
         method: 'POST',
         headers: getAuthHeaders(),
     });
@@ -119,7 +180,7 @@ export const releaseDevice = async (deviceId: string) => {
 };
 
 export const deleteDevice = async (deviceId: string) => {
-    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/devices/${deviceId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
     });
@@ -129,7 +190,7 @@ export const deleteDevice = async (deviceId: string) => {
 
 // --- PAYMENT ACTIONS ---
 export const markPaymentAsPaid = async (paymentId: string) => {
-    const response = await fetch(`${API_BASE_URL}/payments/${paymentId}/pay`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/payments/${paymentId}/pay`, {
         method: 'PATCH',
         headers: getAuthHeaders(),
     });
@@ -138,12 +199,14 @@ export const markPaymentAsPaid = async (paymentId: string) => {
 
 // --- CUSTOMER MANAGEMENT ---
 export const getCustomers = async (): Promise<Customer[]> => {
-    const response = await fetch(`${API_BASE_URL}/customers`, { headers: getAuthHeaders() });
-    return handleResponse(response);
+    const response = await fetchWithRetry(`${API_BASE_URL}/customers`, { headers: getAuthHeaders() });
+    const data = await handleResponse(response);
+    // Handle pagination response
+    return data.customers || data;
 };
 
 export const addCustomer = async (customerData: { name: string; phone: string; address: string, kycDocs?: KycDocument[] }): Promise<Customer> => {
-    const response = await fetch(`${API_BASE_URL}/customers`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/customers`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(customerData),
@@ -152,12 +215,12 @@ export const addCustomer = async (customerData: { name: string; phone: string; a
 };
 
 export const getCustomerById = async (customerId: string): Promise<Customer> => {
-    const response = await fetch(`${API_BASE_URL}/customers/${customerId}`, { headers: getAuthHeaders() });
+    const response = await fetchWithRetry(`${API_BASE_URL}/customers/${customerId}`, { headers: getAuthHeaders() });
     return handleResponse(response);
 };
 
 export const deleteCustomer = async (customerId: string) => {
-    const response = await fetch(`${API_BASE_URL}/customers/${customerId}`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/customers/${customerId}`, {
         method: 'DELETE',
         headers: getAuthHeaders(),
     });
@@ -165,28 +228,28 @@ export const deleteCustomer = async (customerId: string) => {
 };
 
 export const getDevicesForCustomer = async (customerId: string): Promise<Device[]> => {
-    const response = await fetch(`${API_BASE_URL}/customers/${customerId}/devices`, { headers: getAuthHeaders() });
+    const response = await fetchWithRetry(`${API_BASE_URL}/customers/${customerId}/devices`, { headers: getAuthHeaders() });
     return handleResponse(response);
 };
 
 export const getPaymentsForCustomer = async (customerId: string): Promise<EmiPayment[]> => {
-    const response = await fetch(`${API_BASE_URL}/customers/${customerId}/payments`, { headers: getAuthHeaders() });
+    const response = await fetchWithRetry(`${API_BASE_URL}/customers/${customerId}/payments`, { headers: getAuthHeaders() });
     return handleResponse(response);
 };
 
 // --- DEVICE MANAGEMENT ---
 type RegisterDeviceData = {
-  customerId: string;
-  imei: string;
-  model: string;
-  totalPrice: number;
-  downPayment: number;
-  numberOfEmis: number;
-  emiStartDate: string;
+    customerId: string;
+    imei: string;
+    model: string;
+    totalPrice: number;
+    downPayment: number;
+    numberOfEmis: number;
+    emiStartDate: string;
 };
 
 export const registerDevice = async (saleData: RegisterDeviceData) => {
-    const response = await fetch(`${API_BASE_URL}/devices/register`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/devices/register`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify(saleData),
@@ -195,7 +258,7 @@ export const registerDevice = async (saleData: RegisterDeviceData) => {
 };
 
 export const linkDevice = async (deviceId: string, androidId: string) => {
-    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/link`, {
+    const response = await fetchWithRetry(`${API_BASE_URL}/devices/${deviceId}/link`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({ androidId }),
@@ -205,12 +268,9 @@ export const linkDevice = async (deviceId: string, androidId: string) => {
 
 
 export const getDevices = async (): Promise<DeviceWithCustomer[]> => {
-    const response = await fetch(`${API_BASE_URL}/devices`, { headers: getAuthHeaders() });
+    const response = await fetchWithRetry(`${API_BASE_URL}/devices`, { headers: getAuthHeaders() });
     return handleResponse(response);
 };
 
 // --- QR CODE PROVISIONING ---
-export const getQrCodeData = async (deviceId: string): Promise<{ qrCodeData: string }> => {
-    const response = await fetch(`${API_BASE_URL}/devices/${deviceId}/provisioning-qr`, { headers: getAuthHeaders() });
-    return handleResponse(response);
-};
+

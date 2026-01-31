@@ -38,7 +38,7 @@ const paymentSchema = new Schema({
 });
 
 // Check for overdue payments before finding
-paymentSchema.pre('find', function() {
+paymentSchema.pre('find', function () {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   this.model.updateMany(
@@ -46,6 +46,12 @@ paymentSchema.pre('find', function() {
     { $set: { status: 'Overdue' } }
   ).exec();
 });
+
+// Indexes for performance
+paymentSchema.index({ customerId: 1, status: 1 });
+paymentSchema.index({ deviceId: 1, dueDate: 1 });
+paymentSchema.index({ dueDate: 1, status: 1 });
+paymentSchema.index({ status: 1 });
 
 
 const Payment = mongoose.model('Payment', paymentSchema);

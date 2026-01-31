@@ -18,6 +18,21 @@ if (!process.env.FIREBASE_SERVICE_ACCOUNT_JSON && !process.env.FIREBASE_SERVICE_
     process.exit(1);
 }
 
+// Validate MongoDB URI format
+if (!process.env.MONGODB_URI.startsWith('mongodb://') && !process.env.MONGODB_URI.startsWith('mongodb+srv://')) {
+    console.error('FATAL ERROR: MONGODB_URI must start with "mongodb://" or "mongodb+srv://"');
+    console.error('Current value does not appear to be a valid MongoDB connection string.');
+    process.exit(1);
+}
+
+// Validate JWT secret strength
+if (process.env.JWT_SECRET.length < 32) {
+    console.error('FATAL ERROR: JWT_SECRET must be at least 32 characters long for security.');
+    console.error('Current length:', process.env.JWT_SECRET.length);
+    console.error('Generate a strong secret with: node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+    process.exit(1);
+}
+
 
 module.exports = {
     mongodbUri: process.env.MONGODB_URI,

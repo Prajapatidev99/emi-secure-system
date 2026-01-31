@@ -3,10 +3,10 @@ const mongoose = require('mongoose');
 const Schema = mongoose.Schema;
 
 const DeviceStatus = Object.freeze({
-    Active: 'Active',
-    Locked: 'Locked',
-    Compromised: 'Compromised', // e.g., if rooting is detected
-    Released: 'Released', // When all payments are done and ownership is released
+  Active: 'Active',
+  Locked: 'Locked',
+  Compromised: 'Compromised', // e.g., if rooting is detected
+  Released: 'Released', // When all payments are done and ownership is released
 });
 
 const deviceSchema = new Schema({
@@ -54,6 +54,13 @@ const deviceSchema = new Schema({
   toJSON: { virtuals: true },
   toObject: { virtuals: true },
 });
+
+// Indexes for performance
+deviceSchema.index({ customerId: 1 });
+deviceSchema.index({ status: 1 });
+deviceSchema.index({ androidId: 1 });
+deviceSchema.index({ imei: 1 });
+deviceSchema.index({ customerId: 1, status: 1 });
 
 const Device = mongoose.model('Device', deviceSchema);
 

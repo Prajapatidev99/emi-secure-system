@@ -70,6 +70,7 @@ router.post('/device-status', async (req, res) => {
                 nextDueDate: nextPayment.dueDate.toISOString().split('T')[0],
                 amountDue: nextPayment.amount,
                 customerName: device.customerId ? device.customerId.name : 'N/A',
+                unlockKey: device.unlockKey,
             });
         } else {
              res.json({
@@ -77,6 +78,7 @@ router.post('/device-status', async (req, res) => {
                 paymentStatus: 'All Clear',
                 message: 'All EMIs have been paid. Thank you!',
                 customerName: device.customerId ? device.customerId.name : 'N/A',
+                unlockKey: device.unlockKey,
             });
         }
     } catch(error) {

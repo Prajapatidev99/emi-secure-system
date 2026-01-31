@@ -3,62 +3,139 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
+const compression = require('compression');
+const cron = require('node-cron');
 const { initializeFirebaseAdmin } = require('./firebase/firebaseAdmin');
+const logger = require('./utils/logger');
+const requestIdMiddleware = require('./utils/requestId');
+const cache = require('./utils/cache');
 
 const authRoutes = require('./routes/auth.routes');
 const apiRoutes = require('./routes/api.routes');
 const publicApiRoutes = require('./routes/public.api.routes');
 const authMiddleware = require('./middleware/auth.middleware');
 const config = require('./config/config');
+const { Payment, PaymentStatus } = require('./models/payment.model');
 
 const app = express();
 
 // Middleware
 app.use(cors());
+app.use(compression()); // Enable gzip compression
 app.use(express.json());
+app.use(requestIdMiddleware); // Add request ID to all requests
 app.use(morgan('dev')); // Log requests
 
 // Initialize Firebase Admin SDK
 try {
     initializeFirebaseAdmin();
-    console.log('Firebase Admin Initialized');
+    logger.info('Firebase Admin Initialized');
 } catch (error) {
-    console.error('Firebase Admin Initialization Warning:', error.message);
+    logger.error('Firebase Admin Initialization Warning:', { error: error.message });
 }
 
 // Connect to MongoDB
-console.log('Attempting to connect to MongoDB...');
+logger.info('Attempting to connect to MongoDB...');
 mongoose.connect(config.mongodbUri)
-.then(() => {
-    console.log('MongoDB Connected Successfully');
-})
-.catch(err => {
-    console.error('MongoDB Connection Error:', err.message);
-    if (err.name === 'MongooseServerSelectionError') {
-        console.error('---------------------------------------------------------');
-        console.error('ERROR: Could not connect to MongoDB Atlas.');
-        console.error('Likely Cause: Your IP address is not whitelisted.');
-        console.error('ACTION REQUIRED: Go to MongoDB Atlas -> Network Access -> Add IP Address -> Add Current IP.');
-        console.error('---------------------------------------------------------');
+    .then(() => {
+        logger.info('MongoDB Connected Successfully');
+    })
+    .catch(err => {
+        logger.error('MongoDB Connection Error:', { error: err.message });
+        if (err.name === 'MongooseServerSelectionError') {
+            logger.error('---------------------------------------------------------');
+            logger.error('ERROR: Could not connect to MongoDB Atlas.');
+            logger.error('Likely Cause: Your IP address is not whitelisted.');
+            logger.error('ACTION REQUIRED: Go to MongoDB Atlas -> Network Access -> Add IP Address -> Add Current IP.');
+            logger.error('---------------------------------------------------------');
+        }
+    });
+
+// Rate limiting for authentication routes
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // 5 attempts per window
+    message: 'Too many login attempts from this IP, please try again after 15 minutes.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// General API rate limiting
+const apiLimiter = rateLimit({
+    windowMs: 1 * 60 * 1000, // 1 minute
+    max: 100, // 100 requests per minute
+    message: 'Too many requests from this IP, please slow down.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Scheduled job: Update overdue payments daily at midnight
+cron.schedule('0 0 * * *', async () => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const result = await Payment.updateMany(
+            { dueDate: { $lt: today }, status: PaymentStatus.Pending },
+            { $set: { status: PaymentStatus.Overdue } }
+        );
+
+        logger.info(`Cron Job: Updated ${result.modifiedCount} payments to Overdue status`);
+    } catch (error) {
+        logger.error('Cron Job Error:', { error: error.message });
     }
 });
 
 // Routes
-// 1. Auth routes (Login/Register) - Public
-app.use('/api/auth', authRoutes);
+// 1. Auth routes (Login/Register) - Public with rate limiting
+app.use('/api/auth', authLimiter, authRoutes);
 
-// 2. Public Android API routes (Status checks, FCM updates) - Public
-app.use('/api/public', publicApiRoutes);
+// 2. Public Android API routes (Status checks, FCM updates) - Public with general rate limiting
+app.use('/api/public', apiLimiter, publicApiRoutes);
 
-// 3. Main Dashboard routes - Protected by Authentication
-app.use('/api', authMiddleware, apiRoutes);
+// 3. Main Dashboard routes - Protected by Authentication with rate limiting
+app.use('/api', apiLimiter, authMiddleware, apiRoutes);
 
-// Health Check
+// Health Check with detailed status
 app.get('/', (req, res) => {
-    res.send('EMI Secure API is running');
+    const uptime = process.uptime();
+    const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+
+    res.json({
+        status: 'ok',
+        message: 'EMI Secure API is running',
+        uptime: `${Math.floor(uptime / 60)} minutes`,
+        timestamp: new Date().toISOString(),
+        database: mongoStatus,
+        version: '1.0.0'
+    });
+});
+
+// Detailed health check endpoint
+app.get('/health', (req, res) => {
+    const healthCheck = {
+        uptime: process.uptime(),
+        message: 'OK',
+        timestamp: Date.now(),
+        checks: {
+            database: mongoose.connection.readyState === 1,
+            memory: process.memoryUsage(),
+            cpu: process.cpuUsage()
+        }
+    };
+
+    try {
+        res.status(200).json(healthCheck);
+    } catch (error) {
+        healthCheck.message = error.message;
+        res.status(503).json(healthCheck);
+    }
 });
 
 const PORT = config.port || 3001;
+const startTime = new Date();
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    logger.info(`Server running on port ${PORT}`);
+    logger.info(`Started at: ${startTime.toISOString()}`);
 });

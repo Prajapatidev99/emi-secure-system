@@ -55,7 +55,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         // 🔑 UPDATE OFFLINE MASTER KEY (IF ANY)
         // ------------------------------------
         unlockKey?.let {
-            prefs.edit().putString("UNLOCK_KEY", it).apply()
+            prefs.edit().putString("UNLOCK_KEY", it).commit()
             Log.d(TAG, "Offline unlock key updated from server")
         }
 

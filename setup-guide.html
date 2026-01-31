@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMI Secure System - Setup Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section h2 {
+            color: #667eea;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+        }
+
+        .step {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+
+        .step h3 {
+            color: #333;
+            font-size: 1.3em;
+            margin-bottom: 15px;
+        }
+
+        .step-number {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+
+        .command-box {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+            position: relative;
+            overflow-x: auto;
+        }
+
+        .command-box code {
+            display: block;
+            white-space: pre;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s;
+        }
+
+        .copy-btn:hover {
+            background: #764ba2;
+            transform: scale(1.05);
+        }
+
+        .copy-btn:active {
+            transform: scale(0.95);
+        }
+
+        .copy-btn.copied {
+            background: #28a745;
+        }
+
+        .note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+
+        .note strong {
+            color: #856404;
+        }
+
+        .warning {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+
+        .warning strong {
+            color: #721c24;
+        }
+
+        .success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 5px;
+        }
+
+        .success strong {
+            color: #155724;
+        }
+
+        .method-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 15px;
+            background: #e9ecef;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .shopping-list {
+            background: #e7f3ff;
+            border: 2px solid #667eea;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .shopping-list h4 {
+            color: #667eea;
+            margin-bottom: 15px;
+        }
+
+        .shopping-list ul {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .shopping-list li {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 5px;
+        }
+
+        .shopping-list li::before {
+            content: "🛒 ";
+            margin-right: 10px;
+        }
+
+        .video-placeholder {
+            background: #000;
+            color: white;
+            padding: 60px;
+            text-align: center;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .content {
+                padding: 20px;
+            }
+
+            .method-tabs {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📱 EMI Secure System</h1>
+            <p>Complete Setup Guide - Step by Step</p>
+        </div>
+
+        <div class="content">
+            <!-- Method Selection -->
+            <div class="section">
+                <h2>Choose Your Setup Method</h2>
+                <div class="method-tabs">
+                    <button class="tab-btn active" onclick="showTab('mobile')">
+                        📱 Mobile Only (No PC)
+                    </button>
+                    <button class="tab-btn" onclick="showTab('pc')">
+                        💻 With PC/Laptop
+                    </button>
+                </div>
+            </div>
+
+            <!-- Mobile Method -->
+            <div id="mobile-tab" class="tab-content active">
+                <div class="section">
+                    <h2>🛒 What You Need to Buy</h2>
+                    <div class="shopping-list">
+                        <h4>Shopping List (₹50-100 total)</h4>
+                        <ul>
+                            <li><strong>USB OTG Cable</strong> - ₹50-100 (Amazon/Flipkart/Local shop)</li>
+                            <li><strong>Your Android Phone</strong> - You already have this! ✅</li>
+                        </ul>
+                        <div class="note">
+                            <strong>Note:</strong> Check if your phone has USB-C or Micro-USB port, then buy matching OTG cable.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>📲 One-Time Setup (15 minutes)</h2>
+                    <p style="margin-bottom: 20px;">Do this ONCE on your phone. After this, you can provision unlimited customer devices!</p>
+
+                    <div class="step">
+                        <h3><span class="step-number">1</span>Install F-Droid App Store</h3>
+                        <p>F-Droid is a free app store for open-source apps.</p>
+                        <ol style="margin: 15px 0 15px 20px;">
+                            <li>Open browser on your phone</li>
+                            <li>Go to: <strong>https://f-droid.org</strong></li>
+                            <li>Tap "Download F-Droid"</li>
+                            <li>Install the APK (allow "Install from unknown sources" if asked)</li>
+                        </ol>
+                    </div>
+
+                    <div class="step">
+                        <h3><span class="step-number">2</span>Install Termux from F-Droid</h3>
+                        <p>Termux is a terminal app that lets your phone run commands.</p>
+                        <ol style="margin: 15px 0 15px 20px;">
+                            <li>Open F-Droid app</li>
+                            <li>Search for: <strong>Termux</strong></li>
+                            <li>Tap "Install"</li>
+                            <li>Wait for installation to complete</li>
+                        </ol>
+                        <div class="warning">
+                            <strong>Important:</strong> Do NOT install Termux from Google Play Store! It's outdated. Use F-Droid only.
+                        </div>
+                    </div>
+
+                    <div class="step">
+                        <h3><span class="step-number">3</span>Install ADB in Termux</h3>
+                        <p>ADB (Android Debug Bridge) is the tool that provisions devices.</p>
+                        <ol style="margin: 15px 0 15px 20px;">
+                            <li>Open Termux app</li>
+                            <li>Copy and paste these commands one by one:</li>
+                        </ol>
+                        
+                        <div class="command-box">
+                            <button class="copy-btn" onclick="copyCommand(this, 'pkg update && pkg upgrade -y')">Copy</button>
+                            <code>pkg update && pkg upgrade -y</code>
+                        </div>
+                        <p style="margin: 10px 0;">Wait for it to finish, then run:</p>
+                        <div class="command-box">
+                            <button class="copy-btn" onclick="copyCommand(this, 'pkg install android-tools -y')">Copy</button>
+                            <code>pkg install android-tools -y</code>
+                        </div>
+                        <p style="margin: 10px 0;">Verify installation:</p>
+                        <div class="command-box">
+                            <button class="copy-btn" onclick="copyCommand(this, 'adb version')">Copy</button>
+                            <code>adb version</code>
+                        </div>
+                        <div class="success">
+                            <strong>Success!</strong> If you see version number, ADB is installed correctly.
+                        </div>
+                    </div>
+
+                    <div class="step">
+                        <h3><span class="step-number">4</span>Download Your APK</h3>
+                        <ol style="margin: 15px 0 15px 20px;">
+                            <li>Download <strong>app-release.apk</strong> from your server/GitHub</li>
+                            <li>Save it in: <strong>Downloads</strong> folder</li>
+                            <li>Remember the exact filename</li>
+                        </ol>
+                    </div>
+
+                    <div class="step">
+                        <h3><span class="step-number">5</span>Create Provisioning Script</h3>
+                        <p>This script will make provisioning super easy - just one command!</p>
+                        
+                        <p style="margin: 15px 0;">In Termux, run:</p>
+                        <div class="command-box">
+                            <button class="copy-btn" onclick="copyCommand(this, 'nano provision.sh')">Copy</button>
+                            <code>nano provision.sh</code>
+                        </div>
+
+                        <p style="margin: 15px 0;">Copy and paste this entire script:</p>
+                        <div class="command-box">
+                            <button class="copy-btn" onclick="copyCommand(this, `#!/data/data/com.termux/files/usr/bin/bash
+
+echo \"═══════════════════════════════════\"
+echo \"  EMI Secure Device Provisioner\"
+echo \"═══════════════════════════════════\"
+echo \"\"
+
+echo \"[1/3] Checking device connection...\"
+adb devices
+if [ $? -ne 0 ]; then
+    echo \"❌ ERROR: No device connected\"
+    exit 1
+fi
+
+echo \"\"
+echo \"[2/3] Installing EMI Secure APK...\"
+adb install -r /sdcard/Download/app-release.apk
+if [ $? -ne 0 ]; then
+    echo \"❌ ERROR: Failed to install APK\"
+    exit 1
+fi
+
+echo \"\"
+echo \"[3/3] Setting as Device Owner...\"
+adb shell dpm set-device-owner com.emiseure.customer/.MyDeviceAdminReceiver
+if [ $? -ne 0 ]; then
+    echo \"❌ ERROR: Failed to set device owner\"
+    echo \"Make sure:\"
+    echo \"  - All Google accounts are removed\"
+    echo \"  - USB debugging is enabled\"
+    exit 1
+fi
+
+echo \"\"
+echo \"═══════════════════════════════════\"
+echo \"  ✅ SUCCESS! Device Provisioned\"
+echo \"═══════════════════════════════════\"
+echo \"\"
+echo \"Next steps:\"
+echo \"1. Disconnect USB cable\"
+echo \"2. Open EMI Secure app\"
+echo \"3. Tap 'Sync Status'\"
+echo \"4. Copy Android ID and add to dashboard\"
+echo \"\"`)">Copy</button>
+                            <code>#!/data/data/com.termux/files/usr/bin/bash
+
+echo "═══════════════════════════════════"
+echo "  EMI Secure Device Provisioner"
+echo "═══════════════════════════════════"
+echo ""
+
+echo "[1/3] Checking device connection..."
+adb devices
+if [ $? -ne 0 ]; then
+    echo "❌ ERROR: No device connected"
+    exit 1
+fi
+
+echo ""
+echo "[2/3] Installing EMI Secure APK..."
+adb install -r /sdcard/Download/app-release.apk
+if [ $? -ne 0 ]; then
+    echo "❌ ERROR: Failed to install APK"
+    exit 1
+fi
+
+echo ""
+echo "[3/3] Setting as Device Owner..."
+adb shell dpm set-device-owner com.emiseure.customer/.MyDeviceAdminReceiver
+if [ $? -ne 0 ]; then
+    echo "❌ ERROR: Failed to set device owner"
+    echo "Make sure:"
+    echo "  - All Google accounts are removed"
+    echo "  - USB debugging is enabled"
+    exit 1
+fi
+
+echo ""
+echo "═══════════════════════════════════"
+echo "  ✅ SUCCESS! Device Provisioned"
+echo "═══════════════════════════════════"
+echo ""
+echo "Next steps:"
+echo "1. Disconnect USB cable"
+echo "2. Open EMI Secure app"
+echo "3. Tap 'Sync Status'"
+echo "4. Copy Android ID and add to dashboard"
+echo ""</code>
+                        </div>
+
+                        <p style="margin: 15px 0;">Save the file:</p>
+                        <ul style="margin: 10px 0 10px 20px;">
+                            <li>Press <strong>Ctrl + X</strong></li>
+                            <li>Press <strong>Y</strong> (yes to save)</li>
+                            <li>Press <strong>Enter</strong></li>
+                        </ul>
+
+                        <p style="margin: 15px 0;">Make it executable:</p>
+                        <div class="command-box">
+                            <button class="copy-btn" onclick="copyCommand(this, 'chmod +x provision.sh')">Copy</button>
+                            <code>chmod +x provision.sh</code>
+                        </div>
+
+                        <div class="success">
+                            <strong>Setup Complete!</strong> Your phone is now ready to provision customer devices.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section">
+                    <h2>🔄 Provision Customer Device (30 seconds)</h2>
+                    <p style="margin-bottom: 20px;">Follow these steps for EVERY customer device:</p>
+
+                    <div class="step">
+                        <h3><span class="step-number">1</span>Prepare Customer Device</h3>
+                        <ol style="margin: 15px 0 15px 20px;">
+                            <li>Go to <strong>Settings → Accounts</strong></li>
+                            <li>Remove ALL Google accounts (very important!)</li>
+                            <li>Go to <strong>Settings → About Phone</strong></li>
+                            <li>Tap <strong>"Build Number"</strong> 7 times</li>
+                            <li>You'll see "Developer mode enabled"</li>
+                            <li>Go back to <strong>Settings → Developer Options</strong></li>
+                            <li>Enable <strong>"USB Debugging"</strong></li>
+                            <li>Tap <strong>"OK"</strong> on the warning</li>
+                        </ol>
+                    </div>
+
+                    <div class="step">
+                        <h3><span class="step-number">2</span>Connect Devices</h3>
+                        <ol style="margin: 15px 0 15px 20px;">
+                            <li>Plug OTG cable into your phone</li>
+                            <li>Connect customer device to OTG cable</li>
+                            <li>On customer device, you'll see popup: <strong>"Allow USB debugging?"</strong></li>
+                            <li>Tap <strong>"Allow"</strong></li>
+                        </ol>
+                    </div>
+
+                    <div class="step">
+                        <h3><span class="step-number">3</span>Run Provisioning Script</h3>
+                        <ol style="margin: 15px 0 15px 20px;">
+                            <li>On your phone, open <strong>Termux</strong></li>
+                            <li>Run the script:</li>
+                        </ol>
+                        <div class="command-box">
+                            <button class="copy-btn" onclick="copyCommand(this, './provision.sh')">Copy</button>
+                            <code>./provision.sh</code>
+                        </div>
+                        <p style="margin: 15px 0;">Wait for the success message!</p>
+                    </div>
+
+                    <div class="step">
+                        <h3><span class="step-number">4</span>Finish Setup</h3>
+                        <ol style="margin: 15px 0 15px 20px;">
+                            <li>Disconnect USB cable</li>
+                            <li>On customer device, open <strong>EMI Secure</strong> app</li>
+                            <li>Tap <strong>"Sync Status"</strong> button</li>
+                            <li>Copy the <strong>Android ID</strong> shown on screen</li>
+                            <li>Go to dashboard and link the device with this Android ID</li>
+                        </ol>
+                        <div class="success">
+                            <strong>Done!</strong> Device is now fully provisioned and linked.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PC Method -->
+            <div id="pc-tab" class="tab-content">
+                <div class="section">
+                    <h2>💻 Setup with PC/Laptop</h2>
+                    
+                    <div class="step">
+                        <h3><span class="step-number">1</span>Install ADB on Your Computer</h3>
+                        
+                        <h4 style="margin: 15px 0;">For Windows:</h4>
+                        <div class="command-box">
+                            <button class="copy-btn" onclick="copyCommand(this, 'choco install adb')">Copy</button>
+                            <code>choco install adb</code>
+                        </div>
+                        <p style="margin: 10px 0;">Or download from: <a href="https://developer.android.com/tools/releases/platform-tools" target="_blank">https://developer.android.com/tools/releases/platform-tools</a></p>
+
+                        <h4 style="margin: 15px 0;">For Mac:</h4>
+                        <div class="command-box">
+                            <button class="copy-btn" onclick="copyCommand(this, 'brew install android-platform-tools')">Copy</button>
+                            <code>brew install android-platform-tools</code>
+                        </div>
+
+                        <h4 style="margin: 15px 0;">For Linux:</h4>
+                        <div class="command-box">
+                            <button class="copy-btn" onclick="copyCommand(this, 'sudo apt-get install adb')">Copy</button>
+                            <code>sudo apt-get install adb</code>
+                        </div>
+                    </div>
+
+                    <div class="step">
+                        <h3><span class="step-number">2</span>Prepare Customer Device</h3>
+                        <ol style="margin: 15px 0 15px 20px;">
+                            <li>Remove all Google accounts</li>
+                            <li>Enable Developer Options (tap Build Number 7 times)</li>
+                            <li>Enable USB Debugging</li>
+                            <li>Connect device to PC via USB cable</li>
+                            <li>Allow USB debugging when prompted</li>
+                        </ol>
+                    </div>
+
+                    <div class="step">
+                        <h3><span class="step-number">3</span>Provision Device</h3>
+                        <p style="margin: 15px 0;">Open Command Prompt/Terminal and run:</p>
+                        
+                        <div class="command-box">
+                            <button class="copy-btn" onclick="copyCommand(this, 'adb devices')">Copy</button>
+                            <code>adb devices</code>
+                        </div>
+                        <p style="margin: 10px 0;">You should see your device listed. Then run:</p>
+
+                        <div class="command-box">
+                            <button class="copy-btn" onclick="copyCommand(this, 'adb install app-release.apk')">Copy</button>
+                            <code>adb install app-release.apk</code>
+                        </div>
+
+                        <div class="command-box">
+                            <button class="copy-btn" onclick="copyCommand(this, 'adb shell dpm set-device-owner com.emiseure.customer/.MyDeviceAdminReceiver')">Copy</button>
+                            <code>adb shell dpm set-device-owner com.emiseure.customer/.MyDeviceAdminReceiver</code>
+                        </div>
+
+                        <div class="success">
+                            <strong>Success!</strong> You should see "Device owner set to package com.emiseure.customer"
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Troubleshooting -->
+            <div class="section">
+                <h2>🔧 Troubleshooting</h2>
+                
+                <div class="step">
+                    <h3>Error: "Not allowed to set the device owner"</h3>
+                    <p><strong>Solution:</strong> Make sure ALL Google accounts are removed from the device.</p>
+                </div>
+
+                <div class="step">
+                    <h3>Error: "Device owner is already set"</h3>
+                    <p><strong>Solution:</strong> Remove existing device owner first:</p>
+                    <div class="command-box">
+                        <button class="copy-btn" onclick="copyCommand(this, 'adb shell dpm remove-active-admin com.emiseure.customer/.MyDeviceAdminReceiver')">Copy</button>
+                        <code>adb shell dpm remove-active-admin com.emiseure.customer/.MyDeviceAdminReceiver</code>
+                    </div>
+                </div>
+
+                <div class="step">
+                    <h3>Error: "adb: command not found"</h3>
+                    <p><strong>Solution:</strong> ADB is not installed or not in PATH. Reinstall ADB and add to system PATH.</p>
+                </div>
+
+                <div class="step">
+                    <h3>Device not detected</h3>
+                    <p><strong>Solution:</strong></p>
+                    <ul style="margin: 10px 0 10px 20px;">
+                        <li>Check if USB debugging is enabled</li>
+                        <li>Try a different USB cable</li>
+                        <li>Tap "Allow" on the USB debugging popup</li>
+                        <li>Run: <code>adb kill-server</code> then <code>adb start-server</code></li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Video Tutorial -->
+            <div class="section">
+                <h2>📹 Video Tutorial</h2>
+                <div class="video-placeholder">
+                    <h3>Video Tutorial Coming Soon!</h3>
+                    <p>Step-by-step video guide will be added here</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function copyCommand(button, text) {
+            navigator.clipboard.writeText(text).then(() => {
+                button.textContent = 'Copied!';
+                button.classList.add('copied');
+                setTimeout(() => {
+                    button.textContent = 'Copy';
+                    button.classList.remove('copied');
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>

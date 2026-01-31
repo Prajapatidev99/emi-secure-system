@@ -45,6 +45,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
@@ -74,7 +75,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // =====================================
-    // 🔐 DEVICE OWNER SECURITY ENFORCEMENT
+    // 🔐 DEVICE OWNER SECURITY
     // =====================================
     private fun enforceSecurityPolicies() {
         if (!dpm.isDeviceOwnerApp(packageName)) return
@@ -88,7 +89,7 @@ class MainActivity : AppCompatActivity() {
             Log.e("Security", "Failed to apply restrictions", e)
         }
 
-        // FRP / Account logic
+        // FRP / account protection
         val am = AccountManager.get(this)
         val hasGoogleAccount =
             am.getAccountsByType("com.google").isNotEmpty()
@@ -98,44 +99,29 @@ class MainActivity : AppCompatActivity() {
                 adminComponent,
                 UserManager.DISALLOW_MODIFY_ACCOUNTS
             )
-            Log.d("Security", "Account modification blocked")
         } else {
             dpm.clearUserRestriction(
                 adminComponent,
                 UserManager.DISALLOW_MODIFY_ACCOUNTS
             )
-            Log.d("Security", "Account modification allowed (first setup)")
         }
     }
 
     // =====================================
-    // 🔍 DEVICE ADMIN STATUS UI
+    // 🔍 ADMIN STATUS UI
     // =====================================
     private fun checkDeviceAdminStatus() {
         val isOwner = dpm.isDeviceOwnerApp(packageName)
         val isAdmin = dpm.isAdminActive(adminComponent)
 
         when {
-            isOwner -> {
+            isOwner || isAdmin -> {
                 binding.deviceAdminStatusTextView.text =
                     getString(R.string.device_admin_active)
                 binding.deviceAdminStatusTextView.setTextColor(
                     ContextCompat.getColor(this, R.color.status_paid)
                 )
             }
-
-            isAdmin -> {
-                binding.deviceAdminStatusTextView.text =
-                    getString(R.string.device_admin_active)
-                binding.deviceAdminStatusTextView.setTextColor(
-                    ContextCompat.getColor(this, R.color.status_paid)
-                )
-                Log.w(
-                    "DeviceAdmin",
-                    "Admin active but NOT device owner (Kiosk limited)"
-                )
-            }
-
             else -> {
                 binding.deviceAdminStatusTextView.text =
                     getString(R.string.device_admin_inactive)
@@ -158,7 +144,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     // =====================================
-    // 🔔 FCM REGISTRATION
+    // 🔔 FCM
     // =====================================
     private fun registerForPushNotifications(androidId: String) {
         FirebaseMessaging.getInstance().token
@@ -185,16 +171,16 @@ class MainActivity : AppCompatActivity() {
                 Request.Method.POST,
                 url,
                 body,
-                { Log.d("FCM", "Token synced with server") },
+                { Log.d("FCM", "Token synced") },
                 { Log.e("FCM", "Token sync failed", it) }
             )
         )
     }
 
     // =====================================
-    // 🌐 SERVER SYNC
+    // 🌐 SERVER SYNC (FIXED WITH RETRY)
     // =====================================
-    private fun fetchDeviceStatus(androidId: String) {
+    private fun fetchDeviceStatus(androidId: String, retryCount: Int = 0) {
         showLoading(true)
 
         val queue = Volley.newRequestQueue(this)
@@ -211,6 +197,7 @@ class MainActivity : AppCompatActivity() {
                 body,
                 { response ->
                     showLoading(false)
+
                     val time = SimpleDateFormat(
                         "hh:mm:ss a",
                         Locale.getDefault()
@@ -219,8 +206,13 @@ class MainActivity : AppCompatActivity() {
                     binding.syncStatusTextView.text =
                         getString(R.string.sync_status_success, time)
 
-                    val unlockKey =
-                        response.optString("unlockKey", null)
+                    // ✅ SAFE PARSING (NO Nothing?)
+                    val unlockKey: String? =
+                        if (response.has("unlockKey") && !response.isNull("unlockKey")) {
+                            response.getString("unlockKey")
+                        } else {
+                            null
+                        }
 
                     if (!unlockKey.isNullOrEmpty()) {
                         prefs.edit()
@@ -233,10 +225,26 @@ class MainActivity : AppCompatActivity() {
                 },
                 { error ->
                     showLoading(false)
-                    showError(
-                        error.message
-                            ?: "Server connection failed"
-                    )
+                    
+                    // Retry logic: retry up to 3 times with exponential backoff
+                    if (retryCount < 3) {
+                        val delayMs = (retryCount + 1) * 1000L // 1s, 2s, 3s
+                        binding.syncStatusTextView.text = "Retrying... (${retryCount + 1}/3)"
+                        
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            fetchDeviceStatus(androidId, retryCount + 1)
+                        }, delayMs)
+                    } else {
+                        // Better error messages
+                        val errorMessage = when {
+                            error.networkResponse == null -> "No internet connection. Please check your network."
+                            error.networkResponse.statusCode == 404 -> "Device not found. Please register this device."
+                            error.networkResponse.statusCode == 500 -> "Server error. Please try again later."
+                            error.networkResponse.statusCode >= 400 -> "Server error (${error.networkResponse.statusCode})"
+                            else -> error.message ?: "Connection failed. Please try again."
+                        }
+                        showError(errorMessage)
+                    }
                 }
             )
         )
@@ -267,9 +275,7 @@ class MainActivity : AppCompatActivity() {
             )
         } else if (!serverLocked && localLocked) {
             prefs.edit().putBoolean("IS_LOCKED", false).commit()
-            sendBroadcast(
-                Intent("com.emiseure.customer.ACTION_UNLOCK")
-            )
+            sendBroadcast(Intent("com.emiseure.customer.ACTION_UNLOCK"))
         }
     }
 

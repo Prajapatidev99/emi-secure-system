@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 
+@Suppress("DEPRECATION")
 class MyDeviceAdminReceiver : DeviceAdminReceiver() {
 
     private val TAG = "DeviceAdminReceiver"
