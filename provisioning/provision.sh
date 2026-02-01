@@ -13,11 +13,16 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
-echo "[2/3] Installing EMI Secure APK..."
-adb install -r /sdcard/Download/app-release.apk
-if [ $? -ne 0 ]; then
-    echo "❌ ERROR: Failed to install APK"
-    exit 1
+echo "[2/3] Checking App Installation..."
+if adb shell pm list packages | grep -q "com.emiseure.customer"; then
+    echo "✅ App already installed. Skipping installation..."
+else
+    echo "Installing EMI Secure APK..."
+    adb install -r /sdcard/Download/app-release.apk
+    if [ $? -ne 0 ]; then
+        echo "❌ ERROR: Failed to install APK"
+        exit 1
+    fi
 fi
 
 echo ""
