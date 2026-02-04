@@ -30,6 +30,9 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
 
+    // 🔔 FCM Token Cache
+    private var currentFcmToken: String? = null
+
     // 🔐 Device Owner
     private lateinit var dpm: DevicePolicyManager
     private lateinit var adminComponent: ComponentName
@@ -86,7 +89,20 @@ class MainActivity : AppCompatActivity() {
             dpm.setLockTaskPackages(adminComponent, arrayOf(packageName))
             dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
             dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_SAFE_BOOT)
-            Log.d("Security", "Critical restrictions applied")
+            
+            // 🔒 Critical Security: Prevent Uninstall
+            if (BuildConfig.DEBUG) {
+                // 🔓 Debug Mode: Allow Uninstall for testing
+                dpm.setUninstallBlocked(adminComponent, packageName, false)
+                dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_UNINSTALL_APPS)
+                Log.w("Security", "⚠️ DEBUG MODE: Skipping uninstall block for testing")
+            } else {
+                // 🔒 Release Mode: Block Uninstall strict
+                dpm.setUninstallBlocked(adminComponent, packageName, true)
+                dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_UNINSTALL_APPS)
+            }
+            
+            Log.d("Security", "Critical restrictions applied (Uninstall Blocked)")
         } catch (e: SecurityException) {
             Log.e("Security", "Failed to apply restrictions", e)
         }
@@ -155,7 +171,9 @@ class MainActivity : AppCompatActivity() {
                     Log.e("FCM", "Token fetch failed", task.exception)
                     return@OnCompleteListener
                 }
-                sendFcmTokenToServer(androidId, task.result)
+                val token = task.result
+                currentFcmToken = token // Cache it
+                sendFcmTokenToServer(androidId, token)
             })
     }
 
@@ -207,6 +225,14 @@ class MainActivity : AppCompatActivity() {
 
                     binding.syncStatusTextView.text =
                         getString(R.string.sync_status_success, time)
+                    
+                    // ✅ Self-Healing: Resend FCM token if we have one (in case device was just linked)
+                    currentFcmToken?.let { token ->
+                        sendFcmTokenToServer(androidId, token)
+                        // Clear it so we don't spam updates? No, idempotent updates are fine/safer.
+                        // But maybe log it.
+                        Log.d("FCM", "Resyncing FCM token after status fetch")
+                    }
 
                     // ✅ SAFE PARSING (NO Nothing?)
                     val unlockKey: String? =

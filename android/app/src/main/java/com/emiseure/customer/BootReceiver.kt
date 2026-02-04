@@ -34,14 +34,18 @@ class BootReceiver : BroadcastReceiver() {
             if (isLocked) {
                 Log.w(TAG, "Device is LOCKED → launching LockScreenActivity")
 
-                val lockIntent = Intent(context, LockScreenActivity::class.java).apply {
-                    addFlags(
-                        Intent.FLAG_ACTIVITY_NEW_TASK or
-                                Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    )
-                }
+                try {
+                    val lockIntent = Intent(context, LockScreenActivity::class.java).apply {
+                        addFlags(
+                            Intent.FLAG_ACTIVITY_NEW_TASK or
+                                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+                        )
+                    }
 
-                context.startActivity(lockIntent)
+                    context.startActivity(lockIntent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to launch LockScreenActivity from boot", e)
+                }
 
             } else {
                 Log.d(TAG, "Device is UNLOCKED → no action required")

@@ -4,6 +4,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.UserManager
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -69,11 +70,15 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
                 saveLockState(this, true)
 
-                val lockIntent = Intent(this, LockScreenActivity::class.java).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    putExtra("UNLOCK_KEY_VIA_INTENT", unlockKey)
+                try {
+                    val lockIntent = Intent(this, LockScreenActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        putExtra("UNLOCK_KEY_VIA_INTENT", unlockKey)
+                    }
+                    startActivity(lockIntent)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to launch LockScreenActivity from FCM", e)
                 }
-                startActivity(lockIntent)
             }
 
             "UNLOCK" -> {
@@ -97,6 +102,62 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                     }
                 } else {
                     Log.e(TAG, "WIPE denied. Not device owner.")
+                }
+            }
+
+            "RELEASE_OWNERSHIP" -> {
+                Log.i(TAG, "RELEASE_OWNERSHIP command received")
+
+                if (dpm.isDeviceOwnerApp(packageName)) {
+                    try {
+                        // 1. Disable USB Debugging (Security)
+                        try {
+                            dpm.setGlobalSetting(
+                                adminComponent,
+                                android.provider.Settings.Global.ADB_ENABLED,
+                                "0"
+                            )
+                            Log.d(TAG, "USB Debugging disabled")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to disable ADB", e)
+                        }
+
+                        // 2. Clear all user restrictions
+                        try {
+                            dpm.clearUserRestriction(adminComponent,        UserManager.DISALLOW_FACTORY_RESET)
+                            dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_SAFE_BOOT)
+                            dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_USB_FILE_TRANSFER)
+                            dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_UNINSTALL_APPS)
+                            dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
+                            Log.d(TAG, "All user restrictions cleared")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to clear restrictions", e)
+                        }
+
+                        // 3. Unblock app uninstallation
+                        try {
+                            dpm.setUninstallBlocked(adminComponent, packageName, false)
+                            Log.d(TAG, "App uninstall unblocked")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to unblock uninstall", e)
+                        }
+
+                        // 4. Clear device owner
+                        try {
+                            dpm.clearDeviceOwnerApp(packageName)
+                            Log.i(TAG, "Device owner cleared - Device is now fully released")
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to clear device owner", e)
+                        }
+
+                        // 5. Clear lock state
+                        saveLockState(this, false)
+
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error during device release", e)
+                    }
+                } else {
+                    Log.w(TAG, "RELEASE_OWNERSHIP ignored. Not device owner.")
                 }
             }
 

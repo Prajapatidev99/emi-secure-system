@@ -5,13 +5,25 @@ echo ========================================
 echo.
 
 echo Step 1: Checking ADB connection...
-adb devices
-if %errorlevel% neq 0 (
-    echo ERROR: ADB not found or device not connected
-    echo Please install ADB and connect device via USB
-    pause
-    exit /b 1
+:CHECK_DEVICE
+adb get-state >nul 2>&1
+if %errorlevel% equ 0 (
+    echo Device connected successfully.
+    goto :DEVICE_FOUND
 )
+
+adb devices | findstr "unauthorized" >nul
+if %errorlevel% equ 0 (
+    echo Device is UNAUTHORIZED. Please check your phone and allow USB debugging.
+    timeout /t 3 >nul
+    goto :CHECK_DEVICE
+)
+
+echo Waiting for device...
+timeout /t 2 >nul
+goto :CHECK_DEVICE
+
+:DEVICE_FOUND
 
 echo.
 echo Step 2: Installing EMI Secure APK...
