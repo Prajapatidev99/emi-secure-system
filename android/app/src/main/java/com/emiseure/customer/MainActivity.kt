@@ -103,11 +103,15 @@ class MainActivity : AppCompatActivity() {
             // 🔐 ADVANCED: Block installing apps from unknown sources
             dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
             
-            // 🔒 Critical Security: Prevent Uninstall
-            // dpm.setUninstallBlocked(adminComponent, packageName, true)
-            // dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_UNINSTALL_APPS)
-            
-            Log.d("Security", "Advanced security restrictions applied (ADB, Developer Options blocked)")
+            // 🔒 CRITICAL: Prevent app uninstallation
+            try {
+                dpm.setUninstallBlocked(adminComponent, packageName, true)
+                Log.d("Security", "✅ App uninstallation BLOCKED")
+            } catch (e: Exception) {
+                Log.e("Security", "Failed to block uninstallation", e)
+            }
+
+            Log.d("Security", "✅ All security policies enforced")
         } catch (e: SecurityException) {
             Log.e("Security", "Failed to apply restrictions", e)
         }
