@@ -206,7 +206,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun sendFcmTokenToServer(androidId: String, token: String) {
         val queue = Volley.newRequestQueue(this)
-        val url = "$PUBLIC_BACKEND_URL/devices/fcm-update"
+        val url = "${BuildConfig.BACKEND_URL}/api/public/devices/fcm-update"
 
         val body = JSONObject().apply {
             put("androidId", androidId)

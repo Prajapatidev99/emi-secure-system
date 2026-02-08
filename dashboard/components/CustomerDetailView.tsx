@@ -227,17 +227,17 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
                                             <div className="grid grid-cols-2 gap-3 text-sm">
                                                 <div className="bg-slate-900 p-2 rounded">
                                                     <p className="text-slate-400 text-xs">Latitude</p>
-                                                    <p className="text-white font-mono">{device.location.latitude.toFixed(6)}</p>
+                                                    <p className="text-white font-mono">{(device.location.latitude || 0).toFixed(6)}</p>
                                                 </div>
                                                 <div className="bg-slate-900 p-2 rounded">
                                                     <p className="text-slate-400 text-xs">Longitude</p>
-                                                    <p className="text-white font-mono">{device.location.longitude.toFixed(6)}</p>
+                                                    <p className="text-white font-mono">{(device.location.longitude || 0).toFixed(6)}</p>
                                                 </div>
                                             </div>
 
                                             <div className="bg-slate-900 p-2 rounded text-sm">
                                                 <p className="text-slate-400 text-xs">Accuracy</p>
-                                                <p className="text-white">{device.location.accuracy.toFixed(0)} meters</p>
+                                                <p className="text-white">{(device.location.accuracy || 0).toFixed(0)} meters</p>
                                             </div>
 
                                             <div className="bg-slate-900 p-2 rounded text-sm">
@@ -279,7 +279,7 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
                                 {payments.length > 0 ? payments.map(p => (
                                     <tr key={p._id}>
                                         <td className="px-6 py-4 whitespace-nowrap text-white">{p.deviceModel}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-slate-400">₹{p.amount.toFixed(2)}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-slate-400">₹{(p.amount || 0).toFixed(2)}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-slate-400">{new Date(p.dueDate).toLocaleDateString()}</td>
                                         <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={p.status} /></td>
                                     </tr>
