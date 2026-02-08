@@ -146,6 +146,7 @@ router.get('/customers/:id/devices', async (req, res) => {
             fcmToken: d.fcmToken,
             unlockKey: d.unlockKey,
             isCompromised: d.isCompromised,
+            location: d.location, // Add location data
             createdAt: d.createdAt,
             updatedAt: d.updatedAt,
         }));

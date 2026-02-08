@@ -5,10 +5,10 @@ export enum PaymentStatus {
 }
 
 export enum DeviceStatus {
-    Active = 'Active',
-    Locked = 'Locked',
-    Compromised = 'Compromised',
-    Released = 'Released',
+  Active = 'Active',
+  Locked = 'Locked',
+  Compromised = 'Compromised',
+  Released = 'Released',
 }
 
 // NEW: Add an interface for a single KYC document
@@ -34,6 +34,12 @@ export interface Device {
   androidId?: string; // CRITICAL: Made optional for new registration flow
   model: string;
   status: DeviceStatus;
+  location?: {
+    latitude: number;
+    longitude: number;
+    accuracy: number;
+    lastUpdated: Date;
+  };
 }
 
 export interface EmiPayment {
@@ -54,6 +60,6 @@ export interface EmiPayment {
 // FIX: Refactored from a type alias using an intersection (&) to an interface 
 // that uses 'extends'. This resolves a potential TypeScript module resolution error 
 // while making the type definition clearer.
-export interface DeviceWithCustomer extends Device { 
-  customerId: { _id: string; name: string } | null; 
+export interface DeviceWithCustomer extends Device {
+  customerId: { _id: string; name: string } | null;
 }

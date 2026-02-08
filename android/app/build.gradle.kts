@@ -18,6 +18,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        // Backend URL - change this for different environments
+        buildConfigField("String", "BACKEND_URL", "\"https://emi-secure-system.onrender.com\"")
     }
 
     buildTypes {
@@ -38,6 +41,7 @@ android {
     }
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 
@@ -52,7 +56,13 @@ dependencies {
 
     // Volley for network requests
     implementation(libs.volley)
+    
+    // OkHttp for secure network requests with certificate pinning
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     // Firebase Messaging for Push Notifications
     implementation(libs.firebase.messaging.ktx)
+    
+    // Google Play Services for Location Tracking
+    implementation("com.google.android.gms:play-services-location:21.1.0")
 }

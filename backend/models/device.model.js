@@ -48,7 +48,19 @@ const deviceSchema = new Schema({
   isCompromised: {
     type: Boolean,
     default: false,
-  }
+  },
+  location: {
+    latitude: Number,
+    longitude: Number,
+    accuracy: Number,
+    lastUpdated: Date,
+  },
+  locationHistory: [{
+    latitude: { type: Number, required: true },
+    longitude: { type: Number, required: true },
+    accuracy: Number,
+    timestamp: { type: Date, default: Date.now }
+  }]
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

@@ -5,6 +5,18 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    
+    <!-- Notification Permissions for Payment Reminders -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    
+    <!-- Location Permissions for Real-Time Tracking -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <application
         android:allowBackup="false"
@@ -48,6 +60,16 @@
             </intent-filter>
         </service>
 
+        <!-- 🔒 LOCK MONITOR SERVICE -->
+        <service
+            android:name=".LockMonitorService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Device Security Monitoring" />
+        </service>
+
         <!-- 🔐 DEVICE ADMIN -->
         <receiver
             android:name=".MyDeviceAdminReceiver"
@@ -62,6 +84,22 @@
                 <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
             </intent-filter>
         </receiver>
+
+        <!-- 🔌 USB MONITOR (SECURITY) -->
+        <receiver
+            android:name=".UsbMonitorReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_STATE" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 📅 PAYMENT REMINDER RECEIVER (OFFLINE NOTIFICATIONS) -->
+        <receiver
+            android:name=".utils.PaymentReminderReceiver"
+            android:enabled="true"
+            android:exported="false" />
 
         <!-- 🔁 BOOT RECEIVER (DIRECT BOOT SAFE) -->
         <receiver

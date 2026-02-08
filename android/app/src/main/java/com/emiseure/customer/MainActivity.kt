@@ -18,6 +18,7 @@ import androidx.core.content.ContextCompat
 import com.android.volley.Request
 import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
+import com.emiseure.customer.BuildConfig
 import com.emiseure.customer.databinding.ActivityMainBinding
 import com.google.android.gms.tasks.OnCompleteListener
 import com.google.firebase.messaging.FirebaseMessaging
@@ -44,8 +45,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
-        private const val PUBLIC_BACKEND_URL =
-            "https://emi-secure-system.onrender.com/api/public"
+        // Backend URL is now loaded from BuildConfig (local.properties)
+        private val PUBLIC_BACKEND_URL = "${BuildConfig.BACKEND_URL}/api/public"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,6 +67,9 @@ class MainActivity : AppCompatActivity() {
         checkDeviceAdminStatus()
         enforceSecurityPolicies()
 
+        // 📅 Create notification channel for payment reminders
+        PaymentReminderManager.createNotificationChannel(this)
+
         registerForPushNotifications(androidId)
         fetchDeviceStatus(androidId)
 
@@ -77,6 +81,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         fetchDeviceStatus(getAndroidId())
+        enforceAccountRestriction() // Re-check account state when app returns
     }
 
     // =====================================
@@ -87,41 +92,59 @@ class MainActivity : AppCompatActivity() {
 
         try {
             dpm.setLockTaskPackages(adminComponent, arrayOf(packageName))
+            
+            // 🔒 Critical Security Restrictions
             dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
             dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_SAFE_BOOT)
             
-            // 🔒 Critical Security: Prevent Uninstall
-            if (BuildConfig.DEBUG) {
-                // 🔓 Debug Mode: Allow Uninstall for testing
-                dpm.setUninstallBlocked(adminComponent, packageName, false)
-                dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_UNINSTALL_APPS)
-                Log.w("Security", "⚠️ DEBUG MODE: Skipping uninstall block for testing")
-            } else {
-                // 🔒 Release Mode: Block Uninstall strict
-                dpm.setUninstallBlocked(adminComponent, packageName, true)
-                dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_UNINSTALL_APPS)
-            }
+            // 🔐 ADVANCED: Block ALL debugging features (ADB, Developer Options, etc.)
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_DEBUGGING_FEATURES)
             
-            Log.d("Security", "Critical restrictions applied (Uninstall Blocked)")
+            // 🔐 ADVANCED: Block installing apps from unknown sources
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
+            
+            // 🔒 Critical Security: Prevent Uninstall
+            // dpm.setUninstallBlocked(adminComponent, packageName, true)
+            // dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_UNINSTALL_APPS)
+            
+            Log.d("Security", "Advanced security restrictions applied (ADB, Developer Options blocked)")
         } catch (e: SecurityException) {
             Log.e("Security", "Failed to apply restrictions", e)
         }
 
-        // FRP / account protection
-        val am = AccountManager.get(this)
-        val hasGoogleAccount =
-            am.getAccountsByType("com.google").isNotEmpty()
+        // FRP / account protection: ONE-TIME ACCOUNT ADDITION ONLY
+        enforceAccountRestriction()
+    }
 
-        if (hasGoogleAccount) {
-            dpm.addUserRestriction(
-                adminComponent,
-                UserManager.DISALLOW_MODIFY_ACCOUNTS
-            )
-        } else {
-            dpm.clearUserRestriction(
-                adminComponent,
-                UserManager.DISALLOW_MODIFY_ACCOUNTS
-            )
+    private fun enforceAccountRestriction() {
+        if (!dpm.isDeviceOwnerApp(packageName)) return
+
+        try {
+            val accountAlreadyAdded = prefs.getBoolean("GOOGLE_ACCOUNT_ADDED", false)
+            
+            val am = AccountManager.get(this)
+            val googleAccounts = am.getAccountsByType("com.google")
+            
+            when {
+                googleAccounts.isNotEmpty() && !accountAlreadyAdded -> {
+                    // First Google account added - lock it permanently
+                    prefs.edit().putBoolean("GOOGLE_ACCOUNT_ADDED", true).commit()
+                    dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
+                    Log.d("AccountSecurity", "✅ Google account added - restrictions enabled permanently")
+                }
+                accountAlreadyAdded -> {
+                    // Account was added before - maintain restrictions
+                    dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
+                    Log.d("AccountSecurity", "🔒 Maintaining permanent account restrictions")
+                }
+                else -> {
+                    // No account yet - allow adding ONCE
+                    dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
+                    Log.d("AccountSecurity", "⚠️ Waiting for first Google account (ONE TIME ONLY)")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("AccountSecurity", "Failed to enforce account restriction", e)
         }
     }
 
@@ -204,7 +227,7 @@ class MainActivity : AppCompatActivity() {
         showLoading(true)
 
         val queue = Volley.newRequestQueue(this)
-        val url = "$PUBLIC_BACKEND_URL/device-status"
+        val url = "${BuildConfig.BACKEND_URL}/api/public/device-status"
 
         val body = JSONObject().apply {
             put("androidId", androidId)
@@ -250,6 +273,23 @@ class MainActivity : AppCompatActivity() {
 
                     checkAndSyncLockState(response, unlockKey)
                     updateUiWithStatus(response)
+                    
+                    // 📅 Schedule payment reminders (offline notifications)
+                    try {
+                        val nextDueDate = response.optString("nextDueDate", "")
+                        val amountDue = response.optDouble("amountDue", 0.0)
+                        
+                        if (nextDueDate.isNotEmpty() && amountDue > 0) {
+                            PaymentReminderManager.scheduleReminders(
+                                this,
+                                nextDueDate,
+                                amountDue
+                            )
+                            Log.d("Notifications", "Payment reminders scheduled for $nextDueDate")
+                        }
+                    } catch (e: Exception) {
+                        Log.e("Notifications", "Failed to schedule reminders", e)
+                    }
                 },
                 { error ->
                     showLoading(false)
@@ -326,10 +366,94 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateUiWithStatus(status: JSONObject) {
+        // Update customer name
         binding.customerNameTextView.text =
             getString(
                 R.string.welcome_customer,
                 status.optString("customerName", "Customer")
             )
+
+        // Get payment and device status
+        val paymentStatus = status.optString("paymentStatus", "")
+        val deviceStatus = status.optString("deviceStatus", "Active")
+        val nextDueDate = status.optString("nextDueDate", "")
+        val amountDue = status.optDouble("amountDue", 0.0)
+        val message = status.optString("message", "")
+
+        // Update device status
+        binding.deviceStatusTextView.text = getString(R.string.device_status_label, deviceStatus)
+
+        // Handle different payment statuses
+        when (paymentStatus) {
+            "Overdue" -> {
+                // Payment is overdue
+                binding.statusTitle.text = getString(R.string.status_overdue)
+                binding.statusTitle.setTextColor(ContextCompat.getColor(this, R.color.status_overdue))
+                
+                binding.dueDateTextView.text = nextDueDate
+                binding.amountDueTextView.text = "₹${String.format("%.2f", amountDue)}"
+                
+                binding.statusDetailsLayout.visibility = View.VISIBLE
+                binding.statusMessage.visibility = View.GONE
+            }
+            
+            "Pending" -> {
+                // Payment is pending
+                binding.statusTitle.text = getString(R.string.status_pending)
+                binding.statusTitle.setTextColor(ContextCompat.getColor(this, R.color.status_pending))
+                
+                binding.dueDateTextView.text = nextDueDate
+                binding.amountDueTextView.text = "₹${String.format("%.2f", amountDue)}"
+                
+                binding.statusDetailsLayout.visibility = View.VISIBLE
+                binding.statusMessage.visibility = View.GONE
+            }
+            
+            "Paid" -> {
+                // Current payment is paid
+                binding.statusTitle.text = getString(R.string.status_all_clear)
+                binding.statusTitle.setTextColor(ContextCompat.getColor(this, R.color.status_paid))
+                
+                if (nextDueDate.isNotEmpty()) {
+                    // There's a next payment
+                    binding.dueDateTextView.text = nextDueDate
+                    binding.amountDueTextView.text = "₹${String.format("%.2f", amountDue)}"
+                    binding.statusDetailsLayout.visibility = View.VISIBLE
+                } else {
+                    binding.statusDetailsLayout.visibility = View.GONE
+                }
+                
+                binding.statusMessage.visibility = View.GONE
+            }
+            
+            "All Clear" -> {
+                // All payments are cleared
+                binding.statusTitle.text = getString(R.string.status_all_clear)
+                binding.statusTitle.setTextColor(ContextCompat.getColor(this, R.color.status_paid))
+                
+                binding.statusDetailsLayout.visibility = View.GONE
+                
+                // Show the "All Clear" message
+                binding.statusMessage.text = if (message.isNotEmpty()) {
+                    message
+                } else {
+                    "All EMIs have been paid. Thank you!"
+                }
+                binding.statusMessage.visibility = View.VISIBLE
+                
+                // Check if device is released
+                if (deviceStatus == "Released") {
+                    binding.statusMessage.text = getString(R.string.device_released_message)
+                }
+            }
+            
+            else -> {
+                // Unknown status or no payment info
+                binding.statusTitle.text = "Status Unknown"
+                binding.statusTitle.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
+                binding.statusDetailsLayout.visibility = View.GONE
+                binding.statusMessage.visibility = View.GONE
+            }
+        }
     }
 }

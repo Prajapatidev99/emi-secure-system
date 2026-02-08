@@ -4,6 +4,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.UserManager
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
@@ -70,6 +71,20 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
                 saveLockState(this, true)
 
+                // Start foreground monitoring service
+                try {
+                    val serviceIntent = Intent(this, LockMonitorService::class.java)
+                    serviceIntent.putExtra("action", "START_MONITORING")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        startForegroundService(serviceIntent)
+                    } else {
+                        startService(serviceIntent)
+                    }
+                    Log.d(TAG, "LockMonitorService started")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to start LockMonitorService", e)
+                }
+
                 try {
                     val lockIntent = Intent(this, LockScreenActivity::class.java).apply {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -85,6 +100,16 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 Log.i(TAG, "UNLOCK command received")
 
                 saveLockState(this, false)
+
+                // Stop monitoring service
+                try {
+                    val serviceIntent = Intent(this, LockMonitorService::class.java)
+                    serviceIntent.putExtra("action", "STOP_MONITORING")
+                    startService(serviceIntent)
+                    Log.d(TAG, "LockMonitorService stop requested")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to stop LockMonitorService", e)
+                }
 
                 sendBroadcast(
                     Intent("com.emiseure.customer.ACTION_UNLOCK")

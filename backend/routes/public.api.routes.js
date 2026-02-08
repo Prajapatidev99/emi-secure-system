@@ -73,7 +73,7 @@ router.post('/device-status', async (req, res) => {
                 unlockKey: device.unlockKey,
             });
         } else {
-             res.json({
+            res.json({
                 deviceStatus: device.status,
                 paymentStatus: 'All Clear',
                 message: 'All EMIs have been paid. Thank you!',
@@ -81,9 +81,55 @@ router.post('/device-status', async (req, res) => {
                 unlockKey: device.unlockKey,
             });
         }
-    } catch(error) {
+    } catch (error) {
         console.error('Error fetching device status:', error);
         res.status(500).json({ message: 'Server error while fetching device status.' });
+    }
+});
+
+// --- Route for Android App to Send Location Updates ---
+router.post('/devices/location', async (req, res) => {
+    const { androidId, latitude, longitude, accuracy, timestamp } = req.body;
+
+    if (!androidId || latitude === undefined || longitude === undefined) {
+        return res.status(400).json({ message: 'androidId, latitude, and longitude are required.' });
+    }
+
+    try {
+        const device = await Device.findOne({ androidId });
+
+        if (!device) {
+            return res.status(404).json({ message: 'Device not registered.' });
+        }
+
+        // Update current location
+        device.location = {
+            latitude,
+            longitude,
+            accuracy: accuracy || 0,
+            lastUpdated: new Date(timestamp || Date.now())
+        };
+
+        // Add to location history (limit to last 100 entries)
+        device.locationHistory.push({
+            latitude,
+            longitude,
+            accuracy: accuracy || 0,
+            timestamp: new Date(timestamp || Date.now())
+        });
+
+        // Keep only last 100 location history entries
+        if (device.locationHistory.length > 100) {
+            device.locationHistory = device.locationHistory.slice(-100);
+        }
+
+        await device.save();
+
+        res.status(200).json({ message: 'Location updated successfully.' });
+
+    } catch (error) {
+        console.error('Location update error:', error);
+        res.status(500).json({ message: 'Server error during location update.', error: error.message });
     }
 });
 
