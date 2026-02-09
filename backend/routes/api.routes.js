@@ -636,7 +636,7 @@ router.get('/devices/:deviceId/unlock-key', async (req, res) => {
         const userId = req.userId; // From auth middleware
         const device = await Device.findById(req.params.deviceId).populate('customerId');
         if (!device) {
-            return res.status(404).json({ message: 'Device not found' }); \n
+            return res.status(404).json({ message: 'Device not found' });
         }
 
         // SECURITY: Verify device belongs to this user's customer
