@@ -50,17 +50,19 @@ router.post('/customers', validate([
     validators.customerAddress
 ]), async (req, res) => {
     try {
+        const userId = req.userId; // From auth middleware
         const { name, phone, address, kycDocs } = req.body;
         if (!name || !phone || !address) {
             return res.status(400).json({ message: 'All fields are required.' });
         }
 
-        const existingCustomer = await Customer.findOne({ phone });
+        // Check if customer with this phone already exists for THIS user
+        const existingCustomer = await Customer.findOne({ userId, phone });
         if (existingCustomer) {
             return res.status(400).json({ message: 'A customer with this phone number already exists.' });
         }
 
-        const newCustomer = new Customer({ name, phone, address, kycDocs });
+        const newCustomer = new Customer({ userId, name, phone, address, kycDocs });
         await newCustomer.save();
         res.status(201).json(newCustomer);
     } catch (error) {
@@ -70,16 +72,18 @@ router.post('/customers', validate([
 
 router.get('/customers', async (req, res) => {
     try {
+        const userId = req.userId; // From auth middleware
         const page = parseInt(req.query.page) || 1;
         const limit = parseInt(req.query.limit) || 50;
         const skip = (page - 1) * limit;
 
-        const customers = await Customer.find({})
+        // SECURITY: Only fetch customers for THIS user
+        const customers = await Customer.find({ userId })
             .sort({ createdAt: -1 })
             .skip(skip)
             .limit(limit);
 
-        const total = await Customer.countDocuments();
+        const total = await Customer.countDocuments({ userId });
 
         res.json({
             customers,
@@ -98,7 +102,9 @@ router.get('/customers', async (req, res) => {
 
 router.get('/customers/:id', async (req, res) => {
     try {
-        const customer = await Customer.findById(req.params.id);
+        const userId = req.userId; // From auth middleware
+        // SECURITY: Only fetch if customer belongs to THIS user
+        const customer = await Customer.findOne({ _id: req.params.id, userId });
         if (!customer) {
             return res.status(404).json({ message: 'Customer not found' });
         }
@@ -111,7 +117,14 @@ router.get('/customers/:id', async (req, res) => {
 // DELETE Customer (Cascade)
 router.delete('/customers/:id', async (req, res) => {
     try {
+        const userId = req.userId; // From auth middleware
         const customerId = req.params.id;
+
+        // SECURITY: Verify customer belongs to THIS user before deleting
+        const customer = await Customer.findOne({ _id: customerId, userId });
+        if (!customer) {
+            return res.status(404).json({ message: 'Customer not found' });
+        }
 
         // 1. Delete all payments associated with this customer
         await Payment.deleteMany({ customerId });
@@ -120,11 +133,7 @@ router.delete('/customers/:id', async (req, res) => {
         await Device.deleteMany({ customerId });
 
         // 3. Delete the customer record itself
-        const result = await Customer.findByIdAndDelete(customerId);
-
-        if (!result) {
-            return res.status(404).json({ message: 'Customer not found' });
-        }
+        await Customer.findByIdAndDelete(customerId);
 
         res.json({ message: 'Customer and all associated data deleted successfully.' });
     } catch (error) {
@@ -134,6 +143,13 @@ router.delete('/customers/:id', async (req, res) => {
 
 router.get('/customers/:id/devices', async (req, res) => {
     try {
+        const userId = req.userId; // From auth middleware
+        // SECURITY: Verify customer belongs to this user
+        const customer = await Customer.findOne({ _id: req.params.id, userId });
+        if (!customer) {
+            return res.status(404).json({ message: 'Customer not found' });
+        }
+
         const devices = await Device.find({ customerId: req.params.id }).sort({ createdAt: -1 });
         const response = devices.map(d => ({
             id: d._id.toString(),
@@ -158,6 +174,13 @@ router.get('/customers/:id/devices', async (req, res) => {
 
 router.get('/customers/:id/payments', async (req, res) => {
     try {
+        const userId = req.userId; // From auth middleware
+        // SECURITY: Verify customer belongs to this user
+        const customer = await Customer.findOne({ _id: req.params.id, userId });
+        if (!customer) {
+            return res.status(404).json({ message: 'Customer not found' });
+        }
+
         const payments = await Payment.find({ customerId: req.params.id })
             .populate({
                 path: 'deviceId',
@@ -169,11 +192,9 @@ router.get('/customers/:id/payments', async (req, res) => {
             id: p._id,
             _id: p._id,
             deviceModel: p.deviceId ? p.deviceId.model : 'N/A',
-            deviceStatus: p.deviceId ? p.deviceId.status : 'N/A',
             amount: p.amount,
-            dueDate: p.dueDate.toISOString().split('T')[0],
+            dueDate: p.dueDate,
             status: p.status,
-            customerId: p.customerId,
         }));
 
         res.json(response);
@@ -185,6 +206,7 @@ router.get('/customers/:id/payments', async (req, res) => {
 // --- Device and Sale Registration ---
 router.post('/devices/register', async (req, res) => {
     try {
+        const userId = req.userId; // From auth middleware
         const {
             customerId, imei, model,
             totalPrice, downPayment, numberOfEmis, emiStartDate
@@ -195,6 +217,12 @@ router.post('/devices/register', async (req, res) => {
         }
         if (totalPrice <= downPayment) {
             return res.status(400).json({ message: 'Total price must be greater than the down payment.' });
+        }
+
+        // SECURITY: Verify customer belongs to this user
+        const customer = await Customer.findOne({ _id: customerId, userId });
+        if (!customer) {
+            return res.status(404).json({ message: 'Customer not found' });
         }
 
         const existingDevice = await Device.findOne({ imei });
@@ -396,11 +424,36 @@ router.patch('/payments/:paymentId/pay', async (req, res) => {
 // --- Dashboard Stats (with 2-minute cache) ---
 router.get('/stats', cache.middleware(2 * 60 * 1000), async (req, res) => {
     try {
-        const overduePayments = await Payment.countDocuments({ status: PaymentStatus.Overdue });
-        const lockedDevices = await Device.countDocuments({ status: DeviceStatus.Locked });
+        const userId = req.userId; // From auth middleware
 
+        // SECURITY: Get only customers for this user
+        const userCustomers = await Customer.find({ userId }).select('_id');
+        const customerIds = userCustomers.map(c => c._id);
+
+        // Get devices for this user's customers
+        const userDevices = await Device.find({ customerId: { $in: customerIds } }).select('_id');
+        const deviceIds = userDevices.map(d => d._id);
+
+        // Count overdue payments for this user's devices
+        const overduePayments = await Payment.countDocuments({
+            deviceId: { $in: deviceIds },
+            status: PaymentStatus.Overdue
+        });
+
+        // Count locked devices for this user's customers
+        const lockedDevices = await Device.countDocuments({
+            customerId: { $in: customerIds },
+            status: DeviceStatus.Locked
+        });
+
+        // Calculate total EMI collected for this user
         const totalResult = await Payment.aggregate([
-            { $match: { status: PaymentStatus.Paid } },
+            {
+                $match: {
+                    deviceId: { $in: deviceIds },
+                    status: PaymentStatus.Paid
+                }
+            },
             { $group: { _id: null, total: { $sum: '$amount' } } }
         ]);
         const totalEmiCollected = totalResult.length > 0 ? totalResult[0].total : 0;

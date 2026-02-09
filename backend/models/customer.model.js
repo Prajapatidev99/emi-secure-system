@@ -13,6 +13,12 @@ const kycDocumentSchema = new Schema({
 }, { _id: false });
 
 const customerSchema = new Schema({
+  userId: {
+    type: Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+    index: true, // Index for faster queries
+  },
   name: {
     type: String,
     required: true,
@@ -21,7 +27,6 @@ const customerSchema = new Schema({
   phone: {
     type: String,
     required: true,
-    unique: true,
     trim: true,
   },
   address: {
@@ -34,6 +39,9 @@ const customerSchema = new Schema({
   toJSON: { virtuals: true },
   toObject: { virtuals: true },
 });
+
+// Compound index: userId + phone (unique per user)
+customerSchema.index({ userId: 1, phone: 1 }, { unique: true });
 
 const Customer = mongoose.model('Customer', customerSchema);
 
