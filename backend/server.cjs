@@ -52,46 +52,53 @@ mongoose.connect(config.mongodbUri)
         }
     });
 
-// Rate limiting for authentication routes
-const authLimiter = rateLimit({
+// Rate limiting for login attempts (stricter)
+const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // 5 attempts per window
+    max: 5, // 5 login attempts per window
     message: 'Too many login attempts from this IP, please try again after 15 minutes.',
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Rate limiting for registration (more lenient)
+const registerLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 10, // 10 registration attempts per hour
+    message: 'Too many registration attempts from this IP, please try again later.',
     standardHeaders: true,
     legacyHeaders: false,
 });
 
 // General API rate limiting
 const apiLimiter = rateLimit({
-    windowMs: 1 * 60 * 1000, // 1 minute
-    max: 100, // 100 requests per minute
-    message: 'Too many requests from this IP, please slow down.',
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // 100 requests per window
     standardHeaders: true,
     legacyHeaders: false,
 });
 
-// Scheduled job: Update overdue payments daily at midnight
+// Cron job for payment checks
 cron.schedule('0 0 * * *', async () => {
     try {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        const result = await Payment.updateMany(
-            { dueDate: { $lt: today }, status: PaymentStatus.Pending },
-            { $set: { status: PaymentStatus.Overdue } }
-        );
-
-        logger.info(`Cron Job: Updated ${result.modifiedCount} payments to Overdue status`);
+        logger.info('Running daily payment check...');
+        const response = await fetch(`http://localhost:${PORT}/api/payments/check-overdue`, {
+            method: 'POST',
+        });
+        if (response.ok) {
+            logger.info('Payment check completed successfully');
+        }
     } catch (error) {
         logger.error('Cron Job Error:', { error: error.message });
     }
 });
 
 // Routes
-// 1. Auth routes (Login/Register) - Public with rate limiting
-// Profile/Password/Account routes require authentication
-app.use('/api/auth', authLimiter, (req, res, next) => {
-    // Public routes: login, register
+// 1. Auth routes with separate limiters for login and registration
+app.use('/api/auth/login', loginLimiter);
+app.use('/api/auth/register', registerLimiter);
+app.use('/api/auth', (req, res, next) => {
+    // Public routes: login, register (already rate-limited above)
     if (req.path === '/login' || req.path === '/register') {
         return next();
     }

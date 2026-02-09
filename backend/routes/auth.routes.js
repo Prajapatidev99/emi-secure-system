@@ -11,6 +11,11 @@ const router = express.Router();
 router.post('/register', async (req, res) => {
     const { email, password, shopName } = req.body;
 
+    // Validate required fields
+    if (!email || !password || !shopName) {
+        return res.status(400).json({ message: 'Please provide email, password, and shop name' });
+    }
+
     try {
         const userExists = await User.findOne({ email });
         if (userExists) {
@@ -19,10 +24,15 @@ router.post('/register', async (req, res) => {
 
         const user = await User.create({ email, password, shopName });
 
+        // Generate JWT token for auto-login
+        const secret = jwtSecret;
+        const token = jwt.sign({ id: user._id }, secret, { expiresIn: '1d' });
+
         res.status(201).json({
             _id: user._id,
             email: user.email,
             shopName: user.shopName,
+            token, // Return token for auto-login
         });
 
     } catch (error) {

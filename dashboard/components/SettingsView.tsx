@@ -155,6 +155,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onLogout }) => {
                                 type="password"
                                 value={currentPassword}
                                 onChange={(e) => setCurrentPassword(e.target.value)}
+                                autoComplete="current-password"
                                 className="w-full rounded-md border-0 bg-white/5 py-2.5 px-3 text-white shadow-sm ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-inset focus:ring-brand-500 sm:text-sm"
                                 placeholder="••••••••"
                             />
@@ -168,6 +169,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onLogout }) => {
                                 type="password"
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
+                                autoComplete="new-password"
                                 className="w-full rounded-md border-0 bg-white/5 py-2.5 px-3 text-white shadow-sm ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-inset focus:ring-brand-500 sm:text-sm"
                                 placeholder="••••••••"
                             />
@@ -181,6 +183,7 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onLogout }) => {
                                 type="password"
                                 value={confirmPassword}
                                 onChange={(e) => setConfirmPassword(e.target.value)}
+                                autoComplete="new-password"
                                 className="w-full rounded-md border-0 bg-white/5 py-2.5 px-3 text-white shadow-sm ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-inset focus:ring-brand-500 sm:text-sm"
                                 placeholder="••••••••"
                             />
