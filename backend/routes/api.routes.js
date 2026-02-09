@@ -271,17 +271,25 @@ router.post('/devices/register', async (req, res) => {
 // DELETE Device (and its payments)
 router.delete('/devices/:id', async (req, res) => {
     try {
+        const userId = req.userId; // From auth middleware
         const deviceId = req.params.id;
+
+        // SECURITY: Verify device belongs to this user's customer
+        const device = await Device.findById(deviceId).populate('customerId');
+        if (!device) {
+            return res.status(404).json({ message: 'Device not found' });
+        }
+
+        const customer = await Customer.findOne({ _id: device.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This device does not belong to you.' });
+        }
 
         // 1. Delete associated payments
         await Payment.deleteMany({ deviceId });
 
         // 2. Delete device
-        const result = await Device.findByIdAndDelete(deviceId);
-
-        if (!result) {
-            return res.status(404).json({ message: 'Device not found' });
-        }
+        await Device.findByIdAndDelete(deviceId);
 
         res.json({ message: 'Device and its payment records deleted successfully.' });
     } catch (error) {
@@ -291,6 +299,7 @@ router.delete('/devices/:id', async (req, res) => {
 
 router.post('/devices/:deviceId/link', async (req, res) => {
     try {
+        const userId = req.userId; // From auth middleware
         const { deviceId } = req.params;
         const { androidId } = req.body;
 
@@ -298,14 +307,20 @@ router.post('/devices/:deviceId/link', async (req, res) => {
             return res.status(400).json({ message: 'Android ID is required.' });
         }
 
+        const device = await Device.findById(deviceId).populate('customerId');
+        if (!device) {
+            return res.status(404).json({ message: 'Device not found' });
+        }
+
+        // SECURITY: Verify device belongs to this user's customer
+        const customer = await Customer.findOne({ _id: device.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This device does not belong to you.' });
+        }
+
         const existingDeviceWithAndroidId = await Device.findOne({ androidId });
         if (existingDeviceWithAndroidId && existingDeviceWithAndroidId._id.toString() !== deviceId) {
             return res.status(400).json({ message: 'This Android ID is already linked to another device.' });
-        }
-
-        const device = await Device.findById(deviceId);
-        if (!device) {
-            return res.status(404).json({ message: 'Device not found' });
         }
 
         device.androidId = androidId;
@@ -323,8 +338,15 @@ router.post('/devices/:deviceId/link', async (req, res) => {
 
 router.post('/devices/:deviceId/compromised', async (req, res) => {
     try {
-        const device = await Device.findById(req.params.deviceId);
+        const userId = req.userId; // From auth middleware
+        const device = await Device.findById(req.params.deviceId).populate('customerId');
         if (!device) return res.status(404).json({ message: 'Device not found' });
+
+        // SECURITY: Verify device belongs to this user's customer
+        const customer = await Customer.findOne({ _id: device.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This device does not belong to you.' });
+        }
 
         device.isCompromised = true;
         device.status = DeviceStatus.Compromised;
@@ -339,7 +361,17 @@ router.post('/devices/:deviceId/compromised', async (req, res) => {
 
 router.get('/payments/pending', async (req, res) => {
     try {
-        const pendingPayments = await Payment.find({ status: { $in: ['Pending', 'Overdue'] } })
+        const userId = req.userId; // From auth middleware
+
+        // SECURITY: Get only customers for this user
+        const userCustomers = await Customer.find({ userId }).select('_id');
+        const customerIds = userCustomers.map(c => c._id);
+
+        // Get pending payments only for THIS user's customers
+        const pendingPayments = await Payment.find({
+            customerId: { $in: customerIds },
+            status: { $in: ['Pending', 'Overdue'] }
+        })
             .populate('customerId', 'name')
             .populate('deviceId', 'imei model status')
             .sort({ dueDate: 'asc' });
@@ -367,10 +399,18 @@ router.get('/payments/pending', async (req, res) => {
 
 router.patch('/payments/:paymentId/pay', async (req, res) => {
     try {
-        const payment = await Payment.findById(req.params.paymentId);
+        const userId = req.userId; // From auth middleware
+        const payment = await Payment.findById(req.params.paymentId).populate('customerId');
         if (!payment) {
             return res.status(404).json({ message: 'Payment record not found.' });
         }
+
+        // SECURITY: Verify payment belongs to this user's customer
+        const customer = await Customer.findOne({ _id: payment.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This payment does not belong to you.' });
+        }
+
         if (payment.status === PaymentStatus.Paid) {
             return res.status(200).json({ message: 'Payment was already marked as paid.' });
         }
@@ -378,7 +418,7 @@ router.patch('/payments/:paymentId/pay', async (req, res) => {
         payment.status = PaymentStatus.Paid;
         await payment.save();
 
-        const customerId = payment.customerId;
+        const customerId = payment.customerId._id;
 
         const pendingPaymentsCount = await Payment.countDocuments({
             customerId: customerId,
@@ -593,10 +633,18 @@ router.post('/devices/:deviceId/release', async (req, res) => {
 
 router.get('/devices/:deviceId/unlock-key', async (req, res) => {
     try {
-        const device = await Device.findById(req.params.deviceId);
+        const userId = req.userId; // From auth middleware
+        const device = await Device.findById(req.params.deviceId).populate('customerId');
         if (!device) {
-            return res.status(404).json({ message: 'Device not found' });
+            return res.status(404).json({ message: 'Device not found' }); \n
         }
+
+        // SECURITY: Verify device belongs to this user's customer
+        const customer = await Customer.findOne({ _id: device.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This device does not belong to you.' });
+        }
+
         if (!device.unlockKey) {
             return res.status(404).json({ message: 'No unlock key is set for this device.' });
         }
