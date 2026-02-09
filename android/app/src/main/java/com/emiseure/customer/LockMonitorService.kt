@@ -214,50 +214,38 @@ class LockMonitorService : Service() {
 
     private fun startLocationTracking() {
         // Check permissions
-        val hasFineLocation = ActivityCompat.checkSelfPermission(
-            this,
-            Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val hasBackgroundLocation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ActivityCompat.checkSelfPermission(
+        if (ActivityCompat.checkSelfPermission(
                 this,
-                Manifest.permission.ACCESS_BACKGROUND_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        } else {
-            true
-        }
-
-        if (!hasFineLocation || !hasBackgroundLocation) {
-            Log.w(TAG, "⚠️ Location permissions not granted")
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.w(TAG, "Location permission not granted")
             return
         }
 
-        val locationRequest = LocationRequest.Builder(
-            Priority.PRIORITY_HIGH_ACCURACY,
-            LOCATION_UPDATE_INTERVAL_MS
-        ).apply {
-            setMinUpdateIntervalMillis(LOCATION_UPDATE_INTERVAL_MS)
-        }.build()
+        try {
+            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, LOCATION_UPDATE_INTERVAL_MS)
+                .setMinUpdateIntervalMillis(LOCATION_UPDATE_INTERVAL_MS / 2)
+                .setWaitForAccurateLocation(false)
+                .build()
 
-        locationCallback = object : LocationCallback() {
-            override fun onLocationResult(locationResult: LocationResult) {
-                locationResult.lastLocation?.let { location ->
-                    Log.d(TAG, "📍 Location update: ${location.latitude}, ${location.longitude}")
-                    sendLocationToBackend(location.latitude, location.longitude, location.accuracy)
+            locationCallback = object : LocationCallback() {
+                override fun onLocationResult(locationResult: LocationResult) {
+                    for (location in locationResult.locations) {
+                        Log.d(TAG, "Location update: ${location.latitude}, ${location.longitude}")
+                        sendLocationToBackend(location.latitude, location.longitude, location.accuracy)
+                    }
                 }
             }
-        }
 
-        try {
             fusedLocationClient.requestLocationUpdates(
                 locationRequest,
                 locationCallback!!,
                 Looper.getMainLooper()
             )
-            Log.d(TAG, "📍 Location tracking started")
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Failed to request location updates", e)
+            Log.d(TAG, "Location tracking started (High Accuracy)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start location tracking", e)
         }
     }
 

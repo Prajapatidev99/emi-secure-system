@@ -67,4 +67,102 @@ router.post('/login', async (req, res) => {
     }
 });
 
+
+// @route   PUT api/auth/profile
+// @desc    Update user profile (shop name)
+// @access  Private
+router.put('/profile', async (req, res) => {
+    const { shopName } = req.body;
+    const userId = req.userId; // Set by auth middleware
+
+    try {
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        if (shopName) {
+            user.shopName = shopName;
+        }
+
+        await user.save();
+
+        res.json({
+            _id: user._id,
+            email: user.email,
+            shopName: user.shopName,
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error updating profile', error: error.message });
+    }
+});
+
+
+// @route   PUT api/auth/password
+// @desc    Change user password
+// @access  Private
+router.put('/password', async (req, res) => {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.userId; // Set by auth middleware
+
+    if (!currentPassword || !newPassword) {
+        return res.status(400).json({ message: 'Please provide both current and new password' });
+    }
+
+    try {
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+
+        // Verify current password
+        const isMatch = await user.matchPassword(currentPassword);
+        if (!isMatch) {
+            return res.status(401).json({ message: 'Current password is incorrect' });
+        }
+
+        // Update password
+        user.password = newPassword;
+        await user.save();
+
+        res.json({ message: 'Password changed successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error changing password', error: error.message });
+    }
+});
+
+
+// @route   DELETE api/auth/account
+// @desc    Delete user account and all associated data
+// @access  Private
+router.delete('/account', async (req, res) => {
+    const userId = req.userId; // Set by auth middleware
+
+    try {
+        const Customer = require('../models/customer.model');
+        const Device = require('../models/device.model');
+        const Payment = require('../models/payment.model');
+
+        // Delete all customers associated with this user
+        const customers = await Customer.find({ userId });
+        const customerIds = customers.map(c => c._id);
+
+        // Delete all devices for these customers
+        await Device.deleteMany({ customerId: { $in: customerIds } });
+
+        // Delete all payments for these customers
+        await Payment.deleteMany({ customerId: { $in: customerIds } });
+
+        // Delete all customers
+        await Customer.deleteMany({ userId });
+
+        // Delete the user
+        await User.findByIdAndDelete(userId);
+
+        res.json({ message: 'Account and all associated data deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error deleting account', error: error.message });
+    }
+});
+
 module.exports = router;

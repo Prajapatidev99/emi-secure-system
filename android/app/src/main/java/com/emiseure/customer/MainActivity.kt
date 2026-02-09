@@ -53,6 +53,21 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         binding = ActivityMainBinding.inflate(layoutInflater)
+        // 🔒 IMMEDIATE SECURITY CHECK
+        // Check local lock state BEFORE doing anything else
+        // CRITICAL: Must use Device-Protected Storage (same as FCM/BootReceiver)
+        val deviceContext = createDeviceProtectedStorageContext()
+        val securePrefs = deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
+        
+        if (securePrefs.getBoolean("IS_LOCKED", false)) {
+            Log.w("Security", "Device is locally MARKED AS LOCKED. Launching lock screen immediately.")
+            val lockIntent = Intent(this, LockScreenActivity::class.java)
+            lockIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            startActivity(lockIntent)
+            finish() // Close MainActivity so user can't interact
+            return
+        }
+        
         setContentView(binding.root)
 
         dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
@@ -109,6 +124,21 @@ class MainActivity : AppCompatActivity() {
                 Log.d("Security", "✅ App uninstallation BLOCKED")
             } catch (e: Exception) {
                 Log.e("Security", "Failed to block uninstallation", e)
+            }
+
+            // 🛡️ FACTORY RESET PROTECTION (FRP)
+            // Ensure that if forced reset happens, only specific accounts can unlock (or none if list empty)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                try {
+                    // TODO: Replace with actual Admin Google IDs if available. 
+                    // Empty list implies default FRP behavior (Google account on device).
+                    // To strictly LOCK it, we would need specific IDs.
+                    // For now, we rely on DISALLOW_FACTORY_RESET and DISALLOW_REMOVE_USER.
+                    dpm.setFactoryResetProtectionPolicy(adminComponent, null) // Use default or specific policy
+                    Log.d("Security", "✅ FRP Policy configured")
+                } catch (e: Exception) {
+                    Log.e("Security", "Failed to set FRP policy", e)
+                }
             }
 
             Log.d("Security", "✅ All security policies enforced")

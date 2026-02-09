@@ -1,33 +1,26 @@
-
-
-
-
-
-
-
 // FIX: Corrected an import statement by removing an unused 'a' alias, which could cause potential issues with linters or bundlers.
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import DashboardView from './components/DashboardView';
 import CustomersView from './components/CustomersView';
 import ReportsView from './components/ReportsView';
-import DevicesView from './components/DevicesView'; // Import the new component
+import DevicesView from './components/DevicesView';
 import LoginView from './components/LoginView';
+import RegisterView from './components/RegisterView';
+import SettingsView from './components/SettingsView';
 import LoginLayout from './components/LoginLayout';
 
-export type Page = 'dashboard' | 'customers' | 'devices' | 'reports';
+export type Page = 'dashboard' | 'customers' | 'devices' | 'reports' | 'settings';
+export type AuthView = 'login' | 'register';
 
 const App: React.FC = () => {
-  // FIX: Changed `a.useState` to `useState` to correctly use the hook.
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
-  // FIX: Changed `a.useState` to `useState` to correctly use the hook.
+  const [authView, setAuthView] = useState<AuthView>('login');
   const [token, setToken] = useState<string | null>(null);
-  // FIX: Changed `a.useState` to `useState` to correctly use the hook.
   const [isSidebarOpen, setSidebarOpen] = useState(false);
 
-  // FIX: Changed `a.useEffect` to `useEffect` to correctly use the hook.
   useEffect(() => {
-    // Check for token in session storage on initial load for better security and session management.
+    // Check for token in session storage on initial load
     const storedToken = sessionStorage.getItem('authToken');
     if (storedToken) {
       setToken(storedToken);
@@ -35,7 +28,11 @@ const App: React.FC = () => {
   }, []);
 
   const handleLoginSuccess = (newToken: string) => {
-    // Store token in sessionStorage. It will be cleared when the tab is closed.
+    sessionStorage.setItem('authToken', newToken);
+    setToken(newToken);
+  };
+
+  const handleRegisterSuccess = (newToken: string) => {
     sessionStorage.setItem('authToken', newToken);
     setToken(newToken);
   };
@@ -43,6 +40,7 @@ const App: React.FC = () => {
   const handleLogout = () => {
     sessionStorage.removeItem('authToken');
     setToken(null);
+    setCurrentPage('dashboard');
   };
 
   const renderPage = () => {
@@ -52,26 +50,38 @@ const App: React.FC = () => {
       case 'customers':
         return <CustomersView />;
       case 'devices':
-        return <DevicesView />; // Render the new component
+        return <DevicesView />;
       case 'reports':
         return <ReportsView />;
+      case 'settings':
+        return <SettingsView onLogout={handleLogout} />;
       default:
         return <DashboardView />;
     }
   };
-  
+
   if (!token) {
     return (
-        <LoginLayout>
-            <LoginView onLoginSuccess={handleLoginSuccess} />
-        </LoginLayout>
+      <LoginLayout>
+        {authView === 'login' ? (
+          <LoginView
+            onLoginSuccess={handleLoginSuccess}
+            onSwitchToRegister={() => setAuthView('register')}
+          />
+        ) : (
+          <RegisterView
+            onRegisterSuccess={handleRegisterSuccess}
+            onSwitchToLogin={() => setAuthView('login')}
+          />
+        )}
+      </LoginLayout>
     );
   }
 
   return (
-    <Layout 
-      currentPage={currentPage} 
-      setCurrentPage={setCurrentPage} 
+    <Layout
+      currentPage={currentPage}
+      setCurrentPage={setCurrentPage}
       onLogout={handleLogout}
       isSidebarOpen={isSidebarOpen}
       setSidebarOpen={setSidebarOpen}

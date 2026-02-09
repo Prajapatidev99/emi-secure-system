@@ -89,7 +89,15 @@ cron.schedule('0 0 * * *', async () => {
 
 // Routes
 // 1. Auth routes (Login/Register) - Public with rate limiting
-app.use('/api/auth', authLimiter, authRoutes);
+// Profile/Password/Account routes require authentication
+app.use('/api/auth', authLimiter, (req, res, next) => {
+    // Public routes: login, register
+    if (req.path === '/login' || req.path === '/register') {
+        return next();
+    }
+    // Protected routes: profile, password, account
+    authMiddleware(req, res, next);
+}, authRoutes);
 
 // 2. Public Android API routes (Status checks, FCM updates) - Public with general rate limiting
 app.use('/api/public', apiLimiter, publicApiRoutes);

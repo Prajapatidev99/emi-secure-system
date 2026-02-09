@@ -130,6 +130,16 @@ export const login = async (email: string, password: string): Promise<{ token: s
     return handleResponse(response);
 };
 
+export const register = async (email: string, password: string, shopName: string): Promise<{ token: string }> => {
+    const response = await fetchWithRetry(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, shopName }),
+    });
+    return handleResponse(response);
+};
+
+
 // --- DASHBOARD ---
 export const getDashboardStats = async () => {
     const response = await fetchWithRetry(`${API_BASE_URL}/stats`, { headers: getAuthHeaders() });
