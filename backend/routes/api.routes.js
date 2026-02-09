@@ -478,8 +478,16 @@ router.get('/stats', cache.middleware(2 * 60 * 1000), async (req, res) => {
 
 router.post('/devices/:deviceId/lock', async (req, res) => {
     try {
-        const device = await Device.findById(req.params.deviceId);
+        const userId = req.userId; // From auth middleware
+        const device = await Device.findById(req.params.deviceId).populate('customerId');
         if (!device) return res.status(404).json({ message: 'Device not found' });
+
+        // SECURITY: Verify device belongs to this user's customer
+        const customer = await Customer.findOne({ _id: device.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This device does not belong to you.' });
+        }
+
         if (device.status === DeviceStatus.Compromised || device.status === DeviceStatus.Released) return res.status(400).json({ message: 'Cannot lock a device that is compromised or released.' });
         if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send command.' });
 
@@ -498,8 +506,16 @@ router.post('/devices/:deviceId/lock', async (req, res) => {
 
 router.post('/devices/:deviceId/unlock', async (req, res) => {
     try {
-        const device = await Device.findById(req.params.deviceId);
+        const userId = req.userId; // From auth middleware
+        const device = await Device.findById(req.params.deviceId).populate('customerId');
         if (!device) return res.status(404).json({ message: 'Device not found' });
+
+        // SECURITY: Verify device belongs to this user's customer
+        const customer = await Customer.findOne({ _id: device.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This device does not belong to you.' });
+        }
+
         if (device.status === DeviceStatus.Compromised) return res.status(400).json({ message: 'Cannot unlock a compromised device.' });
         if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send command.' });
 
@@ -518,8 +534,16 @@ router.post('/devices/:deviceId/unlock', async (req, res) => {
 
 router.post('/devices/:deviceId/reset', async (req, res) => {
     try {
-        const device = await Device.findById(req.params.deviceId);
+        const userId = req.userId; // From auth middleware
+        const device = await Device.findById(req.params.deviceId).populate('customerId');
         if (!device) return res.status(404).json({ message: 'Device not found' });
+
+        // SECURITY: Verify device belongs to this user's customer
+        const customer = await Customer.findOne({ _id: device.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This device does not belong to you.' });
+        }
+
         if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send command.' });
 
         const result = await sendFcmCommand(device.fcmToken, 'WIPE', 'This device is being factory reset due to non-compliance.');
@@ -539,8 +563,16 @@ router.post('/devices/:deviceId/reset', async (req, res) => {
 
 router.post('/devices/:deviceId/release', async (req, res) => {
     try {
-        const device = await Device.findById(req.params.deviceId);
+        const userId = req.userId; // From auth middleware
+        const device = await Device.findById(req.params.deviceId).populate('customerId');
         if (!device) return res.status(404).json({ message: 'Device not found' });
+
+        // SECURITY: Verify device belongs to this user's customer
+        const customer = await Customer.findOne({ _id: device.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This device does not belong to you.' });
+        }
+
         if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send release command.' });
 
         const result = await sendFcmCommand(device.fcmToken, 'RELEASE_OWNERSHIP', 'Device ownership has been released.');
@@ -577,7 +609,14 @@ router.get('/devices/:deviceId/unlock-key', async (req, res) => {
 
 router.get('/devices', async (req, res) => {
     try {
-        const devices = await Device.find({})
+        const userId = req.userId; // From auth middleware
+
+        // SECURITY: Get only customers for this user
+        const userCustomers = await Customer.find({ userId }).select('_id');
+        const customerIds = userCustomers.map(c => c._id);
+
+        // Get devices only for THIS user's customers
+        const devices = await Device.find({ customerId: { $in: customerIds } })
             .populate('customerId', 'name')
             .sort({ createdAt: -1 });
         res.json(devices);

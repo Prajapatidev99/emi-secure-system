@@ -6,11 +6,12 @@ export default defineConfig({
   plugins: [react()],
   server: {
     // This makes the server accessible on your local network
-    host: '0.0.0.0', 
+    host: '0.0.0.0',
     port: 5173,
   },
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    chunkSizeWarningLimit: 1000, // Increase from default 500kb to 1000kb
   }
 })
