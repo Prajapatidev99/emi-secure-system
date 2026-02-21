@@ -4,6 +4,8 @@ import Button from './common/Button';
 import { UserCircleIcon, KeyIcon, ShieldCheckIcon } from './icons';
 import Spinner from './common/Spinner';
 
+import Logo from './Logo';
+
 interface RegisterViewProps {
     onRegisterSuccess: (token: string) => void;
     onSwitchToLogin: () => void;
@@ -51,17 +53,10 @@ const RegisterView: React.FC<RegisterViewProps> = ({ onRegisterSuccess, onSwitch
 
     return (
         <div>
-            {/* Simple EMI Secure Logo */}
-            <div className="flex justify-center mb-6">
-                <div className="bg-white/10 p-4 rounded-xl shadow-lg ring-1 ring-white/20">
-                    <ShieldCheckIcon className="w-10 h-10 text-brand-400" />
-                </div>
+            {/* Standard Logo */}
+            <div className="flex justify-center mb-8">
+                <Logo />
             </div>
-
-            {/* Simple Title */}
-            <h1 className="text-3xl font-semibold text-center mb-2 text-white">
-                EMI Secure
-            </h1>
             <h2 className="text-xl font-medium tracking-tight text-slate-300 text-center">
                 Create Account
             </h2>

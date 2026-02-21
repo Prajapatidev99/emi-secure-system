@@ -30,14 +30,8 @@ const LoginLayout: React.FC<{ children: React.ReactNode, onOpenSetupGuide?: () =
                         <LoginFeature title="Total Security." description="Prevent uninstalls and factory resets with device owner provisioning." />
                     </div>
 
-                    {/* How to Use & Download Section */}
-                    <div className="mt-8 p-6 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
-                        <h3 className="text-lg font-medium text-white mb-4">How to Get Started</h3>
-                        <ol className="space-y-3 text-sm text-slate-300 mb-6 list-decimal list-inside marker:text-brand-500">
-                            <li>Register your shop and log into this dashboard.</li>
-                            <li>Download the EMI Secure APK on the target device.</li>
-                            <li>Install it and log in to link the device automatically.</li>
-                        </ol>
+                    {/* Setup Guide Link */}
+                    <div className="mt-8">
                         <button
                             onClick={onOpenSetupGuide}
                             className="inline-flex w-full justify-center items-center gap-2 bg-gradient-to-r from-brand-500 to-indigo-600 hover:from-brand-400 hover:to-indigo-500 text-white font-medium py-3 px-6 rounded-xl transition-all shadow-lg hover:shadow-brand-500/25"
