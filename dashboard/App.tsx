@@ -10,8 +10,9 @@ import RegisterView from './components/RegisterView';
 import SettingsView from './components/SettingsView';
 import LoginLayout from './components/LoginLayout';
 import SetupGuideView from './components/SetupGuideView';
+import GuideView from './components/GuideView';
 
-export type Page = 'dashboard' | 'customers' | 'devices' | 'reports' | 'settings';
+export type Page = 'dashboard' | 'customers' | 'devices' | 'reports' | 'settings' | 'guide';
 export type AuthView = 'login' | 'register' | 'setup';
 
 const App: React.FC = () => {
@@ -56,6 +57,8 @@ const App: React.FC = () => {
         return <ReportsView />;
       case 'settings':
         return <SettingsView onLogout={handleLogout} />;
+      case 'guide':
+        return <GuideView />;
       default:
         return <DashboardView />;
     }
