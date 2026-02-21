@@ -5,7 +5,7 @@ const LoginFeature = ({ title, description }: { title: string, description: stri
     <div className="relative pl-9">
         {/* FIX: Replaced semantically incorrect <dt> and <dd> tags with <span> tags to create valid HTML and resolve a potential JSX parsing issue. */}
         <span className="inline font-semibold text-white">
-             <svg className="absolute left-1 top-1 h-5 w-5 text-brand-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <svg className="absolute left-1 top-1 h-5 w-5 text-brand-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                 <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
             </svg>
             {title}
@@ -16,31 +16,52 @@ const LoginFeature = ({ title, description }: { title: string, description: stri
 
 
 const LoginLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  return (
-    <div className="relative flex min-h-full flex-nowrap justify-center md:px-0">
-        <div className="relative hidden w-0 flex-1 bg-slate-900 md:block">
-             <div className="flex h-full flex-col justify-between p-12">
-                <div>
-                     <Logo />
-                    <p className="mt-4 text-lg leading-8 text-slate-300">Your complete phone financing and security solution.</p>
+    return (
+        <div className="relative flex min-h-full flex-nowrap justify-center md:px-0">
+            <div className="relative hidden w-0 flex-1 bg-slate-900 md:block">
+                <div className="flex h-full flex-col justify-between p-12">
+                    <div>
+                        <Logo />
+                        <p className="mt-4 text-lg leading-8 text-slate-300">Your complete phone financing and security solution.</p>
+                    </div>
+                    <div className="space-y-6">
+                        <LoginFeature title="Remote Device Control." description="Lock, unlock, or wipe devices remotely for overdue payments." />
+                        <LoginFeature title="Automated EMI Tracking." description="Generate payment schedules and monitor statuses effortlessly." />
+                        <LoginFeature title="Total Security." description="Prevent uninstalls and factory resets with device owner provisioning." />
+                    </div>
+
+                    {/* How to Use & Download Section */}
+                    <div className="mt-8 p-6 bg-white/5 rounded-2xl border border-white/10 backdrop-blur-sm">
+                        <h3 className="text-lg font-medium text-white mb-4">How to Get Started</h3>
+                        <ol className="space-y-3 text-sm text-slate-300 mb-6 list-decimal list-inside marker:text-brand-500">
+                            <li>Register your shop and log into this dashboard.</li>
+                            <li>Download the EMI Secure APK on the target device.</li>
+                            <li>Install it and log in to link the device automatically.</li>
+                        </ol>
+                        <a
+                            href="/EMI-Secure.apk"
+                            download
+                            className="inline-flex w-full justify-center items-center gap-2 bg-gradient-to-r from-brand-500 to-indigo-600 hover:from-brand-400 hover:to-indigo-500 text-white font-medium py-3 px-6 rounded-xl transition-all shadow-lg hover:shadow-brand-500/25"
+                        >
+                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                            Download App (APK)
+                        </a>
+                    </div>
+
+                    <div className="text-xs text-slate-500">
+                        &copy; 2025 EMI Secure. All rights reserved.
+                    </div>
                 </div>
-                <div className="space-y-6">
-                    <LoginFeature title="Remote Device Control." description="Lock, unlock, or wipe devices remotely for overdue payments." />
-                    <LoginFeature title="Automated EMI Tracking." description="Generate payment schedules and monitor statuses effortlessly." />
-                    <LoginFeature title="Total Security." description="Prevent uninstalls and factory resets with device owner provisioning." />
-                </div>
-                <div className="text-xs text-slate-500">
-                    &copy; 2025 EMI Secure. All rights reserved.
+            </div>
+            <div className="flex-0 flex w-full max-w-md items-center bg-slate-950 px-4 py-12 sm:px-6 md:px-12 lg:px-16">
+                <div className="w-full">
+                    {children}
                 </div>
             </div>
         </div>
-        <div className="flex-0 flex w-full max-w-md items-center bg-slate-950 px-4 py-12 sm:px-6 md:px-12 lg:px-16">
-            <div className="w-full">
-                {children}
-            </div>
-        </div>
-    </div>
-  );
+    );
 };
 // FIX: Add default export to allow the component to be imported in App.tsx.
 export default LoginLayout;
