@@ -72,7 +72,6 @@ const App: React.FC = () => {
           <LoginView
             onLoginSuccess={handleLoginSuccess}
             onSwitchToRegister={() => setAuthView('register')}
-            onOpenSetupGuide={() => setAuthView('setup')}
           />
         ) : (
           <RegisterView

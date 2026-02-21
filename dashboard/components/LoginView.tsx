@@ -9,10 +9,9 @@ import Logo from './Logo';
 interface LoginViewProps {
   onLoginSuccess: (token: string) => void;
   onSwitchToRegister: () => void;
-  onOpenSetupGuide?: () => void;
 }
 
-const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onSwitchToRegister, onOpenSetupGuide }) => {
+const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onSwitchToRegister }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -114,20 +113,19 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onSwitchToRegiste
           </button>
         </p>
 
-        {/* Setup Guide Link for Mobile/All */}
-        {onOpenSetupGuide && (
-          <div className="mt-6 text-center">
-            <button
-              onClick={onOpenSetupGuide}
-              className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
-            >
-              <svg className="w-4 h-4 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              View Setup Guide
-            </button>
-          </div>
-        )}
+        {/* Small APK Download Link */}
+        <div className="mt-6 text-center">
+          <a
+            href="/EMI-Secure.apk"
+            download
+            className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download APK
+          </a>
+        </div>
       </div>
     </div>
   );
