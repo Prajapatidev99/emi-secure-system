@@ -51,25 +51,22 @@ const RegisterView: React.FC<RegisterViewProps> = ({ onRegisterSuccess, onSwitch
 
     return (
         <div>
-            {/* Animated EMI Secure Logo */}
+            {/* Simple EMI Secure Logo */}
             <div className="flex justify-center mb-6">
-                <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-brand-500 to-purple-600 rounded-full blur-xl opacity-50 animate-pulse"></div>
-                    <div className="relative bg-gradient-to-br from-brand-600 to-purple-700 p-4 rounded-2xl shadow-2xl transform hover:scale-105 transition-transform duration-300">
-                        <ShieldCheckIcon className="w-12 h-12 text-white" />
-                    </div>
+                <div className="bg-white/10 p-4 rounded-xl shadow-lg ring-1 ring-white/20">
+                    <ShieldCheckIcon className="w-10 h-10 text-brand-400" />
                 </div>
             </div>
 
-            {/* Animated Title */}
-            <h1 className="text-4xl font-bold text-center mb-2 bg-gradient-to-r from-brand-400 via-purple-400 to-brand-500 bg-clip-text text-transparent animate-gradient">
+            {/* Simple Title */}
+            <h1 className="text-3xl font-semibold text-center mb-2 text-white">
                 EMI Secure
             </h1>
-            <h2 className="text-2xl font-bold leading-9 tracking-tight text-white text-center">
-                Create Your Account
+            <h2 className="text-xl font-medium tracking-tight text-slate-300 text-center">
+                Create Account
             </h2>
-            <p className="mt-2 text-sm leading-6 text-slate-400 text-center">
-                Start managing your customers and devices securely
+            <p className="mt-2 text-sm text-slate-400 text-center">
+                Get started with your shop management
             </p>
 
             <div className="mt-10">
