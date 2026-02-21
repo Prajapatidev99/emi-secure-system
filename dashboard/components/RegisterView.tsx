@@ -53,8 +53,8 @@ const RegisterView: React.FC<RegisterViewProps> = ({ onRegisterSuccess, onSwitch
 
     return (
         <div>
-            {/* Standard Logo */}
-            <div className="flex justify-center mb-8">
+            {/* Logo - mobile only */}
+            <div className="flex justify-center mb-8 md:hidden">
                 <Logo />
             </div>
             <h2 className="text-xl font-medium tracking-tight text-slate-300 text-center">

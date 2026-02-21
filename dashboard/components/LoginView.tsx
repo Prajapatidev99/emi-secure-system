@@ -39,7 +39,7 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onSwitchToRegiste
 
   return (
     <div>
-      <div className="flex justify-center mb-8">
+      <div className="flex justify-center mb-8 md:hidden">
         <Logo />
       </div>
       <h2 className="text-2xl font-bold leading-9 tracking-tight text-white text-center">Shopkeeper Login</h2>
