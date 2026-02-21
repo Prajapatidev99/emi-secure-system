@@ -1,6 +1,7 @@
 import React from 'react';
 import { Page } from '../App';
 import { DashboardIcon, UsersIcon, ChartIcon, DevicePhoneMobileIcon } from './icons';
+import Logo from './Logo';
 
 interface SidebarProps {
   currentPage: Page;
@@ -33,9 +34,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen }
                    w-64 bg-slate-900 border-r border-slate-800 
                    transition-transform duration-200 ease-in-out z-30`}>
       <div className="flex items-center justify-center h-20">
-        <h1 className="text-2xl font-bold bg-gradient-to-r from-brand-400 to-purple-400 bg-clip-text text-transparent">
-          EMI Secure
-        </h1>
+        <Logo />
       </div>
       <nav className="mt-5 px-2">
         <ul>
@@ -48,8 +47,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen }
                   setCurrentPage(item.id as Page);
                 }}
                 className={`flex items-center p-3 rounded-lg transition-colors duration-200 ${currentPage === item.id
-                    ? 'bg-slate-800 text-white'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                  ? 'bg-slate-800 text-white'
+                  : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                   }`}
               >
                 {item.icon}

@@ -67,7 +67,7 @@ const App: React.FC = () => {
     }
 
     return (
-      <LoginLayout onOpenSetupGuide={() => setAuthView('setup')}>
+      <LoginLayout>
         {authView === 'login' ? (
           <LoginView
             onLoginSuccess={handleLoginSuccess}
