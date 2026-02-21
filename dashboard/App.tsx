@@ -9,9 +9,10 @@ import LoginView from './components/LoginView';
 import RegisterView from './components/RegisterView';
 import SettingsView from './components/SettingsView';
 import LoginLayout from './components/LoginLayout';
+import SetupGuideView from './components/SetupGuideView';
 
 export type Page = 'dashboard' | 'customers' | 'devices' | 'reports' | 'settings';
-export type AuthView = 'login' | 'register';
+export type AuthView = 'login' | 'register' | 'setup';
 
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
@@ -61,12 +62,17 @@ const App: React.FC = () => {
   };
 
   if (!token) {
+    if (authView === 'setup') {
+      return <SetupGuideView onBack={() => setAuthView('login')} />;
+    }
+
     return (
-      <LoginLayout>
+      <LoginLayout onOpenSetupGuide={() => setAuthView('setup')}>
         {authView === 'login' ? (
           <LoginView
             onLoginSuccess={handleLoginSuccess}
             onSwitchToRegister={() => setAuthView('register')}
+            onOpenSetupGuide={() => setAuthView('setup')}
           />
         ) : (
           <RegisterView

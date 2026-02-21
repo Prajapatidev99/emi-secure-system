@@ -7,9 +7,10 @@ import Spinner from './common/Spinner';
 interface LoginViewProps {
   onLoginSuccess: (token: string) => void;
   onSwitchToRegister: () => void;
+  onOpenSetupGuide?: () => void;
 }
 
-const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onSwitchToRegister }) => {
+const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onSwitchToRegister, onOpenSetupGuide }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -107,6 +108,22 @@ const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onSwitchToRegiste
             Sign up
           </button>
         </p>
+
+        {/* Setup Guide Link for Mobile/All */}
+        {onOpenSetupGuide && (
+          <div className="mt-8 pt-6 border-t border-white/10 text-center">
+            <p className="text-sm text-slate-400 mb-4">Setting up a customer device?</p>
+            <button
+              onClick={onOpenSetupGuide}
+              className="inline-flex w-full justify-center items-center gap-2 bg-white/5 hover:bg-white/10 text-white font-medium py-2.5 px-4 rounded-xl border border-white/10 transition-colors"
+            >
+              <svg className="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download App & View Guide
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
