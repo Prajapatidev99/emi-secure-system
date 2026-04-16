@@ -147,7 +147,29 @@ pause`;
 
                             {method === 'qr' && (
                                 <div>
-                                    <label className="block text-sm font-medium text-slate-400 mb-2">Signature Hash (SHA-256)</label>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <label className="text-sm font-medium text-slate-400">Signature Hash (SHA-256)</label>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => setChecksum('ys2MHkS-kIWgCradnVQB3uj8dGlcz8BN6Nc2m8MhjAI')}
+                                                className="text-[10px] px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20 transition-all"
+                                            >
+                                                Cert Hash (99% Fix)
+                                            </button>
+                                            <button 
+                                                onClick={() => setChecksum('2HVSUZoezbSn5xPiX-EtUFr0nW3-dGR6TyiKNPgxR8Q')}
+                                                className="text-[10px] px-2 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 transition-all"
+                                            >
+                                                File Hash
+                                            </button>
+                                            <button 
+                                                onClick={() => setChecksum('')}
+                                                className="text-[10px] px-2 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 transition-all"
+                                            >
+                                                No Hash
+                                            </button>
+                                        </div>
+                                    </div>
                                     <input 
                                         type="text" 
                                         value={checksum}
@@ -155,7 +177,9 @@ pause`;
                                         className="w-full bg-slate-950/50 border border-slate-800 rounded-xl px-4 py-3 text-white font-mono text-sm focus:outline-none focus:border-brand-500"
                                         placeholder="Base64 encoded hash"
                                     />
-                                    <p className="mt-2 text-xs text-slate-500 italic">Optional but recommended for automatic installation.</p>
+                                    <p className="mt-2 text-[10px] text-slate-500 italic">
+                                        If you get "Checksum Error," click <b>No Hash</b> or <b>File Hash</b> and try again.
+                                    </p>
                                 </div>
                             )}
                         </div>
