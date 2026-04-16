@@ -26,7 +26,16 @@ app.use(compression()); // Enable gzip compression
 app.use(express.json());
 app.use(requestIdMiddleware); // Add request ID to all requests
 app.use(morgan('dev')); // Log requests
-app.use(express.static('public'));
+
+// Serve static files with explicit MIME type for APKs
+app.use(express.static('public', {
+    setHeaders: (res, path) => {
+        if (path.endsWith('.apk')) {
+            res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+            res.setHeader('Content-Disposition', 'attachment; filename="EMI-Secure.apk"');
+        }
+    }
+}));
 
 // Initialize Firebase Admin SDK
 try {

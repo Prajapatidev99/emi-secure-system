@@ -243,6 +243,24 @@ pause`;
                         <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
                             <div className="flex items-center gap-3 mb-4">
                                 <ShieldCheckIcon className="w-6 h-6 text-brand-500" />
+                                <h4 className="text-white font-semibold">Public Link Test</h4>
+                            </div>
+                            <p className="text-sm text-slate-400 leading-relaxed mb-4">
+                                Before scanning the QR, ensure this link works on a normal phone browser:
+                            </p>
+                            <a 
+                                href={apkUrl} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                className="block w-full bg-slate-950/50 border border-slate-800 text-brand-400 p-3 rounded-xl text-xs font-mono truncate hover:bg-slate-950 transition-colors"
+                            >
+                                {apkUrl}
+                            </a>
+                        </div>
+
+                        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6">
+                            <div className="flex items-center gap-3 mb-4">
+                                <ShieldCheckIcon className="w-6 h-6 text-brand-500" />
                                 <h4 className="text-white font-semibold">Security Note</h4>
                             </div>
                             <p className="text-sm text-slate-400 leading-relaxed">
