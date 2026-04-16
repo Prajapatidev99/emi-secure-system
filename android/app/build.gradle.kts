@@ -30,10 +30,16 @@ android {
             storePassword = "emi-secure-password"
             keyAlias = "emi-key"
             keyPassword = "emi-secure-password"
+            // Enable both v1 and v2 signing for maximum compatibility
+            enableV1Signing = true
+            enableV2Signing = true
         }
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("release")
+        }
         release {
             signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
