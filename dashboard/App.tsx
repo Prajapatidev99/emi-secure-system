@@ -11,8 +11,9 @@ import SettingsView from './components/SettingsView';
 import LoginLayout from './components/LoginLayout';
 import SetupGuideView from './components/SetupGuideView';
 import GuideView from './components/GuideView';
+import ProvisioningView from './components/ProvisioningView';
 
-export type Page = 'dashboard' | 'customers' | 'devices' | 'reports' | 'settings' | 'guide';
+export type Page = 'dashboard' | 'customers' | 'devices' | 'reports' | 'settings' | 'guide' | 'provisioning';
 export type AuthView = 'login' | 'register' | 'setup';
 
 const App: React.FC = () => {
@@ -59,6 +60,8 @@ const App: React.FC = () => {
         return <SettingsView onLogout={handleLogout} />;
       case 'guide':
         return <GuideView />;
+      case 'provisioning':
+        return <ProvisioningView />;
       default:
         return <DashboardView />;
     }

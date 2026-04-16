@@ -14,7 +14,7 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage, onLogout, isSidebarOpen, setSidebarOpen }) => {
   return (
-    <div className="flex h-screen bg-slate-950 text-gray-800 dark:text-gray-200">
+    <div className="flex h-screen bg-slate-950 text-gray-200 selection:bg-brand-500/30 font-sans">
       <Sidebar 
         currentPage={currentPage} 
         setCurrentPage={setCurrentPage} 
@@ -25,15 +25,22 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage, 
       {/* Overlay for mobile when sidebar is open */}
       {isSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black opacity-50 z-20 md:hidden"
+          className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-20 md:hidden transition-opacity duration-300"
           onClick={() => setSidebarOpen(false)}
         ></div>
       )}
 
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        {/* Ambient background glow */}
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-brand-500/10 rounded-full blur-[120px] pointer-events-none"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[30%] h-[30%] bg-purple-500/5 rounded-full blur-[100px] pointer-events-none"></div>
+
         <Header onLogout={onLogout} onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-slate-950 p-4 sm:p-6">
-          {children}
+        
+        <main className="flex-1 overflow-x-hidden overflow-y-auto relative z-10 px-4 py-6 sm:px-8 sm:py-8 lg:px-10">
+          <div className="animate-fade-in">
+            {children}
+          </div>
         </main>
       </div>
     </div>

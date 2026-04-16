@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.jetbrains.kotlin.android)
     alias(libs.plugins.google.gms.google.services)
+    alias(libs.plugins.google.firebase.crashlytics)
 }
 
 android {
@@ -53,6 +54,8 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+    androidTestImplementation(libs.androidx.espresso.intents)
+    androidTestImplementation(libs.androidx.test.rules)
 
     // Volley for network requests
     implementation(libs.volley)
@@ -62,6 +65,9 @@ dependencies {
 
     // Firebase Messaging for Push Notifications
     implementation(libs.firebase.messaging.ktx)
+
+    // Firebase Crashlytics for crash reporting across all devices
+    implementation(libs.firebase.crashlytics.ktx)
     
     // Google Play Services for Location Tracking
     implementation("com.google.android.gms:play-services-location:21.1.0")

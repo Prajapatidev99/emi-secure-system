@@ -1,6 +1,6 @@
 import React from 'react';
 import { Page } from '../App';
-import { DashboardIcon, UsersIcon, ChartIcon, DevicePhoneMobileIcon } from './icons';
+import { DashboardIcon, UsersIcon, ChartIcon, DevicePhoneMobileIcon, QrCodeIcon } from './icons';
 import Logo from './Logo';
 
 interface SidebarProps {
@@ -15,6 +15,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen }
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
     { id: 'customers', label: 'Customers', icon: <UsersIcon /> },
     { id: 'devices', label: 'Devices', icon: <DevicePhoneMobileIcon /> },
+    { id: 'provisioning', label: 'Provisioning', icon: <QrCodeIcon /> },
     { id: 'reports', label: 'Reports', icon: <ChartIcon /> },
     {
       id: 'guide',

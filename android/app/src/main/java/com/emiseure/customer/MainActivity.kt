@@ -6,6 +6,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -21,6 +22,7 @@ import com.android.volley.toolbox.Volley
 import com.emiseure.customer.BuildConfig
 import com.emiseure.customer.databinding.ActivityMainBinding
 import com.google.android.gms.tasks.OnCompleteListener
+import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.messaging.FirebaseMessaging
 import org.json.JSONObject
 import java.text.SimpleDateFormat
@@ -69,6 +71,15 @@ class MainActivity : AppCompatActivity() {
         }
         
         setContentView(binding.root)
+
+        // 📊 Initialize Crashlytics with device metadata for cross-device crash reporting
+        val crashlytics = FirebaseCrashlytics.getInstance()
+        crashlytics.setCustomKey("device_model", android.os.Build.MODEL)
+        crashlytics.setCustomKey("device_manufacturer", android.os.Build.MANUFACTURER)
+        crashlytics.setCustomKey("android_version", android.os.Build.VERSION.RELEASE)
+        crashlytics.setCustomKey("android_sdk", android.os.Build.VERSION.SDK_INT)
+        crashlytics.setCustomKey("device_brand", android.os.Build.BRAND)
+        crashlytics.setCustomKey("device_product", android.os.Build.PRODUCT)
 
         dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         adminComponent = ComponentName(this, MyDeviceAdminReceiver::class.java)
