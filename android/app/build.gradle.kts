@@ -24,8 +24,18 @@ android {
         buildConfigField("String", "BACKEND_URL", "\"https://emi-secure-system.onrender.com\"")
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("emi-secure.jks")
+            storePassword = "emi-secure-password"
+            keyAlias = "emi-key"
+            keyPassword = "emi-secure-password"
+        }
+    }
+
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

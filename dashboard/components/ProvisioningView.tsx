@@ -7,23 +7,25 @@ type ProvisionMethod = 'qr' | 'laptop';
 const ProvisioningView: React.FC = () => {
     const [method, setMethod] = useState<ProvisionMethod>('qr');
     const [apkUrl, setApkUrl] = useState('https://emi-secure-system.onrender.com/EMI-Secure.apk');
-    const [checksum, setChecksum] = useState('');
+    const [checksum, setChecksum] = useState('ys2MHkS-kIWgCradnVQB3uj8dGlcz8BN6Nc2m8MhjAI');
     const [wifiSsid, setWifiSsid] = useState('');
     const [wifiPassword, setWifiPassword] = useState('');
 
     const packageName = "com.emiseure.customer";
-    const receiverName = ".MyDeviceAdminReceiver";
+    const receiverName = "com.emiseure.customer.MyDeviceAdminReceiver";
     const componentName = `${packageName}/${receiverName}`;
 
     const generateQrJson = () => {
         const config: any = {
             "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME": componentName,
+            "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_NAME": packageName,
             "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION": apkUrl,
             "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED": true,
+            "android.app.extra.PROVISIONING_SKIP_ENCRYPTION": true,
         };
 
         if (checksum) {
-            config["android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM"] = checksum;
+            config["android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM"] = checksum.trim();
         }
 
         if (wifiSsid) {
