@@ -26,6 +26,7 @@ app.use(compression()); // Enable gzip compression
 app.use(express.json());
 app.use(requestIdMiddleware); // Add request ID to all requests
 app.use(morgan('dev')); // Log requests
+app.use(express.static('public'));
 
 // Initialize Firebase Admin SDK
 try {
