@@ -23,7 +23,7 @@ const app = express();
 // Middleware
 app.use(cors());
 app.use(compression()); // Enable gzip compression
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(requestIdMiddleware); // Add request ID to all requests
 app.use(morgan('dev')); // Log requests
 

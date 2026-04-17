@@ -7,7 +7,7 @@ type ProvisionMethod = 'qr' | 'laptop';
 const ProvisioningView: React.FC = () => {
     const [method, setMethod] = useState<ProvisionMethod>('qr');
     const [apkUrl, setApkUrl] = useState('https://emi-secure-system.onrender.com/EMI-Secure.apk');
-    const [checksum, setChecksum] = useState('ys2MHkS-kIWgCradnVQB3uj8dGlcz8BN6Nc2m8MhjAI');
+    const [checksum, setChecksum] = useState('pKXn7SkqVqNKyyWkgg9UxyKwXFV8xvwX2JgSgbTcuP0');
     const [wifiSsid, setWifiSsid] = useState('');
     const [wifiPassword, setWifiPassword] = useState('');
 
@@ -25,7 +25,7 @@ const ProvisioningView: React.FC = () => {
         };
 
         if (checksum) {
-            config["android.app.extra.PROVISIONING_DEVICE_ADMIN_SIGNATURE_CHECKSUM"] = checksum.trim();
+            config["android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM"] = checksum.trim();
         }
 
         if (wifiSsid) {
@@ -151,16 +151,16 @@ pause`;
                                         <label className="text-sm font-medium text-slate-400">Signature Hash (SHA-256)</label>
                                         <div className="flex gap-2">
                                             <button 
-                                                onClick={() => setChecksum('ys2MHkS-kIWgCradnVQB3uj8dGlcz8BN6Nc2m8MhjAI')}
+                                                onClick={() => setChecksum('pKXn7SkqVqNKyyWkgg9UxyKwXFV8xvwX2JgSgbTcuP0')}
                                                 className="text-[10px] px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20 transition-all"
                                             >
-                                                Cert Hash (99% Fix)
+                                                File Hash (Recommended)
                                             </button>
                                             <button 
-                                                onClick={() => setChecksum('2HVSUZoezbSn5xPiX-EtUFr0nW3-dGR6TyiKNPgxR8Q')}
+                                                onClick={() => setChecksum('iCfUqPD3x0SqbgqHXnJ5gcbtg0iJA26D9HmxAYMFxMM')}
                                                 className="text-[10px] px-2 py-1 rounded bg-slate-800 text-slate-400 border border-slate-700 hover:bg-slate-700 transition-all"
                                             >
-                                                File Hash
+                                                Cert Hash
                                             </button>
                                             <button 
                                                 onClick={() => setChecksum('')}
