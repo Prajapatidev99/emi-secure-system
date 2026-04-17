@@ -129,6 +129,10 @@ class MainActivity : AppCompatActivity() {
             // 🔐 ADVANCED: Block installing apps from unknown sources
             dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
             
+            // 🛡️ Extra Security: Block physical media and extra users
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_ADD_USER)
+            
             // 🔒 CRITICAL: Prevent app uninstallation
             try {
                 dpm.setUninstallBlocked(adminComponent, packageName, true)

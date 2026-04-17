@@ -126,26 +126,43 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
                 <p className="text-slate-400"><strong>Address:</strong> {customer.address}</p>
             </Card>
 
-            {/* KYC Documents Card */}
-            {customer.kycDocs && customer.kycDocs.length > 0 && (
-                <Card className="mb-6">
-                    <h3 className="text-xl font-semibold mb-4 text-white">KYC Documents</h3>
+            {/* KYC Documents Section */}
+            <Card className="mb-6">
+                <h3 className="text-xl font-semibold mb-4 text-white">KYC Documents</h3>
+                {customer.kycDocs && customer.kycDocs.length > 0 ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
                         {customer.kycDocs.map((doc, index) => (
-                            <div key={index} className="relative group cursor-pointer" onClick={() => setViewingImage(doc.docUrl)}>
-                                <img
-                                    src={doc.docUrl}
-                                    alt={doc.docType}
-                                    className="w-full h-32 object-cover rounded-md transition-transform duration-200 group-hover:scale-105"
-                                />
-                                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 rounded-md">
-                                    <p className="text-white text-center text-sm font-bold">{doc.docType}</p>
+                            <div 
+                                key={index} 
+                                className="relative group cursor-pointer bg-slate-800 rounded-md overflow-hidden border border-slate-700 hover:border-brand-500 transition-colors"
+                                onClick={() => setViewingImage(doc.docUrl)}
+                            >
+                                {doc.docUrl ? (
+                                    <img
+                                        src={doc.docUrl}
+                                        alt={doc.docType}
+                                        className="w-full h-32 object-cover transition-transform duration-200 group-hover:scale-105"
+                                        onError={(e) => {
+                                            (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x300?text=Invalid+Image+Data';
+                                        }}
+                                    />
+                                ) : (
+                                    <div className="w-full h-32 flex items-center justify-center bg-slate-900">
+                                        <p className="text-xs text-slate-500 text-center px-2">No Image Data</p>
+                                    </div>
+                                )}
+                                <div className="absolute bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-sm py-1 px-2">
+                                    <p className="text-white text-xs font-bold truncate">{doc.docType}</p>
                                 </div>
                             </div>
                         ))}
                     </div>
-                </Card>
-            )}
+                ) : (
+                    <div className="bg-slate-800/50 rounded-lg p-8 border border-dashed border-slate-700 flex flex-col items-center justify-center">
+                        <p className="text-slate-500 text-sm">No KYC documents uploaded for this customer.</p>
+                    </div>
+                )}
+            </Card>
 
             {/* Device Finalization Section - only shows when all payments are cleared */}
             {allPaymentsCleared && (

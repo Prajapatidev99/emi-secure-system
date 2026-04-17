@@ -40,12 +40,14 @@
             android:excludeFromRecents="true"
             android:showOnLockScreen="true"
             android:taskAffinity=""
-            android:lockTaskMode="if_whitelisted" />
+            android:lockTaskMode="if_whitelisted"
+            android:directBootAware="true" />
 
         <!-- 🏠 MAIN UI -->
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:directBootAware="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -55,7 +57,8 @@
         <!-- 🔔 FIREBASE MESSAGING -->
         <service
             android:name=".MyFirebaseMessagingService"
-            android:exported="false">
+            android:exported="false"
+            android:directBootAware="true">
             <intent-filter>
                 <action android:name="com.google.firebase.MESSAGING_EVENT" />
             </intent-filter>
@@ -65,7 +68,8 @@
         <service
             android:name=".LockMonitorService"
             android:exported="false"
-            android:foregroundServiceType="specialUse|location">
+            android:foregroundServiceType="specialUse|location"
+            android:directBootAware="true">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Device Security Monitoring" />

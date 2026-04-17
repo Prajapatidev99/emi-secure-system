@@ -62,6 +62,12 @@ router.post('/customers', validate([
             return res.status(400).json({ message: 'A customer with this phone number already exists.' });
         }
 
+        if (kycDocs && kycDocs.length > 0) {
+            console.log(`[KYC] Adding customer with ${kycDocs.length} documents`);
+        } else {
+            console.warn('[KYC] Adding customer with NO documents');
+        }
+
         const newCustomer = new Customer({ userId, name, phone, address, kycDocs });
         await newCustomer.save();
         res.status(201).json(newCustomer);
