@@ -119,21 +119,10 @@ class MainActivity : AppCompatActivity() {
         try {
             dpm.setLockTaskPackages(adminComponent, arrayOf(packageName))
             
-            // 🔒 Critical Security Restrictions
-            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
-            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_SAFE_BOOT)
+            // �️ Use comprehensive anti-tampering manager
+            TamperDetectionManager.enforceAntiTamperingLock(this)
             
-            // 🔐 ADVANCED: Block ALL debugging features (ADB, Developer Options, etc.)
-            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_DEBUGGING_FEATURES)
-            
-            // 🔐 ADVANCED: Block installing apps from unknown sources
-            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES)
-            
-            // 🛡️ Extra Security: Block physical media and extra users
-            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
-            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_ADD_USER)
-            
-            // 🔒 CRITICAL: Prevent app uninstallation
+            // � CRITICAL: Prevent app uninstallation
             try {
                 dpm.setUninstallBlocked(adminComponent, packageName, true)
                 Log.d("Security", "✅ App uninstallation BLOCKED")

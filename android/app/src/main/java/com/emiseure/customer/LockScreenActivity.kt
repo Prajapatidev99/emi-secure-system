@@ -81,10 +81,12 @@ class LockScreenActivity : AppCompatActivity() {
                 Log.e("LockScreen", "Failed to register receiver", e)
             }
 
-            // ---- APPLY DEVICE OWNER RESTRICTIONS ----
+            // ---- APPLY DEVICE OWNER RESTRICTIONS & ANTI-TAMPERING ----
             if (dpm.isDeviceOwnerApp(packageName)) {
                 try {
                     dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_USB_FILE_TRANSFER)
+                    // 🛡️ Enforce comprehensive anti-tampering protections
+                    TamperDetectionManager.enforceAntiTamperingLock(this)
                     safeStartLockTask()
                 } catch (e: Exception) {
                     Log.e("LockScreen", "Failed to apply restrictions", e)

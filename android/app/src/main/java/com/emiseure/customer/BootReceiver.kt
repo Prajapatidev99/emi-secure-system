@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 
 class BootReceiver : BroadcastReceiver() {
 
@@ -36,7 +38,14 @@ class BootReceiver : BroadcastReceiver() {
             Log.d(TAG, "Local lock state after boot: $isLocked")
             Log.d(TAG, "Unlock key present: ${!unlockKey.isNullOrEmpty()}")
 
+            // 🛡️ ANTI-TAMPERING: Persist lock state and enforce device policies
             if (isLocked) {
+                // Ensure lock state is persisted (survives hard resets)
+                prefs.edit().putBoolean("IS_LOCKED", true).apply()
+                
+                // 🛡️ Re-enforce comprehensive anti-tampering protections
+                TamperDetectionManager.enforceAntiTamperingLock(context)
+                
                 Log.w(TAG, "Device is LOCKED → launching LockScreenActivity")
                 Log.w(TAG, "Lock will be enforced WITHOUT internet connection")
 
