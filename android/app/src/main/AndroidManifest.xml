@@ -118,5 +118,19 @@
             </intent-filter>
         </receiver>
 
+        <!-- 🔄 POST-RESET RE-PROVISIONING RECEIVER -->
+        <!-- Detects fresh installs after factory reset and forces re-lock via server -->
+        <receiver
+            android:name=".PostResetReprovisionReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter android:priority="1000">
+                <!-- Fires on normal boot (catches re-install on boot) -->
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <!-- Fires when APK is re-installed/updated on a running device -->
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
     </application>
 </manifest>

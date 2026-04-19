@@ -47,6 +47,9 @@ class LockScreenActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         try {
+            // 🛡️ PRIVACY SHIELD: Block screenshots and screen recording
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+
             binding = ActivityLockScreenBinding.inflate(layoutInflater)
             setContentView(binding.root)
 

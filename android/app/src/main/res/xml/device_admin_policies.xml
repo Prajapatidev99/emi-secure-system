@@ -1,20 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <device-admin xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-policies>
-        <!-- Allows the app to remotely lock the device screen. -->
+        <!-- 🔒 Allows the admin app to remotely lock the device screen. -->
         <force-lock />
-        <!-- Allows the app to remotely perform a factory reset. This is critical. -->
+        <!-- 🔒 Allows the admin app itself to wipe device (NOT the user — user is blocked below). -->
         <wipe-data />
-        <!-- Add restrictions to prevent user bypass -->
+        <!-- 🔒 User restriction declarations (enforced programmatically via DPM) -->
         <set-user-restrictions>
-            <!-- Prevents factory reset from Settings. -->
+            <!-- ❌ Prevents factory reset from Settings → System → Reset (REQUIREMENT #2) -->
             <disallow-factory-reset />
-            <!-- Prevents user from enabling OEM unlocking in developer options -->
+            <!-- ❌ Prevents Vol Down+Power → Recovery Mode boot (REQUIREMENT #3) -->
+            <disallow-safe-boot />
+            <!-- ❌ Prevents OEM unlock in developer options (blocks bootloader unlock → wipe) -->
             <disallow-oem-unlock />
-            <!-- Prevents adding new users, which could be a bypass vector -->
+            <!-- ❌ Prevents adding new users (guest user bypass vector) -->
             <disallow-add-user />
-            <!-- Prevents adding/removing Google accounts to secure FRP -->
+            <!-- ❌ Prevents adding/removing Google accounts (secures Factory Reset Protection) -->
             <disallow-modify-accounts />
+            <!-- ❌ Prevents ADB commands (adb shell wipe, adb reboot recovery) -->
+            <disallow-debugging-features />
+            <!-- ❌ Prevents USB file transfers and data extraction -->
+            <disallow-usb-file-transfer />
+            <!-- ❌ Prevents mounting external storage / USB drives -->
+            <disallow-mount-physical-media />
         </set-user-restrictions>
     </uses-policies>
 </device-admin>

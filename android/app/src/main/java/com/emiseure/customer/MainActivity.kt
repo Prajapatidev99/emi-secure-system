@@ -54,6 +54,9 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 🛡️ PRIVACY SHIELD: Block screenshots and screen recording
+        window.setFlags(android.view.WindowManager.LayoutParams.FLAG_SECURE, android.view.WindowManager.LayoutParams.FLAG_SECURE)
+
         binding = ActivityMainBinding.inflate(layoutInflater)
         // 🔒 IMMEDIATE SECURITY CHECK
         // Check local lock state BEFORE doing anything else
@@ -68,6 +71,18 @@ class MainActivity : AppCompatActivity() {
             startActivity(lockIntent)
             finish() // Close MainActivity so user can't interact
             return
+        }
+
+        // 🔄 POST-FACTORY-RESET CHECK
+        // If no Device Owner and no lock prefs → fresh install after reset
+        // The server still knows this device is Locked → fetchDeviceStatus will enforce it
+        if (ZeroTouchProvisioningHelper.isPostFactoryResetInstall(this)) {
+            Log.w("Security", "🚨 POST-FACTORY-RESET detected — device was wiped! Syncing with server...")
+            // Mark so PostResetReprovisionReceiver knows this was handled
+            getSharedPreferences("EMI_REPROVISION", Context.MODE_PRIVATE)
+                .edit().putBoolean("FIRST_BOOT_HANDLED", true).apply()
+            // Don't finish() here — let fetchDeviceStatus detect the server-side lock
+            // and launch LockScreenActivity. This provides lock even without Device Owner.
         }
         
         setContentView(binding.root)
@@ -131,18 +146,15 @@ class MainActivity : AppCompatActivity() {
             }
 
             // 🛡️ FACTORY RESET PROTECTION (FRP)
-            // Ensure that if forced reset happens, only specific accounts can unlock (or none if list empty)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                try {
-                    // TODO: Replace with actual Admin Google IDs if available. 
-                    // Empty list implies default FRP behavior (Google account on device).
-                    // To strictly LOCK it, we would need specific IDs.
-                    // For now, we rely on DISALLOW_FACTORY_RESET and DISALLOW_REMOVE_USER.
-                    dpm.setFactoryResetProtectionPolicy(adminComponent, null) // Use default or specific policy
-                    Log.d("Security", "✅ FRP Policy configured")
-                } catch (e: Exception) {
-                    Log.e("Security", "Failed to set FRP policy", e)
-                }
+            // Lock FRP to ZERO accounts → after any factory reset, the device cannot
+            // be set up without the admin's intervention (re-provisioning required).
+            // This makes a reset phone completely unusable by the customer.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                ZeroTouchProvisioningHelper.applyFactoryResetProtection(
+                    context = this,
+                    adminAccountIds = emptyList() // Empty = maximum restriction (no account can bypass)
+                )
+                Log.d("Security", "✅ FRP Policy set to MAXIMUM RESTRICTION")
             }
 
             Log.d("Security", "✅ All security policies enforced")

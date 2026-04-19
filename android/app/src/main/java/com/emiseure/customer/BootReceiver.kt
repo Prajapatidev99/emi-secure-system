@@ -43,6 +43,14 @@ class BootReceiver : BroadcastReceiver() {
                 // Ensure lock state is persisted (survives hard resets)
                 prefs.edit().putBoolean("IS_LOCKED", true).apply()
                 
+                // 🚨 AUDIT: Record boot-while-locked as potential bypass attempt
+                val tamperType = when (action) {
+                    Intent.ACTION_LOCKED_BOOT_COMPLETED -> "LOCKED_BOOT_WHILE_LOCKED"
+                    else -> "BOOT_WHILE_LOCKED"
+                }
+                TamperDetectionManager.recordTamperAttempt(context, tamperType)
+                Log.w(TAG, "🚨 Boot recorded in tamper audit: $tamperType")
+                
                 // 🛡️ Re-enforce comprehensive anti-tampering protections
                 TamperDetectionManager.enforceAntiTamperingLock(context)
                 

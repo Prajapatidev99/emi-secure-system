@@ -133,4 +133,106 @@ router.post('/devices/location', async (req, res) => {
     }
 });
 
+// -------------------------------------------------------------------
+// 🔄 POST-FACTORY-RESET SUPPORT ENDPOINTS
+// -------------------------------------------------------------------
+
+/**
+ * GET /apk-info
+ * Returns APK download URL, checksum, and provisioning QR config.
+ * Called by freshly installed app to check for updates and get provisioning info.
+ */
+router.get('/apk-info', (req, res) => {
+    const backendUrl = process.env.BACKEND_URL || `${req.protocol}://${req.get('host')}`;
+    const apkUrl = `${backendUrl}/EMI-Secure.apk`;
+
+    // Read SHA-256 checksum from file if available (written during build/deploy)
+    let apkChecksum = process.env.APK_SHA256_CHECKSUM || '';
+    try {
+        const fs = require('fs');
+        const path = require('path');
+        const checksumFile = path.join(__dirname, '..', 'public', 'apk_checksum.txt');
+        if (fs.existsSync(checksumFile)) {
+            apkChecksum = fs.readFileSync(checksumFile, 'utf8').trim();
+        }
+    } catch (e) {
+        console.warn('Could not read APK checksum file:', e.message);
+    }
+
+    // Zero-Touch provisioning QR config JSON
+    const provisioningConfig = {
+        'android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME':
+            'com.emiseure.customer/.MyDeviceAdminReceiver',
+        'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION': apkUrl,
+        'android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM': apkChecksum,
+        'android.app.extra.PROVISIONING_SKIP_ENCRYPTION': false,
+        'android.app.extra.PROVISIONING_LOCALE': 'en_IN',
+        'android.app.extra.PROVISIONING_TIME_ZONE': 'Asia/Kolkata',
+        'android.app.extra.PROVISIONING_ADMIN_EXTRAS_BUNDLE': {
+            backend_url: backendUrl,
+            auto_lock_on_provision: true
+        }
+    };
+
+    res.json({
+        apkUrl,
+        apkChecksum,
+        version: process.env.APK_VERSION || '1.0',
+        provisioningConfig,
+        instructions: {
+            zeroTouch: 'During Android setup wizard: Vol Down x3 + tap screen to trigger DPC download',
+            manual: 'Download APK from apkUrl, install, then run: adb shell dpm set-device-owner com.emiseure.customer/.MyDeviceAdminReceiver'
+        }
+    });
+});
+
+/**
+ * POST /check-imei
+ * Check if a device with this IMEI should be locked.
+ * Used by freshly reset devices that lost their androidId registration.
+ * IMEI survives factory resets (hardware identifier).
+ */
+router.post('/check-imei', async (req, res) => {
+    const { imei, newAndroidId } = req.body;
+
+    if (!imei) {
+        return res.status(400).json({ message: 'IMEI is required.' });
+    }
+
+    try {
+        const device = await Device.findOne({ imei });
+
+        if (!device) {
+            // Device not in our system — allow normal setup
+            return res.status(404).json({
+                message: 'Device not registered in EMI system.',
+                shouldLock: false
+            });
+        }
+
+        // 🔄 If device has a new Android ID after factory reset, update it
+        if (newAndroidId && newAndroidId !== device.androidId) {
+            console.log(`🔄 Device IMEI ${imei}: Android ID changed from ${device.androidId} to ${newAndroidId} (factory reset detected)`);
+            device.androidId = newAndroidId;
+            await device.save();
+        }
+
+        const shouldLock = device.status === 'Locked';
+
+        res.json({
+            shouldLock,
+            deviceStatus: device.status,
+            unlockKey: shouldLock ? device.unlockKey : null,
+            message: shouldLock
+                ? 'This device is locked. Contact your EMI provider.'
+                : 'Device is active.',
+            requiresReprovisioning: true // Admin must re-run provisioning script
+        });
+
+    } catch (error) {
+        console.error('IMEI check error:', error);
+        res.status(500).json({ message: 'Server error during IMEI check.', error: error.message });
+    }
+});
+
 module.exports = router;

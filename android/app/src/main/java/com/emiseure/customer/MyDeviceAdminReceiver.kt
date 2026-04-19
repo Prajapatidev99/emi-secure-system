@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.ComponentName
 import android.util.Log
 import android.os.Build
+import android.os.UserManager
 
 @Suppress("DEPRECATION")
 class MyDeviceAdminReceiver : DeviceAdminReceiver() {
@@ -22,19 +23,26 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
 
     override fun onDisabled(context: Context, intent: Intent) {
         super.onDisabled(context, intent)
-        Log.w(TAG, "⚠️ Device Admin DISABLED by user")
+        Log.w(TAG, "⚠️ Device Admin DISABLED by user — recording tamper attempt")
+        // 🚨 AUDIT: Record admin disable as tampering event
+        TamperDetectionManager.recordTamperAttempt(context, "ADMIN_DISABLED")
+        // 🛡️ Attempt to re-enforce even after disable (may fail if truly removed)
+        preventPhysicalTampering(context)
     }
 
     override fun onPasswordFailed(context: Context, intent: Intent) {
         super.onPasswordFailed(context, intent)
-        Log.w(TAG, "🔐 Device password attempt FAILED")
+        Log.w(TAG, "🔐 Device password attempt FAILED — recording tamper attempt")
+        // 🚨 AUDIT: Record failed password as potential brute-force attempt
+        TamperDetectionManager.recordTamperAttempt(context, "PASSWORD_BRUTE_FORCE")
     }
 
     override fun onPasswordSucceeded(context: Context, intent: Intent) {
         super.onPasswordSucceeded(context, intent)
         Log.i(TAG, "🔓 Device password attempt SUCCEEDED")
     }
-    
+
+
     /**
      * 🛡️ CRITICAL: Block all physical tampering attempts
      * - Prevent hard reset button usage
@@ -48,31 +56,57 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
             val adminComponent = ComponentName(context, this::class.java)
             
             if (dpm.isDeviceOwnerApp(context.packageName)) {
-                // 🔐 Block factory reset attempts
-                dpm.addUserRestriction(adminComponent, android.os.UserManager.DISALLOW_FACTORY_RESET)
+                // 🔐 Block factory reset attempts (hides wipe data in Settings)
+                dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
                 Log.d(TAG, "✅ DISALLOW_FACTORY_RESET enforced")
                 
-                // 🔐 Block safe boot (prevents recovery mode access)
-                dpm.addUserRestriction(adminComponent, android.os.UserManager.DISALLOW_SAFE_BOOT)
+                // 🔐 Block safe boot (prevents Vol Down+Power → Recovery Mode)
+                dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_SAFE_BOOT)
                 Log.d(TAG, "✅ DISALLOW_SAFE_BOOT enforced")
                 
-                // 🔐 Block debugging features (prevents ADB wipe)
-                dpm.addUserRestriction(adminComponent, android.os.UserManager.DISALLOW_DEBUGGING_FEATURES)
+                // 🔐 Block debugging features (prevents ADB wipe commands)
+                dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_DEBUGGING_FEATURES)
                 Log.d(TAG, "✅ DISALLOW_DEBUGGING_FEATURES enforced")
                 
-                // 🔐 Block physical media mounting (prevents USB wipe)
-                dpm.addUserRestriction(adminComponent, android.os.UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
+                // 🔐 Block physical media mounting (prevents USB-based wipe)
+                dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
                 Log.d(TAG, "✅ DISALLOW_MOUNT_PHYSICAL_MEDIA enforced")
                 
-                // 🔐 Block adding new users (prevents bypass)
-                dpm.addUserRestriction(adminComponent, android.os.UserManager.DISALLOW_ADD_USER)
+                // 🔐 Block adding new users (prevents guest bypass)
+                dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_ADD_USER)
                 Log.d(TAG, "✅ DISALLOW_ADD_USER enforced")
                 
-                // 🔐 Block modifying accounts (prevents unlock attempts)
-                dpm.addUserRestriction(adminComponent, android.os.UserManager.DISALLOW_MODIFY_ACCOUNTS)
+                // 🔐 Block modifying accounts (secures FRP lock)
+                dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
                 Log.d(TAG, "✅ DISALLOW_MODIFY_ACCOUNTS enforced")
+
+                // 🔐 Block USB file transfers (prevents data extraction)
+                try {
+                    dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_USB_FILE_TRANSFER)
+                    Log.d(TAG, "✅ DISALLOW_USB_FILE_TRANSFER enforced")
+                } catch (e: Exception) {
+                    Log.w(TAG, "DISALLOW_USB_FILE_TRANSFER not available on this API level")
+                }
+
+                // 🔐 Block OEM unlock via global settings (prevents bootloader unlock → wipe)
+                try {
+                    dpm.setGlobalSetting(adminComponent, "oem_unlock_allowed", "0")
+                    Log.d(TAG, "✅ OEM unlock DISABLED via global setting")
+                } catch (e: Exception) {
+                    Log.w(TAG, "setGlobalSetting oem_unlock_allowed failed", e)
+                }
+
+                // 🔐 Block app uninstall
+                try {
+                    dpm.setUninstallBlocked(adminComponent, context.packageName, true)
+                    Log.d(TAG, "✅ App uninstallation BLOCKED")
+                } catch (e: Exception) {
+                    Log.w(TAG, "setUninstallBlocked failed", e)
+                }
                 
                 Log.i(TAG, "🛡️ All anti-tampering restrictions applied successfully")
+            } else {
+                Log.w(TAG, "⚠️ preventPhysicalTampering: Not device owner — restrictions skipped")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to apply anti-tampering restrictions", e)
