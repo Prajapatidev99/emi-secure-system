@@ -22,7 +22,13 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        const user = await User.create({ email, password, shopName });
+        const isSuperAdmin = email === 'prajapatidev9974@gmail.com';
+        const user = await User.create({ 
+            email, 
+            password, 
+            shopName,
+            role: isSuperAdmin ? 'SuperAdmin' : 'Shopkeeper'
+        });
 
         // Generate JWT token for auto-login
         const secret = jwtSecret;

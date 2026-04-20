@@ -2,8 +2,9 @@
 import { Customer, EmiPayment, Device, KycDocument, DeviceWithCustomer, UserProfile, WalletTransaction, RechargeRequest, RechargeRequestWithUser } from '../types';
 
 const hostname = window.location.hostname;
-const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
-const API_BASE_URL = isLocal ? 'http://localhost:3001/api' : 'https://emi-secure-system.onrender.com/api';
+// Include local network IPs for mobile testing (e.g., 192.168.x.x)
+const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0' || hostname.startsWith('192.168.');
+const API_BASE_URL = isLocal ? `http://${hostname}:3001/api` : 'https://emi-secure-system.onrender.com/api';
 
 const getAuthHeaders = () => {
     const token = sessionStorage.getItem('authToken');
@@ -47,7 +48,7 @@ const fetchWithRetry = async (url: string, options: RequestInit = {}, retries = 
 const getUserFriendlyError = (error: Error): string => {
     const message = error.message.toLowerCase();
     if (message.includes('network') || message.includes('fetch')) {
-        return 'Unable to connect to server. Please check your internet connection.';
+        return `Unable to connect to server at ${API_BASE_URL.replace('/api', '')}. Please check your internet connection or verify if the server is running.`;
     }
     if (message.includes('timeout')) {
         return 'Request timed out. The server is taking too long to respond.';
