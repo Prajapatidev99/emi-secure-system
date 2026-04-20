@@ -32,6 +32,8 @@ router.post('/register', async (req, res) => {
             _id: user._id,
             email: user.email,
             shopName: user.shopName,
+            role: user.role,
+            walletBalance: user.walletBalance,
             token, // Return token for auto-login
         });
 
@@ -67,6 +69,8 @@ router.post('/login', async (req, res) => {
                 _id: user._id,
                 email: user.email,
                 shopName: user.shopName,
+                role: user.role,
+                walletBalance: user.walletBalance,
                 token,
             });
         } else {
@@ -101,6 +105,8 @@ router.put('/profile', async (req, res) => {
             _id: user._id,
             email: user.email,
             shopName: user.shopName,
+            role: user.role,
+            walletBalance: user.walletBalance,
         });
     } catch (error) {
         res.status(500).json({ message: 'Server error updating profile', error: error.message });
@@ -172,6 +178,28 @@ router.delete('/account', async (req, res) => {
         res.json({ message: 'Account and all associated data deleted successfully' });
     } catch (error) {
         res.status(500).json({ message: 'Server error deleting account', error: error.message });
+    }
+});
+
+// @route   GET api/auth/me
+// @desc    Get current user profile (role, wallet balance, etc.)
+// @access  Private
+router.get('/me', async (req, res) => {
+    try {
+        const userId = req.userId;
+        const user = await User.findById(userId).select('-password');
+        if (!user) {
+            return res.status(404).json({ message: 'User not found' });
+        }
+        res.json({
+            _id: user._id,
+            email: user.email,
+            shopName: user.shopName,
+            role: user.role,
+            walletBalance: user.walletBalance,
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error fetching profile', error: error.message });
     }
 });
 

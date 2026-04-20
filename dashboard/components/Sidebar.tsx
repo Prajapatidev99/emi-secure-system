@@ -2,21 +2,32 @@ import React from 'react';
 import { Page } from '../App';
 import { DashboardIcon, UsersIcon, ChartIcon, DevicePhoneMobileIcon, QrCodeIcon } from './icons';
 import Logo from './Logo';
+import { UserRole } from '../types';
 
 interface SidebarProps {
   currentPage: Page;
   setCurrentPage: (page: Page) => void;
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
+  userRole: UserRole;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen }) => {
+const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen, userRole }) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <DashboardIcon /> },
     { id: 'customers', label: 'Customers', icon: <UsersIcon /> },
     { id: 'devices', label: 'Devices', icon: <DevicePhoneMobileIcon /> },
     { id: 'provisioning', label: 'Provisioning', icon: <QrCodeIcon /> },
     { id: 'reports', label: 'Reports', icon: <ChartIcon /> },
+    {
+      id: 'wallet',
+      label: 'Wallet & Billing',
+      icon: (
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 12m18 0v6a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 18v-6m18 0V9M3 12V9m18 0a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 9m18 0V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v3" />
+        </svg>
+      )
+    },
     {
       id: 'guide',
       label: 'Guide',
@@ -38,6 +49,21 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen }
     },
   ];
 
+  // SuperAdmin-only nav item
+  const adminNavItem = {
+    id: 'admin',
+    label: 'Admin Panel',
+    icon: (
+      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+      </svg>
+    )
+  };
+
+  const visibleItems = userRole === 'SuperAdmin'
+    ? [adminNavItem, ...navItems]
+    : navItems;
+
   return (
     <div className={`fixed inset-y-0 left-0 transform ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
                    md:relative md:translate-x-0 md:flex-shrink-0 
@@ -46,12 +72,21 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, setCurrentPage, isOpen }
       <div className="flex items-center justify-center h-20">
         <Logo />
       </div>
-      <nav className="mt-5 px-2">
+
+      {/* Role badge */}
+      {userRole === 'SuperAdmin' && (
+        <div className="mx-3 mb-2 px-3 py-1 rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-semibold text-center tracking-wide">
+          ⚡ Super Admin
+        </div>
+      )}
+
+      <nav className="mt-2 px-2">
         <ul>
-          {navItems.map((item) => (
+          {visibleItems.map((item) => (
             <li key={item.id} className="mb-1">
               <a
                 href="#"
+                id={`nav-${item.id}`}
                 onClick={(e) => {
                   e.preventDefault();
                   setCurrentPage(item.id as Page);

@@ -1,8 +1,10 @@
 const jwt = require('jsonwebtoken');
 const { jwtSecret } = require('../config/config');
+const User = require('../models/user.model');
 
 // Refactored for improved clarity and robustness.
-const authMiddleware = (req, res, next) => {
+// Also attaches req.userRole for role-based access control downstream.
+const authMiddleware = async (req, res, next) => {
     // Allow CORS preflight requests to pass through without authentication.
     if (req.method === 'OPTIONS') {
         return next();
@@ -21,6 +23,10 @@ const authMiddleware = (req, res, next) => {
         const decoded = jwt.verify(token, secret);
 
         req.userId = decoded.id;
+
+        // Attach role for downstream role-based guards (e.g., SuperAdmin routes)
+        const user = await User.findById(decoded.id).select('role').lean();
+        req.userRole = user ? user.role : 'Shopkeeper';
         
         next();
     } catch (error) {

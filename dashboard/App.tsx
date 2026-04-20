@@ -12,8 +12,12 @@ import LoginLayout from './components/LoginLayout';
 import SetupGuideView from './components/SetupGuideView';
 import GuideView from './components/GuideView';
 import ProvisioningView from './components/ProvisioningView';
+import WalletView from './components/WalletView';
+import AdminPanelView from './components/AdminPanelView';
+import { getMyProfile } from './services/api';
+import { UserProfile } from './types';
 
-export type Page = 'dashboard' | 'customers' | 'devices' | 'reports' | 'settings' | 'guide' | 'provisioning';
+export type Page = 'dashboard' | 'customers' | 'devices' | 'reports' | 'settings' | 'guide' | 'provisioning' | 'wallet' | 'admin';
 export type AuthView = 'login' | 'register' | 'setup';
 
 const App: React.FC = () => {
@@ -21,6 +25,7 @@ const App: React.FC = () => {
   const [authView, setAuthView] = useState<AuthView>('login');
   const [token, setToken] = useState<string | null>(null);
   const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
     // Check for token in session storage on initial load
@@ -30,20 +35,42 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const handleLoginSuccess = (newToken: string) => {
+  // Fetch profile when logged in
+  useEffect(() => {
+    if (token) {
+      getMyProfile()
+        .then(setUserProfile)
+        .catch(() => {
+          // If profile fetch fails (expired token), log out
+          handleLogout();
+        });
+    }
+  }, [token]);
+
+  const handleLoginSuccess = (newToken: string, profile?: UserProfile) => {
     sessionStorage.setItem('authToken', newToken);
     setToken(newToken);
+    if (profile) setUserProfile(profile);
   };
 
-  const handleRegisterSuccess = (newToken: string) => {
+  const handleRegisterSuccess = (newToken: string, profile?: UserProfile) => {
     sessionStorage.setItem('authToken', newToken);
     setToken(newToken);
+    if (profile) setUserProfile(profile);
   };
 
   const handleLogout = () => {
     sessionStorage.removeItem('authToken');
     setToken(null);
+    setUserProfile(null);
     setCurrentPage('dashboard');
+  };
+
+  const refreshWalletBalance = async () => {
+    if (token) {
+      const profile = await getMyProfile();
+      setUserProfile(profile);
+    }
   };
 
   const renderPage = () => {
@@ -53,7 +80,7 @@ const App: React.FC = () => {
       case 'customers':
         return <CustomersView />;
       case 'devices':
-        return <DevicesView />;
+        return <DevicesView walletBalance={userProfile?.walletBalance ?? null} onDeviceRegistered={refreshWalletBalance} />;
       case 'reports':
         return <ReportsView />;
       case 'settings':
@@ -62,6 +89,10 @@ const App: React.FC = () => {
         return <GuideView />;
       case 'provisioning':
         return <ProvisioningView />;
+      case 'wallet':
+        return <WalletView walletBalance={userProfile?.walletBalance ?? 0} />;
+      case 'admin':
+        return <AdminPanelView />;
       default:
         return <DashboardView />;
     }
@@ -96,6 +127,7 @@ const App: React.FC = () => {
       onLogout={handleLogout}
       isSidebarOpen={isSidebarOpen}
       setSidebarOpen={setSidebarOpen}
+      userProfile={userProfile}
     >
       {renderPage()}
     </Layout>

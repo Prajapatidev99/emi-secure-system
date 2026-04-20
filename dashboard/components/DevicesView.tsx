@@ -54,7 +54,7 @@ const LinkDeviceForm = ({ device, onSuccess, onCancel }: { device: DeviceWithCus
     );
 };
 
-const DevicesView: React.FC = () => {
+const DevicesView: React.FC<{ walletBalance: number | null; onDeviceRegistered: () => void }> = ({ walletBalance, onDeviceRegistered: _onDeviceRegistered }) => {
   const [devices, setDevices] = useState<DeviceWithCustomer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -103,6 +103,22 @@ const DevicesView: React.FC = () => {
     <>
       <Card>
         <h2 className="text-2xl font-bold mb-4 text-white">Device Management</h2>
+
+        {/* Low balance warning banner */}
+        {walletBalance !== null && walletBalance < 200 && (
+          <div className="mb-5 flex items-start gap-3 bg-red-500/10 border border-red-500/30 rounded-xl px-4 py-3">
+            <svg className="w-5 h-5 text-red-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+            <div>
+              <p className="text-sm font-semibold text-red-400">Insufficient Wallet Balance</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Your current balance is <strong className="text-white">₹{walletBalance}</strong>. You need at least <strong className="text-white">₹200</strong> to register a new device.
+                Please contact your administrator to recharge your wallet.
+              </p>
+            </div>
+          </div>
+        )}
         
         {error && <p className="text-rose-400 text-center py-4">Error: {error}</p>}
 

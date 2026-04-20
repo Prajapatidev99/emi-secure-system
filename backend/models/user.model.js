@@ -17,7 +17,17 @@ const userSchema = new Schema({
   shopName: {
     type: String,
     required: true,
-  }
+  },
+  role: {
+    type: String,
+    enum: ['SuperAdmin', 'Shopkeeper'],
+    default: 'Shopkeeper',
+  },
+  walletBalance: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

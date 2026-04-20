@@ -11,6 +11,43 @@ export enum DeviceStatus {
   Released = 'Released',
 }
 
+export type UserRole = 'SuperAdmin' | 'Shopkeeper';
+
+export interface UserProfile {
+  _id: string;
+  email: string;
+  shopName: string;
+  role: UserRole;
+  walletBalance: number;
+}
+
+export interface WalletTransaction {
+  _id: string;
+  shopkeeperId: string;
+  type: 'Recharge' | 'Deduction';
+  amount: number;
+  balanceAfter: number;
+  description: string;
+  createdAt: string;
+}
+
+export type RechargeRequestStatus = 'Pending' | 'Approved' | 'Rejected';
+
+export interface RechargeRequest {
+  _id: string;
+  shopkeeperId: string;
+  amount: number;
+  transactionId: string;
+  status: RechargeRequestStatus;
+  adminNote?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RechargeRequestWithUser extends Omit<RechargeRequest, 'shopkeeperId'> {
+  shopkeeperId: UserProfile;
+}
+
 // NEW: Add an interface for a single KYC document
 export interface KycDocument {
   docType: string;

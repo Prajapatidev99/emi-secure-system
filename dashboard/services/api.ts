@@ -1,5 +1,5 @@
 
-import { Customer, EmiPayment, Device, KycDocument, DeviceWithCustomer } from '../types';
+import { Customer, EmiPayment, Device, KycDocument, DeviceWithCustomer, UserProfile, WalletTransaction, RechargeRequest, RechargeRequestWithUser } from '../types';
 
 const hostname = window.location.hostname;
 const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '0.0.0.0';
@@ -7,7 +7,6 @@ const API_BASE_URL = isLocal ? 'http://localhost:3001/api' : 'https://emi-secure
 
 const getAuthHeaders = () => {
     const token = sessionStorage.getItem('authToken');
-
     return {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : '',
@@ -18,12 +17,8 @@ const getAuthHeaders = () => {
 const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 30000) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
-
     try {
-        const response = await fetch(url, {
-            ...options,
-            signal: controller.signal
-        });
+        const response = await fetch(url, { ...options, signal: controller.signal });
         clearTimeout(id);
         return response;
     } catch (error: any) {
@@ -42,7 +37,6 @@ const fetchWithRetry = async (url: string, options: RequestInit = {}, retries = 
             return await fetchWithTimeout(url, options);
         } catch (error) {
             if (i === retries - 1) throw error;
-            // Exponential backoff: wait 1s, 2s, 3s
             await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
         }
     }
@@ -52,7 +46,6 @@ const fetchWithRetry = async (url: string, options: RequestInit = {}, retries = 
 // User-friendly error messages
 const getUserFriendlyError = (error: Error): string => {
     const message = error.message.toLowerCase();
-
     if (message.includes('network') || message.includes('fetch')) {
         return 'Unable to connect to server. Please check your internet connection.';
     }
@@ -71,7 +64,9 @@ const getUserFriendlyError = (error: Error): string => {
     if (message.includes('forbidden') || message.includes('403')) {
         return 'You do not have permission to perform this action.';
     }
-
+    if (message.includes('too many requests') || message.includes('429')) {
+        return 'Server is busy. Please wait a few seconds and try again.';
+    }
     return error.message;
 };
 
@@ -81,24 +76,17 @@ const handleResponse = async (response: Response) => {
         window.location.reload();
         throw new Error('Your session has expired. Please log in again.');
     }
-
     if (response.status === 413) {
         throw new Error('Upload failed: The file(s) are too large. Please ensure each image is under 2MB.');
     }
-
     const responseBody = await response.text();
-
     if (!response.ok) {
         let errorMessage = `Server error: ${response.status}`;
         try {
             if (responseBody && responseBody.trim().length > 0) {
                 const errorJson = JSON.parse(responseBody);
-                if (errorJson.message) {
-                    errorMessage = errorJson.message;
-                }
-                if (errorJson.error) {
-                    errorMessage += ` (${errorJson.error})`;
-                }
+                if (errorJson.message) errorMessage = errorJson.message;
+                if (errorJson.error) errorMessage += ` (${errorJson.error})`;
             }
         } catch (e) {
             console.error("Received non-JSON error response:", responseBody);
@@ -106,11 +94,7 @@ const handleResponse = async (response: Response) => {
         }
         throw new Error(getUserFriendlyError(new Error(errorMessage)));
     }
-
-    if (!responseBody) {
-        return {};
-    }
-
+    if (!responseBody) return {};
     try {
         return JSON.parse(responseBody);
     } catch (e) {
@@ -135,6 +119,64 @@ export const register = async (email: string, password: string, shopName: string
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password, shopName }),
+    });
+    return handleResponse(response);
+};
+
+
+// --- USER PROFILE & WALLET ---
+export const getMyProfile = async (): Promise<UserProfile> => {
+    const response = await fetchWithRetry(`${API_BASE_URL}/auth/me`, { headers: getAuthHeaders() });
+    return handleResponse(response);
+};
+
+export const getWalletTransactions = async (): Promise<WalletTransaction[]> => {
+    const response = await fetchWithRetry(`${API_BASE_URL}/admin/wallet/transactions`, { headers: getAuthHeaders() });
+    return handleResponse(response);
+};
+
+
+// --- ADMIN (SuperAdmin only) ---
+export const getShopkeepers = async (): Promise<UserProfile[]> => {
+    const response = await fetchWithRetry(`${API_BASE_URL}/admin/shopkeepers`, { headers: getAuthHeaders() });
+    return handleResponse(response);
+};
+
+export const rechargeShopkeeperWallet = async (shopkeeperId: string, amount: number, description?: string) => {
+    const response = await fetchWithRetry(`${API_BASE_URL}/admin/recharge`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ shopkeeperId, amount, description }),
+    });
+    return handleResponse(response);
+};
+
+// --- RECHARGE REQUESTS (Online UPI) ---
+export const submitRechargeRequest = async (amount: number, transactionId: string): Promise<{ message: string, request: RechargeRequest }> => {
+    const response = await fetchWithRetry(`${API_BASE_URL}/admin/recharge-requests`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ amount, transactionId }),
+    });
+    return handleResponse(response);
+};
+
+export const getMyRechargeRequests = async (): Promise<RechargeRequest[]> => {
+    const response = await fetchWithRetry(`${API_BASE_URL}/admin/recharge-requests/my`, { headers: getAuthHeaders() });
+    return handleResponse(response);
+};
+
+export const getAllRechargeRequests = async (status?: string): Promise<RechargeRequestWithUser[]> => {
+    const url = status ? `${API_BASE_URL}/admin/all-recharge-requests?status=${status}` : `${API_BASE_URL}/admin/all-recharge-requests`;
+    const response = await fetchWithRetry(url, { headers: getAuthHeaders() });
+    return handleResponse(response);
+};
+
+export const handleRechargeRequest = async (requestId: string, status: 'Approved' | 'Rejected', adminNote?: string) => {
+    const response = await fetchWithRetry(`${API_BASE_URL}/admin/recharge-requests/${requestId}`, {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status, adminNote }),
     });
     return handleResponse(response);
 };
@@ -211,7 +253,6 @@ export const markPaymentAsPaid = async (paymentId: string) => {
 export const getCustomers = async (): Promise<Customer[]> => {
     const response = await fetchWithRetry(`${API_BASE_URL}/customers`, { headers: getAuthHeaders() });
     const data = await handleResponse(response);
-    // Handle pagination response
     return data.customers || data;
 };
 
@@ -276,11 +317,9 @@ export const linkDevice = async (deviceId: string, androidId: string) => {
     return handleResponse(response);
 };
 
-
 export const getDevices = async (): Promise<DeviceWithCustomer[]> => {
     const response = await fetchWithRetry(`${API_BASE_URL}/devices`, { headers: getAuthHeaders() });
     return handleResponse(response);
 };
 
 // --- QR CODE PROVISIONING ---
-

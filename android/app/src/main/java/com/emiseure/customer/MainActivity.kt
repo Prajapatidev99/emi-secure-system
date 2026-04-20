@@ -87,6 +87,10 @@ class MainActivity : AppCompatActivity() {
         
         setContentView(binding.root)
 
+        // 🛠️ CHINESE ROM AUTOSTART FIX
+        // Detects Xiaomi/Oppo/Vivo and forces a popup to deep-link to Autostart settings
+        AutoStartHelper.checkAndPromptAutoStart(this)
+
         // 📊 Initialize Crashlytics with device metadata for cross-device crash reporting
         val crashlytics = FirebaseCrashlytics.getInstance()
         crashlytics.setCustomKey("device_model", android.os.Build.MODEL)

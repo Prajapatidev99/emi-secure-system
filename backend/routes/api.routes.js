@@ -4,6 +4,8 @@ const admin = require('firebase-admin');
 const Customer = require('../models/customer.model');
 const { Device, DeviceStatus } = require('../models/device.model');
 const { Payment, PaymentStatus } = require('../models/payment.model');
+const { Transaction, TransactionType } = require('../models/transaction.model');
+const User = require('../models/user.model');
 const { validate, validators } = require('../utils/validators');
 const logger = require('../utils/logger');
 const cache = require('../utils/cache');
@@ -210,6 +212,8 @@ router.get('/customers/:id/payments', async (req, res) => {
 });
 
 // --- Device and Sale Registration ---
+const DEVICE_REGISTRATION_FEE = 200; // ₹200 per device registration
+
 router.post('/devices/register', async (req, res) => {
     try {
         const userId = req.userId; // From auth middleware
@@ -223,6 +227,20 @@ router.post('/devices/register', async (req, res) => {
         }
         if (totalPrice <= downPayment) {
             return res.status(400).json({ message: 'Total price must be greater than the down payment.' });
+        }
+
+        // --- WALLET CHECK ---
+        const shopkeeper = await User.findById(userId).select('walletBalance role');
+        if (!shopkeeper) {
+            return res.status(404).json({ message: 'User account not found.' });
+        }
+        // SuperAdmins bypass the wallet fee
+        if (shopkeeper.role !== 'SuperAdmin' && shopkeeper.walletBalance < DEVICE_REGISTRATION_FEE) {
+            return res.status(402).json({
+                message: `Insufficient wallet balance. You need ₹${DEVICE_REGISTRATION_FEE} to register a device. Your current balance is ₹${shopkeeper.walletBalance}. Please contact your admin to recharge.`,
+                walletBalance: shopkeeper.walletBalance,
+                requiredBalance: DEVICE_REGISTRATION_FEE,
+            });
         }
 
         // SECURITY: Verify customer belongs to this user
@@ -262,6 +280,29 @@ router.post('/devices/register', async (req, res) => {
         }
 
         await Promise.all(paymentPromises);
+
+        // --- DEDUCT WALLET (only for non-SuperAdmin) ---
+        if (shopkeeper.role !== 'SuperAdmin') {
+            const updatedUser = await User.findByIdAndUpdate(
+                userId,
+                { $inc: { walletBalance: -DEVICE_REGISTRATION_FEE } },
+                { new: true }
+            );
+
+            await Transaction.create({
+                shopkeeperId: userId,
+                type: TransactionType.Deduction,
+                amount: DEVICE_REGISTRATION_FEE,
+                balanceAfter: updatedUser.walletBalance,
+                description: `Device registration fee for IMEI: ${imei} (Model: ${model})`,
+            });
+
+            return res.status(201).json({
+                message: 'Device registered and EMI plan created successfully.',
+                device,
+                walletBalance: updatedUser.walletBalance,
+            });
+        }
 
         res.status(201).json({ message: 'Device registered and EMI plan created successfully.', device });
 

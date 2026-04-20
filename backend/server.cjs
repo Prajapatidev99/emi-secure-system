@@ -13,6 +13,7 @@ const cache = require('./utils/cache');
 
 const authRoutes = require('./routes/auth.routes');
 const apiRoutes = require('./routes/api.routes');
+const adminRoutes = require('./routes/admin.routes');
 const publicApiRoutes = require('./routes/public.api.routes');
 const authMiddleware = require('./middleware/auth.middleware');
 const config = require('./config/config');
@@ -83,9 +84,15 @@ const registerLimiter = rateLimit({
 // General API rate limiting
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // 100 requests per window
+    max: 1000, // Increased for dashboard stability
     standardHeaders: true,
     legacyHeaders: false,
+    handler: (req, res) => {
+        res.status(429).json({
+            message: "Too many requests. Please wait a moment before trying again.",
+            error: "Rate Limit Exceeded"
+        });
+    }
 });
 
 // Cron job for payment checks
@@ -121,6 +128,9 @@ app.use('/api/public', apiLimiter, publicApiRoutes);
 
 // 3. Main Dashboard routes - Protected by Authentication with rate limiting
 app.use('/api', apiLimiter, authMiddleware, apiRoutes);
+
+// 4. Admin routes - Protected by Authentication + SuperAdmin role check inside
+app.use('/api/admin', apiLimiter, authMiddleware, adminRoutes);
 
 // Health Check with detailed status
 app.get('/', (req, res) => {
