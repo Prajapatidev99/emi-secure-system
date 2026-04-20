@@ -29,22 +29,45 @@ app.use(helmet({
 }));
 
 // Tighten CORS
-const allowedOrigins = process.env.FRONTEND_URL 
-    ? process.env.FRONTEND_URL.split(',') 
-    : ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174', 'https://emi-secure-system.vercel.app'];
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:5174',
+    'https://emi-secure-system.vercel.app'
+];
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow local dev and specific production Vercel site
-        if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+        // Allow requests with no origin (like mobile apps or curl)
+        if (!origin) return callback(null, true);
+        
+        const isAllowed = allowedOrigins.includes(origin) || 
+                         origin.endsWith('.vercel.app') || 
+                         process.env.NODE_ENV !== 'production';
+
+        if (isAllowed) {
             callback(null, true);
         } else {
             console.warn(`🛑 CORS Blocked Origin: ${origin}`);
-            callback(new Error('Not allowed by CORS'));
+            // Don't throw error to avoid 500/400, just deny origin
+            callback(null, false);
         }
     },
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// NEW: Production Traffic Logger
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const duration = Date.now() - start;
+        console.log(`${req.method} ${req.originalUrl} [${res.statusCode}] - ${duration}ms - ${req.get('origin') || 'no-origin'}`);
+    });
+    next();
+});
 
 app.use(compression()); // Enable gzip compression
 app.use(express.json({ limit: '10mb' }));
