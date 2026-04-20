@@ -113,7 +113,18 @@ const AdminPanelView: React.FC = () => {
           <h1 className="text-2xl font-bold text-white tracking-tight">Admin Control Center</h1>
           <p className="text-slate-400 mt-1">Monitor revenue requests and manage shopkeeper balances.</p>
         </div>
-        <div className="flex bg-slate-800/50 p-1 rounded-xl border border-slate-700/50 w-fit">
+      </div>
+
+      {error && (
+        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 px-4 py-3 rounded-xl text-sm flex items-center gap-3 animate-head-shake">
+          <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {error}
+        </div>
+      )}
+
+      <div className="flex bg-slate-800/50 p-1 rounded-xl border border-slate-700/50 w-fit">
           <button
             onClick={() => setActiveTab('shopkeepers')}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
@@ -138,7 +149,6 @@ const AdminPanelView: React.FC = () => {
             )}
           </button>
         </div>
-      </div>
 
       {activeTab === 'shopkeepers' ? (
         <>
@@ -290,7 +300,7 @@ const AdminPanelView: React.FC = () => {
           <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-md shadow-2xl overflow-hidden">
             <div className="px-8 py-6 border-b border-slate-800">
               <h3 className="text-xl font-bold text-white">Manual Wallet Recharge</h3>
-              <p className="text-sm text-slate-400 mt-1">Increasing balance for {rechargeTarget.shopName}</p>
+              <p className="text-sm text-slate-400 mt-1">Increasing balance for {rechargeTarget?.shopName || 'User'}</p>
             </div>
             <div className="p-8 space-y-6">
               <div className="flex flex-wrap gap-2">
@@ -346,7 +356,7 @@ const AdminPanelView: React.FC = () => {
             <div className="bg-slate-900 border border-slate-700 rounded-3xl w-full max-w-xl shadow-2xl overflow-hidden">
                <div className="px-8 py-6 border-b border-slate-800 bg-slate-800/30">
                   <h3 className="text-xl font-bold text-white">Verify Payment Request</h3>
-                  <p className="text-sm text-slate-400 mt-1">From {approvalTarget.shopkeeperId.shopName}</p>
+                  <p className="text-sm text-slate-400 mt-1">From {approvalTarget?.shopkeeperId?.shopName || 'Shopkeeper'}</p>
                </div>
                <div className="p-8 space-y-6">
                   <div className="grid grid-cols-2 gap-4">
@@ -363,7 +373,7 @@ const AdminPanelView: React.FC = () => {
                   <div className="bg-blue-500/5 border border-blue-500/20 p-4 rounded-2xl">
                      <p className="text-xs text-blue-400 font-bold mb-2">VERIFICATION STEP:</p>
                      <p className="text-sm text-slate-300 leading-relaxed">
-                        Open your bank or UPI app (e.g. HDFC/GPay) and search for a payment of <strong className="text-white">₹{approvalTarget.amount}</strong> with reference/UTR <strong className="text-white">{approvalTarget.transactionId}</strong>. Only approve if it matches exactly.
+                        Open your bank or UPI app (e.g. HDFC/GPay) and search for a payment of <strong className="text-white">₹{approvalTarget?.amount}</strong> with reference/UTR <strong className="text-white">{approvalTarget?.transactionId}</strong>. Only approve if it matches exactly.
                      </p>
                   </div>
 
@@ -381,14 +391,14 @@ const AdminPanelView: React.FC = () => {
                   <button onClick={() => setApprovalTarget(null)} className="flex-1 px-4 py-3 text-sm font-bold text-slate-400 bg-slate-800 hover:bg-slate-750 rounded-xl transition-all">Cancel</button>
                   <div className="flex-[2] flex gap-3">
                      <button
-                        onClick={() => handleRequestApproval(approvalTarget._id, 'Rejected')}
+                        onClick={() => approvalTarget && handleRequestApproval(approvalTarget._id, 'Rejected')}
                         disabled={handling}
                         className="flex-1 px-4 py-3 text-sm font-bold text-rose-400 bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 rounded-xl transition-all"
                      >
                         Reject
                      </button>
                      <button
-                        onClick={() => handleRequestApproval(approvalTarget._id, 'Approved')}
+                        onClick={() => approvalTarget && handleRequestApproval(approvalTarget._id, 'Approved')}
                         disabled={handling}
                         className="flex-1 px-4 py-3 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-xl shadow-lg shadow-emerald-500/20 transition-all font-bold"
                      >

@@ -75,6 +75,15 @@ const WalletView: React.FC<WalletViewProps> = ({ walletBalance }) => {
         <p className="text-slate-400 mt-1">Track your credit balance and add funds via UPI.</p>
       </div>
 
+      {error && (
+        <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 px-4 py-3 rounded-xl text-sm flex items-center gap-3 animate-head-shake">
+          <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* LEFT COLUMN: Balance and Form */}
         <div className="lg:col-span-2 space-y-6">
