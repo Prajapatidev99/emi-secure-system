@@ -30,36 +30,7 @@ app.use(helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" } // Allow fetching APK
 }));
 
-// Tighten CORS
-const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:5174',
-    'http://127.0.0.1:5173',
-    'http://127.0.0.1:5174',
-    'https://emi-secure-system.vercel.app'
-];
-
-app.use(cors({
-    origin: function (origin, callback) {
-        // Allow requests with no origin (like mobile apps or curl)
-        if (!origin) return callback(null, true);
-        
-        const isAllowed = allowedOrigins.includes(origin) || 
-                         origin.endsWith('.vercel.app') || 
-                         process.env.NODE_ENV !== 'production';
-
-        if (isAllowed) {
-            callback(null, true);
-        } else {
-            console.warn(`🛑 CORS Blocked Origin: ${origin}`);
-            // Don't throw error to avoid 500/400, just deny origin
-            callback(null, false);
-        }
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
-}));
+app.use(cors());
 
 // NEW: Production Traffic Logger
 app.use((req, res, next) => {

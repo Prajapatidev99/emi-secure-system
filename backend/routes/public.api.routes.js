@@ -4,6 +4,7 @@ const { Device, DeviceStatus } = require('../models/device.model');
 const { Payment, PaymentStatus } = require('../models/payment.model');
 
 const router = express.Router();
+const logger = require('../utils/logger');
 
 // --- Diagnostic Route to get Server's Public IP ---
 // This is used to help whitelist the correct IP in MongoDB Atlas
