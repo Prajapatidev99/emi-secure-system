@@ -21,6 +21,8 @@ const config = require('./config/config');
 const { Payment, PaymentStatus } = require('./models/payment.model');
 
 const app = express();
+// Ensure Render.com proxy headers are trusted for rate-limiting
+app.set('trust proxy', 1);
 
 // Middleware
 // Set security headers
