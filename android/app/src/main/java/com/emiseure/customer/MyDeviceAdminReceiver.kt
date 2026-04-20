@@ -7,6 +7,8 @@ import android.content.ComponentName
 import android.util.Log
 import android.os.Build
 import android.os.UserManager
+import android.Manifest
+import android.app.admin.DevicePolicyManager
 
 @Suppress("DEPRECATION")
 class MyDeviceAdminReceiver : DeviceAdminReceiver() {
@@ -75,17 +77,23 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
                 // 🔐 Block adding new users (prevents guest bypass)
                 dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_ADD_USER)
                 Log.d(TAG, "✅ DISALLOW_ADD_USER enforced")
-                
-                // 🔐 Block modifying accounts (secures FRP lock)
-                dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
-                Log.d(TAG, "✅ DISALLOW_MODIFY_ACCOUNTS enforced")
 
-                // 🔐 Block USB file transfers (prevents data extraction)
+                // 🔐 DEAD-PORT SECURITY: Kill USB Data signaling (API 31+)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    try {
+                        dpm.setUsbDataSignalingEnabled(false)
+                        Log.i(TAG, "✅ USB Data Signaling DISABLED (Hardware Level)")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "setUsbDataSignalingEnabled failed", e)
+                    }
+                }
+
+                // 🔐 Block USB file transfers (MTP/PTP)
                 try {
                     dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_USB_FILE_TRANSFER)
                     Log.d(TAG, "✅ DISALLOW_USB_FILE_TRANSFER enforced")
                 } catch (e: Exception) {
-                    Log.w(TAG, "DISALLOW_USB_FILE_TRANSFER not available on this API level")
+                    Log.w(TAG, "DISALLOW_USB_FILE_TRANSFER not available")
                 }
 
                 // 🔐 Block OEM unlock via global settings (prevents bootloader unlock → wipe)
@@ -103,7 +111,37 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
                 } catch (e: Exception) {
                     Log.w(TAG, "setUninstallBlocked failed", e)
                 }
+
+                // 🔐 NEW: Enterprise Factory Reset Protection (FRP)
+                // This ensures ONLY your email can unlock the phone after a hard reset
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    try {
+                        val frpPolicy = android.app.admin.FactoryResetProtectionPolicy.Builder()
+                            .setFactoryResetProtectionAccounts(listOf("prajapatidev9974@gmail.com"))
+                            .build()
+                        dpm.setFactoryResetProtectionPolicy(adminComponent, frpPolicy)
+                        Log.i(TAG, "✅ Enterprise FRP Policy Enforced: Master Email Linked")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to set FRP Policy", e)
+                    }
+                }
                 
+                // 🔐 REDMI/MIUI FIX: Force-Grant Location Permissions
+                // This ensures "Allow Always" is set automatically
+                try {
+                    val permissions = arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION,
+                        Manifest.permission.ACCESS_BACKGROUND_LOCATION
+                    )
+                    for (perm in permissions) {
+                        dpm.setPermissionGrantState(adminComponent, context.packageName, perm, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
+                    }
+                    Log.i(TAG, "✅ Location permissions FORCE-GRANTED (Redmi Fix)")
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to force-grant permissions", e)
+                }
+
                 Log.i(TAG, "🛡️ All anti-tampering restrictions applied successfully")
             } else {
                 Log.w(TAG, "⚠️ preventPhysicalTampering: Not device owner — restrictions skipped")

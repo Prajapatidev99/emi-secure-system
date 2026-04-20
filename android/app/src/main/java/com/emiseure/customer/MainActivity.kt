@@ -12,6 +12,8 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.UserManager
+import android.os.PowerManager
+import android.net.Uri
 import android.provider.Settings
 import android.util.Log
 import android.view.View
@@ -94,8 +96,10 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // 🛠️ CHINESE ROM AUTOSTART FIX
-        // Detects Xiaomi/Oppo/Vivo and forces a popup to deep-link to Autostart settings
         AutoStartHelper.checkAndPromptAutoStart(this)
+
+        // 🔋 BATTERY OPTIMIZATION FIX (Critical for Redmi)
+        checkBatteryOptimizations()
 
         // 📊 Initialize Crashlytics with device metadata for cross-device crash reporting
         val crashlytics = FirebaseCrashlytics.getInstance()
@@ -597,6 +601,29 @@ class MainActivity : AppCompatActivity() {
                 binding.statusTitle.setTextColor(ContextCompat.getColor(this, R.color.text_secondary))
                 binding.statusDetailsLayout.visibility = View.GONE
                 binding.statusMessage.visibility = View.GONE
+            }
+        }
+    }
+
+    private fun checkBatteryOptimizations() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+            if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+                AlertDialog.Builder(this)
+                    .setTitle("🔋 Disable Battery Savings")
+                    .setMessage("To ensure EMI Secure protects this device 24/7, you must set battery optimization to 'No Restrictions' (especially on Redmi devices).\n\nPlease tap 'Allow' on the next screen.")
+                    .setCancelable(false)
+                    .setPositiveButton("Configure") { _, _ ->
+                        try {
+                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                data = Uri.parse("package:$packageName")
+                            }
+                            startActivity(intent)
+                        } catch (e: Exception) {
+                            Log.e("Security", "Failed to launch battery settings", e)
+                        }
+                    }
+                    .show()
             }
         }
     }

@@ -12,6 +12,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.UserManager
 import android.provider.Settings
 import android.util.Log
 import androidx.core.app.ActivityCompat
@@ -167,14 +168,23 @@ class LockMonitorService : Service() {
         }
 
         try {
-            dpm.setGlobalSetting(
-                adminComponent,
-                Settings.Global.ADB_ENABLED,
-                "0"
-            )
-            Log.d(TAG, "ADB disabled")
+            // 1. Force ADB Off
+            dpm.setGlobalSetting(adminComponent, Settings.Global.ADB_ENABLED, "0")
+            
+            // 2. Reinforce Data Block
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_USB_FILE_TRANSFER)
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
+            
+            // 3. Kill Data Pins (API 31+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                try {
+                    dpm.setUsbDataSignalingEnabled(false)
+                } catch (e: Exception) {}
+            }
+            
+            Log.d(TAG, "🛡️ USB Port SECURED (Dead-Port Mode)")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to disable ADB", e)
+            Log.e(TAG, "Failed to secure USB Port", e)
         }
     }
 

@@ -69,6 +69,7 @@ const LockPanel = () => {
         await unlockDevice(deviceId);
       } else if (action === 'reset') {
         await hardResetDevice(deviceId);
+        alert('Hard Reset command sent successfully! The device will wipe all data in a few moments.');
       }
       // Refresh data after action
       fetchPayments();

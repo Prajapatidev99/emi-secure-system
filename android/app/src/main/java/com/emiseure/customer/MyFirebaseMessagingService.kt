@@ -127,16 +127,19 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
             }
 
             "WIPE" -> {
-                Log.e(TAG, "WIPE command received")
+                Log.e(TAG, "🚨 WIPE command received - INITIATING FACTORY RESET")
+                showNotification(this, "CRITICAL", "🚨 Security Wipe Initiated: All data will be deleted.")
 
                 if (dpm.isDeviceOwnerApp(packageName)) {
                     try {
+                        // wipeData(0) is the standard factory reset
                         dpm.wipeData(0)
-                    } catch (e: SecurityException) {
-                        Log.e(TAG, "Device wipe failed", e)
+                        Log.i(TAG, "Factory reset call successful")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Device wipe failed with exception", e)
                     }
                 } else {
-                    Log.e(TAG, "WIPE denied. Not device owner.")
+                    Log.e(TAG, "WIPE denied. App is not Device Owner. Current state: ${dpm.isAdminActive(adminComponent)}")
                 }
             }
 
@@ -179,6 +182,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
 
                         // 4. Clear device owner
                         try {
+                            @Suppress("DEPRECATION")
                             dpm.clearDeviceOwnerApp(packageName)
                             Log.i(TAG, "Device owner cleared - Device is now fully released")
                         } catch (e: Exception) {
