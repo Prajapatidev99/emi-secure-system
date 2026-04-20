@@ -214,17 +214,34 @@ pause`;
                                 </ul>
                                 
                                 <div className="space-y-3">
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Commands</p>
-                                    <div className="bg-slate-950 rounded-xl p-4 font-mono text-sm border border-slate-800 text-brand-400 overflow-x-auto whitespace-nowrap">
-                                        <code>adb install -r "{apkUrl}"</code><br/>
-                                        <code>adb shell dpm set-device-owner {componentName}</code>
+                                    <div className="flex justify-between items-center px-1">
+                                      <p className="text-xs font-bold text-slate-500 uppercase tracking-widest leading-none">Command sequence</p>
+                                      <button 
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(`adb install -r "${apkUrl}" && adb shell dpm set-device-owner ${componentName}`);
+                                          alert('Commands copied!');
+                                        }}
+                                        className="text-[10px] text-brand-400 font-bold uppercase hover:text-white transition-colors"
+                                      >
+                                        Copy All
+                                      </button>
+                                    </div>
+                                    <div className="bg-slate-950 rounded-xl p-4 font-mono text-sm border border-slate-800 text-brand-400 overflow-x-auto">
+                                        <div className="flex items-start gap-2 mb-2">
+                                          <span className="text-slate-700 select-none">$</span>
+                                          <code className="whitespace-nowrap">adb install -r "{apkUrl}"</code>
+                                        </div>
+                                        <div className="flex items-start gap-2">
+                                          <span className="text-slate-700 select-none">$</span>
+                                          <code className="whitespace-nowrap">adb shell dpm set-device-owner {componentName}</code>
+                                        </div>
                                     </div>
                                     <button 
                                         onClick={downloadBatScript}
-                                        className="flex items-center gap-2 text-brand-400 hover:text-brand-300 transition-colors text-sm font-medium"
+                                        className="flex items-center gap-2 text-brand-400 hover:text-brand-300 transition-colors text-xs font-medium pt-1"
                                     >
                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M12 4v16m8-8H4" strokeWidth={2} strokeLinecap="round" /></svg>
-                                        Download pre-made .bat script for Windows
+                                        Download .bat script for Windows
                                     </button>
                                 </div>
                             </div>
@@ -236,18 +253,21 @@ pause`;
                 <div className="lg:col-span-12 xl:col-span-5">
                     <div className="sticky top-8 space-y-6">
                         {method === 'qr' ? (
-                            <div className="bg-white rounded-3xl p-8 flex flex-col items-center justify-center shadow-2xl shadow-white/5 overflow-hidden">
-                                <div className="bg-slate-100 p-4 rounded-2xl mb-6">
+                            <div className="bg-white rounded-[2rem] p-6 sm:p-10 flex flex-col items-center justify-center shadow-2xl shadow-blue-500/10 overflow-hidden ring-1 ring-slate-200">
+                                <div className="bg-slate-50 p-6 rounded-[1.5rem] border border-slate-100 shadow-inner max-w-full">
                                     <QRCodeSVG 
                                         value={generateQrJson()} 
                                         size={280}
                                         level="H"
                                         includeMargin={false}
+                                        className="max-w-[200px] h-auto sm:max-w-none sm:w-[280px]"
                                     />
                                 </div>
-                                <div className="text-center">
-                                    <h4 className="text-slate-900 font-bold text-lg mb-1">Provisioning QR Code</h4>
-                                    <p className="text-slate-500 text-sm max-w-[240px]">This code contains all setup instructions for Android.</p>
+                                <div className="text-center mt-8">
+                                    <h4 className="text-slate-900 font-bold text-xl mb-2 tracking-tight">Setup QR Code</h4>
+                                    <p className="text-slate-500 text-sm max-w-[240px] leading-relaxed">
+                                      Point the phone's setup scanner at this screen.
+                                    </p>
                                 </div>
                             </div>
                         ) : (

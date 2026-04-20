@@ -392,63 +392,81 @@ const LockPanel = () => {
         <div className="md:hidden space-y-4">
           {initialLoading ? (
             [...Array(3)].map((_, index) => (
-              <div key={index} className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 animate-pulse">
-                <div className="h-4 w-32 bg-slate-700 rounded mb-4"></div>
-                <div className="h-4 w-full bg-slate-700 rounded mb-2"></div>
-                <div className="h-4 w-2/3 bg-slate-700 rounded"></div>
+              <div key={index} className="bg-slate-800/50 p-6 rounded-2xl border border-slate-700 animate-pulse">
+                <div className="flex justify-between mb-4">
+                  <div className="h-4 w-32 bg-slate-700 rounded"></div>
+                  <div className="h-6 w-16 bg-slate-700 rounded-full"></div>
+                </div>
+                <div className="h-3 w-full bg-slate-700 rounded mb-2 opacity-50"></div>
+                <div className="h-3 w-2/3 bg-slate-700 rounded opacity-50"></div>
               </div>
             ))
           ) : filteredPayments.length > 0 ? (
             filteredPayments.map((payment) => (
-              <div key={payment.id} className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden shadow-lg">
-                <div className="p-4 border-b border-slate-700 flex justify-between items-start bg-slate-800/30">
+              <div key={payment.id} className={`bg-slate-800/40 rounded-2xl border ${payment.status === 'Overdue' ? 'border-amber-500/30' : 'border-slate-700/50'} overflow-hidden shadow-xl active:scale-[0.98] transition-all duration-200`}>
+                <div className={`p-5 border-b ${payment.status === 'Overdue' ? 'border-amber-500/10 bg-amber-500/5' : 'border-slate-700 bg-slate-800/30'} flex justify-between items-start`}>
                   <div>
-                    <h4 className="text-white font-bold">{payment.customerName}</h4>
-                    <p className="text-xs text-slate-400">{payment.deviceModel}</p>
+                    <h4 className="text-white font-bold tracking-tight">{payment.customerName}</h4>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">{payment.deviceModel}</p>
                   </div>
                   <StatusBadge status={payment.status} />
                 </div>
                 
-                <div className="p-4 space-y-3">
-                   <div className="flex justify-between text-xs">
-                      <span className="text-slate-500 uppercase font-semibold">Installment Due</span>
-                      <span className="text-white">₹{payment.amount.toLocaleString()} on {new Date(payment.dueDate).toLocaleDateString()}</span>
+                <div className="p-5 space-y-4">
+                   <div className="bg-slate-900/40 rounded-xl p-3 border border-slate-700/30">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[9px] text-slate-500 uppercase font-bold tracking-widest">Installment Due</span>
+                        <span className="text-white font-mono text-sm">₹{payment.amount.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[9px] text-slate-500 uppercase font-bold tracking-widest">Date</span>
+                        <span className="text-slate-300 text-xs">{new Date(payment.dueDate).toLocaleDateString()}</span>
+                      </div>
                    </div>
                    
-                   <div className="flex justify-between text-xs">
-                      <span className="text-slate-500 uppercase font-semibold">IMEI</span>
-                      <span className="text-slate-300 font-mono">{payment.deviceImei}</span>
+                   <div className="flex justify-between items-center px-1">
+                      <span className="text-[9px] text-slate-500 uppercase font-bold tracking-widest leading-none">Security ID</span>
+                      <span className="text-slate-400 font-mono text-xs tracking-tighter">{payment.deviceImei}</span>
                    </div>
 
                    {payment.simDetails?.slot1 && (
-                      <div className="flex justify-between text-[10px] bg-brand-500/5 p-2 rounded border border-brand-500/10">
-                         <span className="text-brand-400 opacity-80 uppercase font-bold">Active SIM</span>
-                         <span className="text-brand-300 text-right">{payment.simDetails.slot1.operator} <br/> {payment.simDetails.slot1.phoneNumber}</span>
+                      <div className="flex justify-between items-center bg-brand-500/5 p-3 rounded-xl border border-brand-500/10 transition-all group hover:bg-brand-500/10">
+                         <div>
+                            <p className="text-[8px] text-brand-400 font-bold uppercase tracking-[0.2em] mb-1">Active SIM</p>
+                            <p className="text-xs text-white font-semibold">{payment.simDetails.slot1.operator}</p>
+                         </div>
+                         <p className="text-[10px] text-brand-300 font-bold font-mono py-1 px-2 bg-brand-500/10 rounded-lg">{payment.simDetails.slot1.phoneNumber}</p>
                       </div>
                    )}
 
-                   <div className="pt-2 flex flex-col gap-3">
+                   <div className="pt-2 flex flex-col gap-4">
                       <div className="flex gap-2 justify-center">
                         {renderDeviceActions(payment)}
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-3">
                         <Button
                            onClick={() => handleSendReminder(payment.id)}
                            variant="secondary"
                            size="sm"
                            disabled={reminderLoading[payment.id]}
-                           className={`w-full ${payment.status === 'Overdue' ? 'border-amber-500 text-amber-500' : ''}`}
+                           className={`w-full py-3 h-auto ${payment.status === 'Overdue' ? 'border-amber-500 text-amber-500 bg-amber-500/5' : ''}`}
                         >
-                           <BellIcon className="w-4 h-4 mr-1" /> {reminderLoading[payment.id] ? '...' : (payment.status === 'Overdue' ? 'Warning' : 'Remind')}
+                           <BellIcon className="w-4 h-4 mr-2" /> 
+                           <span className="text-[10px] font-bold uppercase tracking-widest">
+                             {reminderLoading[payment.id] ? '...' : (payment.status === 'Overdue' ? 'Warn' : 'Remind')}
+                           </span>
                         </Button>
                         <Button
                            onClick={() => handleMarkAsPaid(payment.id)}
                            variant="success"
                            size="sm"
-                           className="w-full"
+                           className="w-full py-3 h-auto shadow-lg shadow-emerald-500/10"
                            disabled={paymentLoading[payment.id]}
                         >
-                           <CheckCircleIcon className="w-4 h-4 mr-1" /> {paymentLoading[payment.id] ? '...' : 'Paid'}
+                           <CheckCircleIcon className="w-4 h-4 mr-2" />
+                           <span className="text-[10px] font-bold uppercase tracking-widest">
+                             {paymentLoading[payment.id] ? '...' : 'Paid'}
+                           </span>
                         </Button>
                       </div>
                    </div>
