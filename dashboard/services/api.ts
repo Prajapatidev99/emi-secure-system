@@ -89,7 +89,6 @@ const handleResponse = async (response: Response) => {
                 if (errorJson.error) errorMessage += ` (${errorJson.error})`;
             }
         } catch (e) {
-            console.error("Received non-JSON error response:", responseBody);
             errorMessage = `An unexpected network error occurred (Status: ${response.status}).`;
         }
         throw new Error(getUserFriendlyError(new Error(errorMessage)));
@@ -98,7 +97,6 @@ const handleResponse = async (response: Response) => {
     try {
         return JSON.parse(responseBody);
     } catch (e) {
-        console.error("Failed to parse successful response as JSON:", responseBody);
         throw new Error("Received a malformed response from the server.");
     }
 };
@@ -190,6 +188,14 @@ export const getDashboardStats = async () => {
 
 export const getPendingPayments = async (): Promise<EmiPayment[]> => {
     const response = await fetchWithRetry(`${API_BASE_URL}/payments/pending`, { headers: getAuthHeaders() });
+    return handleResponse(response);
+};
+
+export const sendReminder = async (paymentId: string) => {
+    const response = await fetchWithRetry(`${API_BASE_URL}/payments/${paymentId}/remind`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+    });
     return handleResponse(response);
 };
 

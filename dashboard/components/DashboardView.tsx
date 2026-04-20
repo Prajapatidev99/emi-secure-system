@@ -1,10 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import { getDashboardStats, getPendingPayments, lockDevice, unlockDevice, markPaymentAsPaid, hardResetDevice, getOfflineUnlockKey } from '../services/api';
+import { getDashboardStats, getPendingPayments, lockDevice, unlockDevice, markPaymentAsPaid, hardResetDevice, getOfflineUnlockKey, sendReminder } from '../services/api';
 import { EmiPayment, DeviceStatus } from '../types';
 import Card from './common/Card';
 import StatusBadge from './common/StatusBadge';
 import Button from './common/Button';
-import { LockClosedIcon, LockOpenIcon, CheckCircleIcon, ExclamationTriangleIcon, KeyIcon } from './icons';
+import { LockClosedIcon, LockOpenIcon, CheckCircleIcon, ExclamationTriangleIcon, KeyIcon, BellIcon, MagnifyingGlassIcon } from './icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Skeleton from './common/Skeleton';
 import Spinner from './common/Spinner';
@@ -22,6 +22,7 @@ const LockPanel = () => {
   const [payments, setPayments] = useState<EmiPayment[]>([]);
   const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
   const [paymentLoading, setPaymentLoading] = useState<Record<string, boolean>>({});
+  const [reminderLoading, setReminderLoading] = useState<Record<string, boolean>>({});
   const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -160,6 +161,25 @@ const LockPanel = () => {
     }
   };
 
+  const handleSendReminder = async (paymentId: string) => {
+    setReminderLoading(prev => ({ ...prev, [paymentId]: true }));
+    try {
+      await sendReminder(paymentId);
+      alert('Reminder sent successfully!');
+    } catch (err) {
+      console.error(`Failed to send reminder`, err);
+       if (err instanceof Error) {
+        if (err.message.includes('has no FCM token')) {
+          alert('Failed to send reminder: This customer has not installed or opened the app yet. They must open the app once to receive notifications.');
+        } else {
+          alert(`Error: ${err.message}`);
+        }
+      }
+    } finally {
+      setReminderLoading(prev => ({ ...prev, [paymentId]: false }));
+    }
+  };
+
   const handleShowOfflineKey = async (deviceId: string) => {
     setOfflineKeyModalOpen(true);
     setOfflineKeyLoading(true);
@@ -181,7 +201,9 @@ const LockPanel = () => {
   const filteredPayments = payments.filter(payment =>
     payment.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     payment.deviceModel.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    payment.deviceImei.toLowerCase().includes(searchTerm.toLowerCase())
+    payment.deviceImei.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    payment.simDetails?.slot1?.phoneNumber?.includes(searchTerm) ||
+    payment.simDetails?.slot2?.phoneNumber?.includes(searchTerm)
   );
   
   const getConfirmText = () => {
@@ -249,19 +271,24 @@ const LockPanel = () => {
       <Card>
         <h3 className="text-xl font-semibold mb-4 text-white">Pending Payments & Device Control</h3>
         
-        <div className="mb-4">
+        <div className="mb-4 relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <MagnifyingGlassIcon className="h-5 w-5 text-slate-500" />
+          </div>
           <input
             type="text"
-            placeholder="Search by customer, device model, or IMEI..."
+            placeholder="Search by customer, device model, IMEI, or Phone Number..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full px-3 py-2 border border-slate-700 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 bg-slate-800 placeholder-slate-400"
+            className="w-full pl-10 pr-3 py-2 border border-slate-700 rounded-md shadow-sm focus:outline-none focus:ring-brand-500 focus:border-brand-500 bg-slate-800 placeholder-slate-400 text-slate-200"
             aria-label="Search pending payments"
           />
         </div>
 
         {error && <p className="text-rose-400 text-center py-2">Error: {error}. Is the backend server running?</p>}
-        <div className="overflow-x-auto">
+
+        {/* DESKTOP TABLE VIEW */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="min-w-full divide-y divide-slate-700">
             <thead className="bg-slate-800">
               <tr>
@@ -270,8 +297,7 @@ const LockPanel = () => {
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Due Date</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Payment Status</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Device Status</th>
-                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">Device Actions</th>
-                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">Record Payment</th>
+                <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-slate-400 uppercase tracking-wider">Actions & Payments</th>
               </tr>
             </thead>
             <tbody className="bg-slate-900 divide-y divide-slate-800">
@@ -283,40 +309,156 @@ const LockPanel = () => {
                           <td className="px-6 py-4"><Skeleton className="h-4 w-20" /></td>
                           <td className="px-6 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
                           <td className="px-6 py-4"><Skeleton className="h-6 w-20 rounded-full" /></td>
-                          <td className="px-6 py-4 text-center"><Skeleton className="h-8 w-24 mx-auto" /></td>
-                          <td className="px-6 py-4 text-center"><Skeleton className="h-8 w-24 mx-auto" /></td>
+                          <td className="px-6 py-4 text-center"><Skeleton className="h-8 w-40 mx-auto" /></td>
                       </tr>
                   ))
               ) : filteredPayments.length > 0 ? filteredPayments.map((payment) => (
                 <tr key={payment.id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{payment.customerName}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{payment.deviceModel} ({payment.deviceImei})</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
+                    <div className="font-medium text-slate-200">{payment.deviceModel}</div>
+                    <div className="text-xs">IMEI1: {payment.deviceImei}</div>
+                    {payment.deviceImei2 && <div className="text-xs">IMEI2: {payment.deviceImei2}</div>}
+                    {payment.simDetails && (
+                      <div className="mt-1 flex flex-col gap-0.5 border-t border-slate-800 pt-1">
+                        {payment.simDetails.slot1 && (
+                          <div className="text-[10px] text-brand-400 leading-tight">
+                            Slot 1: {payment.simDetails.slot1.operator} {payment.simDetails.slot1.phoneNumber && `(${payment.simDetails.slot1.phoneNumber})`}
+                          </div>
+                        )}
+                        {payment.simDetails.slot2 && (
+                          <div className="text-[10px] text-brand-400 leading-tight">
+                            Slot 2: {payment.simDetails.slot2.operator} {payment.simDetails.slot2.phoneNumber && `(${payment.simDetails.slot2.phoneNumber})`}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{new Date(payment.dueDate).toLocaleDateString()}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm"><StatusBadge status={payment.status} /></td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm"><StatusBadge status={payment.deviceStatus} /></td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
-                     {renderDeviceActions(payment)}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <StatusBadge status={payment.status} />
+                    {(payment.totalOverdueCount ?? 0) > 1 && (
+                      <div className="text-[10px] text-rose-400 mt-1 font-bold">
+                        +{payment.totalOverdueCount! - 1} more overdue
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <StatusBadge status={payment.deviceStatus} />
+                    {payment.metadata && !payment.metadata.isDeviceOwner && payment.deviceStatus !== 'Released' && (
+                      <div className="flex items-center gap-1 text-[10px] text-rose-400 mt-1 font-bold animate-pulse">
+                        <ExclamationTriangleIcon className="w-3 h-3" /> NOT SECURED
+                      </div>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                     <Button
-                        onClick={() => handleMarkAsPaid(payment.id)}
-                        variant="success"
-                        size="sm"
-                        disabled={paymentLoading[payment.id]}
-                      >
-                        <CheckCircleIcon /> {paymentLoading[payment.id] ? 'Saving...' : 'Mark as Paid'}
-                      </Button>
+                     <div className="flex flex-col gap-2 items-center">
+                        <div className="flex gap-2">
+                           {renderDeviceActions(payment)}
+                        </div>
+                        <div className="flex gap-2">
+                           <Button
+                              onClick={() => handleSendReminder(payment.id)}
+                              variant="secondary"
+                              size="sm"
+                              disabled={reminderLoading[payment.id]}
+                              className={payment.status === 'Overdue' ? 'border-amber-500 text-amber-500 hover:bg-amber-500/10' : ''}
+                           >
+                              <BellIcon className="w-4 h-4" /> {reminderLoading[payment.id] ? '...' : (payment.status === 'Overdue' ? 'Warning' : 'Remind')}
+                           </Button>
+                           <Button
+                              onClick={() => handleMarkAsPaid(payment.id)}
+                              variant="success"
+                              size="sm"
+                              disabled={paymentLoading[payment.id]}
+                           >
+                              <CheckCircleIcon className="w-4 h-4" /> {paymentLoading[payment.id] ? '...' : 'Paid'}
+                           </Button>
+                        </div>
+                     </div>
                   </td>
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={8} className="text-center py-4 text-slate-400">
-                    No pending or overdue payments found.
-                  </td>
+                  <td colSpan={6} className="px-6 py-10 text-center text-slate-500 italic font-medium">No pending payments found matching your search.</td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* MOBILE CARD VIEW */}
+        <div className="md:hidden space-y-4">
+          {initialLoading ? (
+            [...Array(3)].map((_, index) => (
+              <div key={index} className="bg-slate-800/50 p-4 rounded-xl border border-slate-700 animate-pulse">
+                <div className="h-4 w-32 bg-slate-700 rounded mb-4"></div>
+                <div className="h-4 w-full bg-slate-700 rounded mb-2"></div>
+                <div className="h-4 w-2/3 bg-slate-700 rounded"></div>
+              </div>
+            ))
+          ) : filteredPayments.length > 0 ? (
+            filteredPayments.map((payment) => (
+              <div key={payment.id} className="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden shadow-lg">
+                <div className="p-4 border-b border-slate-700 flex justify-between items-start bg-slate-800/30">
+                  <div>
+                    <h4 className="text-white font-bold">{payment.customerName}</h4>
+                    <p className="text-xs text-slate-400">{payment.deviceModel}</p>
+                  </div>
+                  <StatusBadge status={payment.status} />
+                </div>
+                
+                <div className="p-4 space-y-3">
+                   <div className="flex justify-between text-xs">
+                      <span className="text-slate-500 uppercase font-semibold">Installment Due</span>
+                      <span className="text-white">₹{payment.amount.toLocaleString()} on {new Date(payment.dueDate).toLocaleDateString()}</span>
+                   </div>
+                   
+                   <div className="flex justify-between text-xs">
+                      <span className="text-slate-500 uppercase font-semibold">IMEI</span>
+                      <span className="text-slate-300 font-mono">{payment.deviceImei}</span>
+                   </div>
+
+                   {payment.simDetails?.slot1 && (
+                      <div className="flex justify-between text-[10px] bg-brand-500/5 p-2 rounded border border-brand-500/10">
+                         <span className="text-brand-400 opacity-80 uppercase font-bold">Active SIM</span>
+                         <span className="text-brand-300 text-right">{payment.simDetails.slot1.operator} <br/> {payment.simDetails.slot1.phoneNumber}</span>
+                      </div>
+                   )}
+
+                   <div className="pt-2 flex flex-col gap-3">
+                      <div className="flex gap-2 justify-center">
+                        {renderDeviceActions(payment)}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                           onClick={() => handleSendReminder(payment.id)}
+                           variant="secondary"
+                           size="sm"
+                           disabled={reminderLoading[payment.id]}
+                           className={`w-full ${payment.status === 'Overdue' ? 'border-amber-500 text-amber-500' : ''}`}
+                        >
+                           <BellIcon className="w-4 h-4 mr-1" /> {reminderLoading[payment.id] ? '...' : (payment.status === 'Overdue' ? 'Warning' : 'Remind')}
+                        </Button>
+                        <Button
+                           onClick={() => handleMarkAsPaid(payment.id)}
+                           variant="success"
+                           size="sm"
+                           className="w-full"
+                           disabled={paymentLoading[payment.id]}
+                        >
+                           <CheckCircleIcon className="w-4 h-4 mr-1" /> {paymentLoading[payment.id] ? '...' : 'Paid'}
+                        </Button>
+                      </div>
+                   </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="py-10 text-center text-slate-500 italic bg-slate-900/50 rounded-xl border border-slate-800 border-dashed">
+              No pending payments found matching your search.
+            </div>
+          )}
         </div>
       </Card>
       {confirmationDetails && (

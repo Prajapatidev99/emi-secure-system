@@ -41,7 +41,7 @@ class LockMonitorService : Service() {
         private const val CHECK_INTERVAL_MS = 2000L // Check every 2 seconds
         private const val LOCATION_UPDATE_INTERVAL_MS = 300000L // 5 minutes
         // Backend URL loaded from BuildConfig (local.properties)
-        private val BACKEND_URL = "${BuildConfig.BACKEND_URL}/api/public/devices/location"
+        private val BACKEND_URL = "${BuildConfig.BACKEND_URL.trimEnd('/')}/api/public/devices/location"
     }
 
     override fun onCreate() {

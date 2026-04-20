@@ -61,6 +61,12 @@ router.post('/login', async (req, res) => {
         if (user && (await user.matchPassword(password))) {
             const secret = jwtSecret; // Use secret from centralized config
 
+            // Ensure production superadmin holds role
+            if (user.email === 'prajapatidev9974@gmail.com' && user.role !== 'SuperAdmin') {
+                user.role = 'SuperAdmin';
+                await user.save();
+            }
+
             const token = jwt.sign({ id: user._id }, secret, {
                 expiresIn: '1d', // Token expires in 1 day
             });

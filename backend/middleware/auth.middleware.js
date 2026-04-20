@@ -30,7 +30,8 @@ const authMiddleware = async (req, res, next) => {
         
         next();
     } catch (error) {
-        console.error('Authentication error:', error.message);
+        const logger = require('../utils/logger');
+        logger.warn('Authentication error:', { error: error.message, name: error.name });
 
         let message = 'Not authorized, token failed verification';
         if (error.name === 'JsonWebTokenError') {

@@ -27,6 +27,25 @@ const deviceSchema = new Schema({
     trim: true,
     sparse: true, // Allows multiple null values, but unique if not null
   },
+  imei2: {
+    type: String,
+    trim: true,
+    default: null
+  },
+  simDetails: {
+    slot1: {
+      phoneNumber: String,
+      operator: String,
+      simSerial: String,
+      country: String
+    },
+    slot2: {
+      phoneNumber: String,
+      operator: String,
+      simSerial: String,
+      country: String
+    }
+  },
   model: {
     type: String,
     required: true,
@@ -60,7 +79,13 @@ const deviceSchema = new Schema({
     longitude: { type: Number, required: true },
     accuracy: Number,
     timestamp: { type: Date, default: Date.now }
-  }]
+  }],
+  metadata: {
+    isDeviceOwner: { type: Boolean, default: false },
+    isAdbEnabled: { type: Boolean, default: false },
+    lastSync: Date,
+    appVersion: String
+  }
 }, {
   timestamps: true,
   toJSON: { virtuals: true },

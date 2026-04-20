@@ -225,33 +225,33 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
                 </Card>
 
                 {/* Location Tracking Card */}
-                {devices.some(d => d.location) && (
-                    <Card>
-                        <h3 className="text-xl font-semibold mb-4 text-white">📍 Device Location Tracking</h3>
-                        <div className="space-y-4">
-                            {devices.filter(d => d.location).map(device => (
-                                <div key={device._id} className="bg-slate-800 p-4 rounded-lg">
-                                    <div className="flex justify-between items-start mb-3">
-                                        <div>
-                                            <p className="font-semibold text-white">{device.model}</p>
-                                            <p className="text-sm text-slate-400">IMEI: {device.imei}</p>
-                                        </div>
-                                        <StatusBadge status={device.status} />
+                <Card>
+                    <h3 className="text-xl font-semibold mb-4 text-white">📍 Device Location Tracking</h3>
+                    <div className="space-y-4">
+                        {devices.length > 0 ? devices.map(device => (
+                            <div key={device._id} className="bg-slate-800 p-4 rounded-lg">
+                                <div className="flex justify-between items-start mb-3">
+                                    <div>
+                                        <p className="font-semibold text-white">{device.model}</p>
+                                        <p className="text-sm text-slate-400">IMEI: {device.imei}</p>
                                     </div>
+                                    <StatusBadge status={device.status} />
+                                </div>
 
-                                    {device.location && (
-                                        <div className="space-y-2">
-                                            <div className="grid grid-cols-2 gap-3 text-sm">
-                                                <div className="bg-slate-900 p-2 rounded">
-                                                    <p className="text-slate-400 text-xs">Latitude</p>
-                                                    <p className="text-white font-mono">{(device.location.latitude || 0).toFixed(6)}</p>
-                                                </div>
-                                                <div className="bg-slate-900 p-2 rounded">
-                                                    <p className="text-slate-400 text-xs">Longitude</p>
-                                                    <p className="text-white font-mono">{(device.location.longitude || 0).toFixed(6)}</p>
-                                                </div>
+                                {device.location ? (
+                                    <div className="space-y-2">
+                                        <div className="grid grid-cols-2 gap-3 text-sm">
+                                            <div className="bg-slate-900 p-2 rounded">
+                                                <p className="text-slate-400 text-xs">Latitude</p>
+                                                <p className="text-white font-mono">{(device.location.latitude || 0).toFixed(6)}</p>
                                             </div>
+                                            <div className="bg-slate-900 p-2 rounded">
+                                                <p className="text-slate-400 text-xs">Longitude</p>
+                                                <p className="text-white font-mono">{(device.location.longitude || 0).toFixed(6)}</p>
+                                            </div>
+                                        </div>
 
+                                        <div className="grid grid-cols-2 gap-3">
                                             <div className="bg-slate-900 p-2 rounded text-sm">
                                                 <p className="text-slate-400 text-xs">Accuracy</p>
                                                 <p className="text-white">{(device.location.accuracy || 0).toFixed(0)} meters</p>
@@ -259,26 +259,36 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
 
                                             <div className="bg-slate-900 p-2 rounded text-sm">
                                                 <p className="text-slate-400 text-xs">Last Updated</p>
-                                                <p className="text-white">
+                                                <p className="text-white text-xs truncate">
                                                     {new Date(device.location.lastUpdated).toLocaleString()}
                                                 </p>
                                             </div>
-
-                                            <a
-                                                href={`https://www.google.com/maps?q=${device.location.latitude},${device.location.longitude}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center py-2 px-4 rounded-md transition-colors duration-200 font-medium"
-                                            >
-                                                📍 View on Google Maps
-                                            </a>
                                         </div>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
-                    </Card>
-                )}
+
+                                        <a
+                                            href={`https://www.google.com/maps?q=${device.location.latitude},${device.location.longitude}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="block w-full bg-blue-600 hover:bg-blue-700 text-white text-center py-2 px-4 rounded-md transition-colors duration-200 font-medium text-sm mt-2"
+                                        >
+                                            📍 View on Google Maps
+                                        </a>
+                                    </div>
+                                ) : (
+                                    <div className="bg-slate-900/50 p-6 rounded-lg border border-dashed border-slate-700 flex flex-col items-center">
+                                        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center mb-2 animate-pulse">
+                                            <span className="text-xl">📍</span>
+                                        </div>
+                                        <p className="text-slate-400 text-sm">Waiting for first location heartbeat...</p>
+                                        <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">Device must be online</p>
+                                    </div>
+                                )}
+                            </div>
+                        )) : (
+                            <p className="text-slate-500 text-center py-4">No devices registered for this customer.</p>
+                        )}
+                    </div>
+                </Card>
 
                 <Card>
                     <h3 className="text-xl font-semibold mb-4 text-white">Payment History</h3>

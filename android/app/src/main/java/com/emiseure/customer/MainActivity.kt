@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.DialogInterface
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -15,6 +16,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import android.app.AlertDialog
 import androidx.core.content.ContextCompat
 import com.android.volley.Request
 import com.android.volley.toolbox.JsonObjectRequest
@@ -24,10 +26,14 @@ import com.emiseure.customer.databinding.ActivityMainBinding
 import com.google.android.gms.tasks.OnCompleteListener
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.messaging.FirebaseMessaging
+import com.emiseure.customer.utils.SimInfoManager
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
 
 class MainActivity : AppCompatActivity() {
 
@@ -118,8 +124,91 @@ class MainActivity : AppCompatActivity() {
         registerForPushNotifications(androidId)
         fetchDeviceStatus(androidId)
 
+        // 📱 PERMISSIONS: Request all required permissions (Telephony, Location, Notifications)
+        requestRequiredPermissions()
+
         binding.retryButton.setOnClickListener {
             fetchDeviceStatus(androidId)
+        }
+    }
+
+    private fun requestRequiredPermissions() {
+        val permissions = mutableListOf(
+            Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.READ_PHONE_NUMBERS,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+
+        // Android 13+ Notification Permission
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        val missingPermissions = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+
+        if (missingPermissions.isNotEmpty()) {
+            ActivityCompat.requestPermissions(this, missingPermissions.toTypedArray(), 102)
+        } else {
+            // All foreground permissions granted, check background location
+            requestBackgroundLocationPermission()
+        }
+    }
+
+    private fun requestBackgroundLocationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_BACKGROUND_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                // Show a brief explanation or just request
+                AlertDialog.Builder(this)
+                    .setTitle("Background Location Required")
+                    .setMessage("To track the device if it's lost or stolen, please select 'Allow all the time' in the next screen.")
+                    .setPositiveButton("Configure") { _, _ ->
+                        ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION), 103)
+                    }
+                    .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
+                    .show()
+            } else {
+                startSecurityServices()
+            }
+        } else {
+            startSecurityServices()
+        }
+    }
+
+    private fun startSecurityServices() {
+        // Start LockMonitorService to begin location tracking and security enforcement
+        try {
+            val serviceIntent = Intent(this, LockMonitorService::class.java).apply {
+                action = "START_MONITORING"
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+            Log.d("MainActivity", "🔒 LockMonitorService started for security & location")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to start LockMonitorService", e)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            102 -> {
+                // Foreground permissions complete
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    syncMetadataWithServer(getAndroidId(), currentFcmToken)
+                }
+                // Now check for background location
+                requestBackgroundLocationPermission()
+            }
+            103 -> {
+                // Background location result
+                startSecurityServices()
+            }
         }
     }
 
@@ -250,17 +339,22 @@ class MainActivity : AppCompatActivity() {
                 }
                 val token = task.result
                 currentFcmToken = token // Cache it
-                sendFcmTokenToServer(androidId, token)
+                syncMetadataWithServer(androidId, token)
             })
     }
 
-    private fun sendFcmTokenToServer(androidId: String, token: String) {
+    private fun syncMetadataWithServer(androidId: String, token: String?) {
         val queue = Volley.newRequestQueue(this)
-        val url = "${BuildConfig.BACKEND_URL}/api/public/devices/fcm-update"
+        val url = "${BuildConfig.BACKEND_URL}/api/public/devices/sync-metadata"
 
+        val simManager = SimInfoManager(this)
         val body = JSONObject().apply {
             put("androidId", androidId)
-            put("fcmToken", token)
+            if (token != null) put("fcmToken", token)
+            
+            // Collect SIM and Hardware Details
+            put("imei2", simManager.getImei2())
+            put("simDetails", simManager.getFullSimDetails())
         }
 
         queue.add(
@@ -268,8 +362,8 @@ class MainActivity : AppCompatActivity() {
                 Request.Method.POST,
                 url,
                 body,
-                { Log.d("FCM", "Token synced") },
-                { Log.e("FCM", "Token sync failed", it) }
+                { Log.d("Metadata", "Device metadata synced to server") },
+                { Log.e("Metadata", "Metadata sync failed", it) }
             )
         )
     }
@@ -303,13 +397,9 @@ class MainActivity : AppCompatActivity() {
                     binding.syncStatusTextView.text =
                         getString(R.string.sync_status_success, time)
                     
-                    // ✅ Self-Healing: Resend FCM token if we have one (in case device was just linked)
-                    currentFcmToken?.let { token ->
-                        sendFcmTokenToServer(androidId, token)
-                        // Clear it so we don't spam updates? No, idempotent updates are fine/safer.
-                        // But maybe log it.
-                        Log.d("FCM", "Resyncing FCM token after status fetch")
-                    }
+                    // ✅ Self-Healing: Resync full metadata if we have a status (ensures server is up to date)
+                    syncMetadataWithServer(androidId, currentFcmToken)
+                    Log.d("Metadata", "Full metadata resync after status fetch")
 
                     // ✅ SAFE PARSING (NO Nothing?)
                     val unlockKey: String? =

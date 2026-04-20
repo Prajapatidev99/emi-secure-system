@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const compression = require('compression');
@@ -22,7 +23,27 @@ const { Payment, PaymentStatus } = require('./models/payment.model');
 const app = express();
 
 // Middleware
-app.use(cors());
+// Set security headers
+app.use(helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" } // Allow fetching APK
+}));
+
+// Tighten CORS
+const allowedOrigins = process.env.FRONTEND_URL 
+    ? process.env.FRONTEND_URL.split(',') 
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://127.0.0.1:5173', 'http://127.0.0.1:5174', 'https://emi-secure-system.vercel.app'];
+
+app.use(cors({
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV !== 'production') {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true
+}));
+
 app.use(compression()); // Enable gzip compression
 app.use(express.json({ limit: '10mb' }));
 app.use(requestIdMiddleware); // Add request ID to all requests
@@ -95,16 +116,11 @@ const apiLimiter = rateLimit({
     }
 });
 
-// Cron job for payment checks
+// Cron job for automated payment checks and device locking (Runs daily at midnight)
 cron.schedule('0 0 * * *', async () => {
     try {
-        logger.info('Running daily payment check...');
-        const response = await fetch(`http://localhost:${PORT}/api/payments/check-overdue`, {
-            method: 'POST',
-        });
-        if (response.ok) {
-            logger.info('Payment check completed successfully');
-        }
+        const billingService = require('./services/billing.service');
+        await billingService.processDailyBilling();
     } catch (error) {
         logger.error('Cron Job Error:', { error: error.message });
     }
@@ -166,6 +182,16 @@ app.get('/health', (req, res) => {
         healthCheck.message = error.message;
         res.status(503).json(healthCheck);
     }
+});
+
+// Global error handler to prevent stack trace leaks
+app.use((err, req, res, next) => {
+    logger.error('Unhandled Error:', { error: err.message, stack: err.stack, path: req.path });
+    res.status(err.status || 500).json({
+        message: 'An unexpected server error occurred.',
+        // Only include error details in development
+        ...(process.env.NODE_ENV === 'development' && { details: err.message })
+    });
 });
 
 const PORT = config.port || 3001;

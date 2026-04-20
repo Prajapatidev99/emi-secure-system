@@ -12,38 +12,7 @@ const cache = require('../utils/cache');
 
 const router = express.Router();
 
-// --- Helper function to send FCM message ---
-const sendFcmCommand = async (fcmToken, command, message) => {
-    const payload = {
-        token: fcmToken,
-        data: {
-            action: command, // 'LOCK', 'UNLOCK', 'WIPE', 'RELEASE_OWNERSHIP'
-            message: message,
-        },
-        android: {
-            priority: 'high',
-        },
-        apns: {
-            headers: {
-                'apns-priority': '10',
-            },
-            payload: {
-                aps: {
-                    'content-available': 1,
-                },
-            },
-        },
-    };
-
-    try {
-        const response = await admin.messaging().send(payload);
-        logger.info(`Successfully sent '${command}' command`, { response });
-        return { success: true, response };
-    } catch (error) {
-        logger.error(`Error sending '${command}' command`, { error: error.message });
-        return { success: false, error };
-    }
-};
+const { sendFcmCommand } = require('../services/billing.service');
 
 // --- Customer Routes ---
 router.post('/customers', validate([
@@ -65,9 +34,9 @@ router.post('/customers', validate([
         }
 
         if (kycDocs && kycDocs.length > 0) {
-            console.log(`[KYC] Adding customer with ${kycDocs.length} documents`);
+            logger.info(`[KYC] Adding customer with ${kycDocs.length} documents`);
         } else {
-            console.warn('[KYC] Adding customer with NO documents');
+            logger.warn('[KYC] Adding customer with NO documents');
         }
 
         const newCustomer = new Customer({ userId, name, phone, address, kycDocs });
@@ -307,7 +276,7 @@ router.post('/devices/register', async (req, res) => {
         res.status(201).json({ message: 'Device registered and EMI plan created successfully.', device });
 
     } catch (error) {
-        console.error("Error in device registration:", error);
+        logger.error("Error in device registration:", { error: error.message, imei });
         if (error.code === 11000) {
             return res.status(400).json({ message: 'A device with this IMEI already exists.' });
         }
@@ -420,27 +389,80 @@ router.get('/payments/pending', async (req, res) => {
             status: { $in: ['Pending', 'Overdue'] }
         })
             .populate('customerId', 'name')
-            .populate('deviceId', 'imei model status')
+            .populate('deviceId', 'imei imei2 model status simDetails metadata')
             .sort({ dueDate: 'asc' });
 
-        const response = pendingPayments
+        const response = await Promise.all(pendingPayments
             .filter(p => p.customerId && p.deviceId)
-            .map(p => ({
-                id: p._id,
-                customerId: p.customerId._id,
-                customerName: p.customerId.name,
-                deviceId: p.deviceId._id,
-                deviceImei: p.deviceId.imei,
-                deviceModel: p.deviceId.model,
-                deviceStatus: p.deviceId.status,
-                amount: p.amount,
-                dueDate: p.dueDate.toISOString().split('T')[0],
-                status: p.status,
+            .map(async p => {
+                const overdueCount = await Payment.countDocuments({
+                    customerId: p.customerId._id,
+                    status: PaymentStatus.Overdue
+                });
+
+                return {
+                    id: p._id,
+                    customerId: p.customerId._id,
+                    customerName: p.customerId.name,
+                    deviceId: p.deviceId._id,
+                    deviceImei: p.deviceId.imei,
+                    deviceImei2: p.deviceId.imei2,
+                    deviceModel: p.deviceId.model,
+                    deviceStatus: p.deviceId.status,
+                    simDetails: p.deviceId.simDetails,
+                    metadata: p.deviceId.metadata,
+                    amount: p.amount,
+                    dueDate: p.dueDate.toISOString().split('T')[0],
+                    status: p.status,
+                    totalOverdueCount: overdueCount
+                };
             }));
 
         res.json(response);
     } catch (error) {
         res.status(500).json({ message: 'Error fetching pending payments', error: error.message });
+    }
+});
+
+router.post('/payments/:paymentId/remind', async (req, res) => {
+    try {
+        const userId = req.userId;
+        const payment = await Payment.findById(req.params.paymentId)
+            .populate('customerId')
+            .populate('deviceId');
+            
+        if (!payment) return res.status(404).json({ message: 'Payment record not found.' });
+
+        // SECURITY: Verify payment belongs to this user's customer
+        const customer = await Customer.findOne({ _id: payment.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This payment does not belong to you.' });
+        }
+
+        if (payment.status === PaymentStatus.Paid) {
+            return res.status(400).json({ message: 'Cannot remind for a paid EMI.' });
+        }
+        
+        if (!payment.deviceId || !payment.deviceId.fcmToken) {
+            return res.status(400).json({ message: 'Customer device has no FCM token. Cannot send push notification.' });
+        }
+
+        const billingService = require('../services/billing.service');
+        const isOverdue = payment.status === PaymentStatus.Overdue;
+        const command = isOverdue ? 'WARNING' : 'REMINDER';
+        const msg = isOverdue 
+            ? 'Warning: Your EMI payment is overdue. Please pay immediately to prevent device lock.' 
+            : 'Gentle reminder: Your EMI payment is due.';
+
+        const result = await billingService.sendFcmCommand(payment.deviceId.fcmToken, command, msg);
+
+        if (result.success) {
+            res.status(200).json({ message: `Push notification (${command}) sent successfully to customer.` });
+        } else {
+            res.status(500).json({ message: 'Failed to send push notification.', error: result.error });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Server error while sending reminder', error: error.message });
     }
 });
 
@@ -492,15 +514,32 @@ router.patch('/payments/:paymentId/pay', async (req, res) => {
             res.status(200).json({ message: 'Final payment processed. All associated customer devices have been released.' });
 
         } else {
+            // Check if there are any REMAINING overdue payments for this customer
+            const remainingOverdueCount = await Payment.countDocuments({
+                customerId: customerId,
+                status: PaymentStatus.Overdue
+            });
+
             const device = await Device.findById(payment.deviceId);
             if (device && device.status === DeviceStatus.Locked) {
-                device.status = DeviceStatus.Active;
-                await device.save();
-                if (device.fcmToken) {
-                    await sendFcmCommand(device.fcmToken, 'UNLOCK', 'Your device has been unlocked. Thank you for your payment.');
+                if (remainingOverdueCount === 0) {
+                    // Only unlock if NOTHING is overdue anymore
+                    device.status = DeviceStatus.Active;
+                    await device.save();
+                    if (device.fcmToken) {
+                        await sendFcmCommand(device.fcmToken, 'UNLOCK', 'Thank you! All overdue payments cleared. Your device has been unlocked.');
+                    }
+                    res.status(200).json({ message: 'Payment recorded. No overdue payments remain; device unlocked.' });
+                } else {
+                    // Stay locked because other payments are still late
+                    res.status(200).json({ 
+                        message: `Payment recorded. Device remains LOCKED because you still have ${remainingOverdueCount} overdue installment(s).`,
+                        remainingOverdue: remainingOverdueCount
+                    });
                 }
+            } else {
+                res.status(200).json({ message: 'Payment marked as paid.' });
             }
-            res.status(200).json({ message: 'Payment marked as paid and device unlocked if applicable.' });
         }
 
     } catch (error) {
@@ -636,7 +675,7 @@ router.post('/devices/:deviceId/reset', async (req, res) => {
         const result = await sendFcmCommand(device.fcmToken, 'WIPE', 'This device is being factory reset due to non-compliance.');
 
         if (result.success) {
-            console.log(`Hard Reset command sent to device ${device.imei}.`);
+            logger.info(`Hard Reset command sent to device ${device.imei}.`);
             device.status = DeviceStatus.Compromised;
             await device.save();
             res.status(200).json({ message: 'Hard Reset command sent successfully.' });

@@ -68,9 +68,14 @@ export interface Device {
   id: string;
   _id: string;
   imei: string;
+  imei2?: string;
   androidId?: string; // CRITICAL: Made optional for new registration flow
   model: string;
   status: DeviceStatus;
+  simDetails?: {
+    slot1?: { phoneNumber: string; operator: string; simSerial: string };
+    slot2?: { phoneNumber: string; operator: string; simSerial: string };
+  };
   location?: {
     latitude: number;
     longitude: number;
@@ -85,12 +90,24 @@ export interface EmiPayment {
   customerId: string;
   customerName: string;
   deviceImei: string;
+  deviceImei2?: string;
   deviceModel: string;
   deviceId: string;
   deviceStatus: DeviceStatus;
+  simDetails?: {
+    slot1?: { phoneNumber: string; operator: string; simSerial: string };
+    slot2?: { phoneNumber: string; operator: string; simSerial: string };
+  };
   amount: number;
   dueDate: string;
   status: PaymentStatus;
+  totalOverdueCount?: number;
+  metadata?: {
+    isDeviceOwner: boolean;
+    isAdbEnabled: boolean;
+    lastSync: string;
+    appVersion: string;
+  };
 }
 
 // Type for the devices view, which includes populated customer data

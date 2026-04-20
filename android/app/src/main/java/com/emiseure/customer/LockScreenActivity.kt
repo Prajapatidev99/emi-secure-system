@@ -28,6 +28,10 @@ class LockScreenActivity : AppCompatActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var resetClickRunnable: Runnable? = null
     
+    // Brute-force protection
+    private var failedAttempts = 0
+    private var lockoutUntil: Long = 0
+    
     // Track receiver registration state
     private var isReceiverRegistered = false
     private var isInLockTaskMode = false
@@ -176,6 +180,13 @@ class LockScreenActivity : AppCompatActivity() {
 
     private fun showOfflineUnlockDialog() {
         try {
+            val currentTime = System.currentTimeMillis()
+            if (currentTime < lockoutUntil) {
+                val remainingSec = (lockoutUntil - currentTime) / 1000
+                Toast.makeText(this, "Security Lockout: Try again in $remainingSec seconds.", Toast.LENGTH_SHORT).show()
+                return
+            }
+
             val input = EditText(this).apply {
                 hint = "Enter Emergency Key"
             }
@@ -184,12 +195,13 @@ class LockScreenActivity : AppCompatActivity() {
                 .setTitle("Offline Emergency Unlock")
                 .setView(input)
                 .setCancelable(false)
-                .setPositiveButton("Verify") { _, _ ->
+                    .setPositiveButton("Verify") { _, _ ->
                     try {
                         val entered = input.text.toString().trim().uppercase(Locale.ROOT)
                         val stored = offlineUnlockKey
 
                         if (!stored.isNullOrEmpty() && entered == stored) {
+                            failedAttempts = 0
                             val prefs = createDeviceProtectedStorageContext()
                                 .getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
 
@@ -210,15 +222,22 @@ class LockScreenActivity : AppCompatActivity() {
                             sendBroadcast(Intent("com.emiseure.customer.ACTION_UNLOCK"))
                             finishAndRemoveTask()
                         } else {
-                            Toast.makeText(this, "Invalid Key", Toast.LENGTH_SHORT).show()
-                            Log.e("LockScreen", "Offline unlock failed")
+                            failedAttempts++
+                            if (failedAttempts >= 3) {
+                                lockoutUntil = System.currentTimeMillis() + 30000 // 30 seconds
+                                failedAttempts = 0
+                                Toast.makeText(this, "Too many failed attempts. Try again in 30 seconds.", Toast.LENGTH_LONG).show()
+                            } else {
+                                Toast.makeText(this, "Invalid Key. ${3 - failedAttempts} attempts remaining.", Toast.LENGTH_SHORT).show()
+                            }
+                            Log.e("LockScreen", "Offline unlock failed (Attempt $failedAttempts)")
                         }
                     } catch (e: Exception) {
                         Log.e("LockScreen", "Error during unlock verification", e)
                         Toast.makeText(this, "Unlock failed", Toast.LENGTH_SHORT).show()
                     }
                 }
-                .setNegativeButton("Cancel", null)
+                .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
                 .show()
         } catch (e: Exception) {
             Log.e("LockScreen", "Failed to show unlock dialog", e)

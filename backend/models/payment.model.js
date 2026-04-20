@@ -37,15 +37,9 @@ const paymentSchema = new Schema({
   toObject: { virtuals: true },
 });
 
-// Check for overdue payments before finding
-paymentSchema.pre('find', function () {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  this.model.updateMany(
-    { dueDate: { $lt: today }, status: 'Pending' },
-    { $set: { status: 'Overdue' } }
-  ).exec();
-});
+// The pre-find hook was removed. Overdue statuses are now managed by a daily cron job
+// to prevent O(N) database crashes on every query.
+
 
 // Indexes for performance
 paymentSchema.index({ customerId: 1, status: 1 });

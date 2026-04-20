@@ -74,7 +74,7 @@ class SimpleCache {
                 return next();
             }
 
-            const key = `${req.originalUrl || req.url}`;
+            const key = `${req.userId || 'public'}_${req.originalUrl || req.url}`;
             const cachedResponse = this.get(key);
 
             if (cachedResponse) {

@@ -7,6 +7,10 @@ import android.content.Intent
 import android.os.Build
 import android.os.UserManager
 import android.util.Log
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -116,6 +120,12 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 )
             }
 
+            "REMINDER", "WARNING" -> {
+                Log.i(TAG, "Notification ($action) received: ${data["message"]}")
+                val messageText = data["message"] ?: "Please check your EMI payment status."
+                showNotification(this, action, messageText)
+            }
+
             "WIPE" -> {
                 Log.e(TAG, "WIPE command received")
 
@@ -196,5 +206,45 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         super.onNewToken(token)
         Log.d(TAG, "New FCM token: $token")
         // Send token to your server here
+    }
+
+    private fun showNotification(context: Context, type: String, message: String) {
+        val channelId = "billing_alerts"
+        val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Billing Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            )
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val title = if (type == "WARNING") "Urgent: Device Lock Warning" else "EMI Payment Reminder"
+        
+        val intent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        
+        val pendingIntent: PendingIntent = PendingIntent.getActivity(
+            context, 0, intent, PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+
+        // Make warning sticky
+        if (type == "WARNING") {
+            builder.setOngoing(true)
+            builder.color = android.graphics.Color.RED
+        }
+
+        notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
     }
 }

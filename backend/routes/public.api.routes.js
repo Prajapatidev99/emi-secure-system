@@ -22,27 +22,61 @@ router.get('/get-ip', (_req, res) => {
     });
 });
 
-// --- Route for Android App to Register/Update its FCM Token ---
-router.post('/devices/fcm-update', async (req, res) => {
-    const { androidId, fcmToken } = req.body;
-    if (!androidId || !fcmToken) {
-        return res.status(400).json({ message: 'Android ID and FCM Token are required.' });
+// --- Route for Android App to Sync FCM Token and SIM Metadata ---
+router.post('/devices/sync-metadata', async (req, res) => {
+    const { androidId, fcmToken, imei2, simDetails, isDeviceOwner, isAdbEnabled, appVersion } = req.body;
+    
+    if (!androidId) {
+        return res.status(400).json({ message: 'Device Android ID is required.' });
     }
-    try {
-        const device = await Device.findOneAndUpdate(
-            { androidId: androidId },
-            { fcmToken: fcmToken },
-            { new: true, upsert: false } // Find by androidId and update.
-        );
 
+    try {
+        const device = await Device.findOne({ androidId: androidId });
         if (!device) {
-            return res.status(404).json({ message: 'Device not found. Please register the device from the dashboard first.' });
+            return res.status(404).json({ message: 'Device registration not found on server.' });
         }
-        res.status(200).json({ message: 'FCM token updated successfully.' });
+
+        // SECURITY: Provisioning Audit
+        if (isDeviceOwner !== undefined && !isDeviceOwner && device.status !== DeviceStatus.Released) {
+            logger.error(`🚨 SECURITY CRITICAL: Device ${device.imei} is NOT a Device Owner but is attempting to sync. Manual audit required.`);
+        }
+
+        // SECURITY: Detect SIM Swap
+        if (simDetails && device.simDetails) {
+            const old1 = device.simDetails.slot1?.simSerial;
+            const new1 = simDetails.slot1?.simSerial;
+            const old2 = device.simDetails.slot2?.simSerial;
+            const new2 = simDetails.slot2?.simSerial;
+
+            if ((new1 && old1 && new1 !== old1) || (new2 && old2 && new2 !== old2)) {
+                logger.warn(`🚨 SECURITY: SIM SWAP detected for device ${device.imei}. Old: ${old1}/${old2}, New: ${new1}/${new2}`);
+            }
+        }
+
+        const updateFields = {};
+        if (fcmToken) updateFields.fcmToken = fcmToken;
+        if (imei2) updateFields.imei2 = imei2;
+        if (simDetails) updateFields.simDetails = simDetails;
+        
+        updateFields.metadata = {
+            ...device.metadata,
+            lastSync: new Date(),
+            isDeviceOwner: isDeviceOwner ?? device.metadata?.isDeviceOwner,
+            isAdbEnabled: isAdbEnabled ?? device.metadata?.isAdbEnabled,
+            appVersion: appVersion ?? device.metadata?.appVersion
+        };
+
+        await Device.findByIdAndUpdate(device._id, { $set: updateFields });
+
+        logger.info(`Metadata synced for device: ${androidId}`, { hasFcm: !!fcmToken, hasImei2: !!imei2 });
+        res.status(200).json({ 
+            message: 'Metadata synced successfully.',
+            status: device.status
+        });
 
     } catch (error) {
-        console.error('FCM update error:', error);
-        res.status(500).json({ message: 'Server error during FCM token update.', error: error.message });
+        logger.error('Metadata sync error:', { error: error.message, androidId });
+        res.status(500).json({ message: 'Server error during metadata sync.' });
     }
 });
 
@@ -70,7 +104,7 @@ router.post('/device-status', async (req, res) => {
                 nextDueDate: nextPayment.dueDate.toISOString().split('T')[0],
                 amountDue: nextPayment.amount,
                 customerName: device.customerId ? device.customerId.name : 'N/A',
-                unlockKey: device.unlockKey,
+                // SECURITY: Never send unlockKey over public API
             });
         } else {
             res.json({
@@ -78,11 +112,11 @@ router.post('/device-status', async (req, res) => {
                 paymentStatus: 'All Clear',
                 message: 'All EMIs have been paid. Thank you!',
                 customerName: device.customerId ? device.customerId.name : 'N/A',
-                unlockKey: device.unlockKey,
+                // SECURITY: Never send unlockKey over public API
             });
         }
     } catch (error) {
-        console.error('Error fetching device status:', error);
+        logger.error('Error fetching device status:', { error: error.message, androidId });
         res.status(500).json({ message: 'Server error while fetching device status.' });
     }
 });
@@ -128,7 +162,7 @@ router.post('/devices/location', async (req, res) => {
         res.status(200).json({ message: 'Location updated successfully.' });
 
     } catch (error) {
-        console.error('Location update error:', error);
+        logger.error('Location update error:', { error: error.message, androidId });
         res.status(500).json({ message: 'Server error during location update.', error: error.message });
     }
 });
@@ -156,7 +190,7 @@ router.get('/apk-info', (req, res) => {
             apkChecksum = fs.readFileSync(checksumFile, 'utf8').trim();
         }
     } catch (e) {
-        console.warn('Could not read APK checksum file:', e.message);
+        logger.warn('Could not read APK checksum file:', { error: e.message });
     }
 
     // Zero-Touch provisioning QR config JSON
@@ -212,7 +246,7 @@ router.post('/check-imei', async (req, res) => {
 
         // 🔄 If device has a new Android ID after factory reset, update it
         if (newAndroidId && newAndroidId !== device.androidId) {
-            console.log(`🔄 Device IMEI ${imei}: Android ID changed from ${device.androidId} to ${newAndroidId} (factory reset detected)`);
+            logger.info(`Refreshing Android ID for IMEI ${imei}: (factory reset)`, { oldId: device.androidId, newId: newAndroidId });
             device.androidId = newAndroidId;
             await device.save();
         }
@@ -222,7 +256,7 @@ router.post('/check-imei', async (req, res) => {
         res.json({
             shouldLock,
             deviceStatus: device.status,
-            unlockKey: shouldLock ? device.unlockKey : null,
+            // SECURITY: Never send unlockKey over public API
             message: shouldLock
                 ? 'This device is locked. Contact your EMI provider.'
                 : 'Device is active.',
@@ -230,7 +264,7 @@ router.post('/check-imei', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('IMEI check error:', error);
+        logger.error('IMEI check error:', { error: error.message, imei });
         res.status(500).json({ message: 'Server error during IMEI check.', error: error.message });
     }
 });
