@@ -231,10 +231,13 @@ class MainActivity : AppCompatActivity() {
         try {
             dpm.setLockTaskPackages(adminComponent, arrayOf(packageName))
             
-            // �️ Use comprehensive anti-tampering manager
+            // 🛡️ Use comprehensive anti-tampering manager
             TamperDetectionManager.enforceAntiTamperingLock(this)
             
-            // � CRITICAL: Prevent app uninstallation
+            // 🔌 Enforce USB security
+            UsbSecurityManager.enforceUsbSecurity(this)
+            
+            // 🔐 CRITICAL: Prevent app uninstallation
             try {
                 dpm.setUninstallBlocked(adminComponent, packageName, true)
                 Log.d("Security", "✅ App uninstallation BLOCKED")
@@ -247,11 +250,13 @@ class MainActivity : AppCompatActivity() {
             // be set up without the admin's intervention (re-provisioning required).
             // This makes a reset phone completely unusable by the customer.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                // 🔐 FRP: After factory reset, ONLY this admin Gmail can set up the device.
+                // Customer cannot use the device — admin must re-provision it.
                 ZeroTouchProvisioningHelper.applyFactoryResetProtection(
                     context = this,
-                    adminAccountIds = emptyList() // Empty = maximum restriction (no account can bypass)
+                    adminAccountIds = listOf("prajapatidev9974@gmail.com") // Admin recovery account
                 )
-                Log.d("Security", "✅ FRP Policy set to MAXIMUM RESTRICTION")
+                Log.d("Security", "✅ FRP Policy set — only admin can recover after reset")
             }
 
             Log.d("Security", "✅ All security policies enforced")

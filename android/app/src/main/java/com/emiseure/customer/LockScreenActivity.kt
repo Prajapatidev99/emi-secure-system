@@ -12,6 +12,7 @@ import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.emiseure.customer.databinding.ActivityLockScreenBinding
+import com.emiseure.customer.utils.OfflineUnlockKeyManager
 import java.util.Locale
 
 class LockScreenActivity : AppCompatActivity() {
@@ -22,15 +23,14 @@ class LockScreenActivity : AppCompatActivity() {
     private lateinit var dpm: DevicePolicyManager
     private lateinit var adminComponent: ComponentName
 
+    // 🔐 NEW: Encrypted offline unlock with rate limiting
+    private lateinit var keyManager: OfflineUnlockKeyManager
+    
     // Offline unlock
     private var offlineUnlockKey: String? = null
     private var iconClickCount = 0
     private val handler = Handler(Looper.getMainLooper())
     private var resetClickRunnable: Runnable? = null
-    
-    // Brute-force protection
-    private var failedAttempts = 0
-    private var lockoutUntil: Long = 0
     
     // Track receiver registration state
     private var isReceiverRegistered = false
@@ -100,20 +100,23 @@ class LockScreenActivity : AppCompatActivity() {
                 }
             }
 
-            // ---- LOAD OFFLINE KEY (DIRECT BOOT SAFE) ----
+            // ---- LOAD OFFLINE KEY (DIRECT BOOT SAFE + ENCRYPTED) ----
             try {
-                val deviceContext = createDeviceProtectedStorageContext()
-                val prefs = deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
-
+                keyManager = OfflineUnlockKeyManager(this)
+                
+                // 🔐 Try to load encrypted key first
+                offlineUnlockKey = keyManager.getUnlockKey()
+                
+                // 🔐 If intent contains key (from backend), store it encrypted
                 val keyFromIntent = intent.getStringExtra("UNLOCK_KEY_VIA_INTENT")
-                offlineUnlockKey = if (!keyFromIntent.isNullOrEmpty()) {
-                    prefs.edit().putString("UNLOCK_KEY", keyFromIntent).apply()
-                    keyFromIntent
-                } else {
-                    prefs.getString("UNLOCK_KEY", null)
+                if (!keyFromIntent.isNullOrEmpty() && keyFromIntent.length >= 6) {
+                    if (keyManager.storeUnlockKey(keyFromIntent)) {
+                        offlineUnlockKey = keyFromIntent
+                        Log.d("LockScreen", "Unlock key stored encrypted in Keystore")
+                    }
                 }
             } catch (e: Exception) {
-                Log.e("LockScreen", "Failed to load unlock key", e)
+                Log.e("LockScreen", "Failed to load encrypted unlock key", e)
             }
 
             setupHiddenUnlock()
@@ -180,10 +183,16 @@ class LockScreenActivity : AppCompatActivity() {
 
     private fun showOfflineUnlockDialog() {
         try {
-            val currentTime = System.currentTimeMillis()
-            if (currentTime < lockoutUntil) {
-                val remainingSec = (lockoutUntil - currentTime) / 1000
-                Toast.makeText(this, "Security Lockout: Try again in $remainingSec seconds.", Toast.LENGTH_SHORT).show()
+            // 🛡️ Check if user is locked out due to too many failed attempts
+            val lockoutRemaining = keyManager.getLockoutRemaining()
+            if (lockoutRemaining > 0) {
+                val remainingSec = (lockoutRemaining + 999) / 1000 // Round up
+                Toast.makeText(
+                    this,
+                    "🔒 Security Lockout: Try again in $remainingSec seconds",
+                    Toast.LENGTH_LONG
+                ).show()
+                Log.w("LockScreen", "User locked out: ${remainingSec}s remaining")
                 return
             }
 
@@ -201,7 +210,10 @@ class LockScreenActivity : AppCompatActivity() {
                         val stored = offlineUnlockKey
 
                         if (!stored.isNullOrEmpty() && entered == stored) {
-                            failedAttempts = 0
+                            // ✅ Correct unlock key entered
+                            Log.d("LockScreen", "✅ Offline unlock successful")
+                            keyManager.resetAttempts()
+                            
                             val prefs = createDeviceProtectedStorageContext()
                                 .getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
 
@@ -222,19 +234,37 @@ class LockScreenActivity : AppCompatActivity() {
                             sendBroadcast(Intent("com.emiseure.customer.ACTION_UNLOCK"))
                             finishAndRemoveTask()
                         } else {
-                            failedAttempts++
-                            if (failedAttempts >= 3) {
-                                lockoutUntil = System.currentTimeMillis() + 30000 // 30 seconds
-                                failedAttempts = 0
-                                Toast.makeText(this, "Too many failed attempts. Try again in 30 seconds.", Toast.LENGTH_LONG).show()
+                            // ❌ Wrong unlock key
+                            val lockoutUntil = keyManager.recordFailedAttempt()
+                            val remainingAttempts = 10 - keyManager.getAttemptCount()
+                            
+                            if (remainingAttempts <= 0) {
+                                // 🚨 CRITICAL: Too many failed attempts
+                                val lockoutRemainingSec = (keyManager.getLockoutRemaining() + 999) / 1000
+                                Toast.makeText(
+                                    this,
+                                    "🔒 Too many failed attempts. Locked for $lockoutRemainingSec seconds.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                Log.w("LockScreen", "🚨 Unlock attempts exhausted - security lockout activated")
+                                
+                                // Report to backend that tampering was detected
+                                 TamperDetectionManager.recordTamperAttempt(
+                                     this,
+                                     "BRUTE_FORCE_UNLOCK_ATTEMPT"
+                                 )
                             } else {
-                                Toast.makeText(this, "Invalid Key. ${3 - failedAttempts} attempts remaining.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    this,
+                                    "❌ Invalid Key. $remainingAttempts attempts remaining.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
-                            Log.e("LockScreen", "Offline unlock failed (Attempt $failedAttempts)")
+                            Log.w("LockScreen", "❌ Offline unlock failed (Attempt ${keyManager.getAttemptCount()})")
                         }
                     } catch (e: Exception) {
                         Log.e("LockScreen", "Error during unlock verification", e)
-                        Toast.makeText(this, "Unlock failed", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, "Unlock verification failed", Toast.LENGTH_SHORT).show()
                     }
                 }
                 .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
@@ -261,7 +291,7 @@ class LockScreenActivity : AppCompatActivity() {
                 Log.d("LockScreen", "Unlock receiver unregistered")
             }
         } catch (e: Exception) {
-            Log.e("LockScreen", "Error unregistering receiver", e)
+            Log.e("LockScreen", "Error in onDestroy", e)
         }
         
         safeStopLockTask()

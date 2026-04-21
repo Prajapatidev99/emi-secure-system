@@ -54,6 +54,9 @@ class BootReceiver : BroadcastReceiver() {
                 // 🛡️ Re-enforce comprehensive anti-tampering protections
                 TamperDetectionManager.enforceAntiTamperingLock(context)
                 
+                // 🔌 Enforce USB security on boot
+                UsbSecurityManager.enforceUsbSecurity(context)
+                
                 Log.w(TAG, "Device is LOCKED → launching LockScreenActivity")
                 Log.w(TAG, "Lock will be enforced WITHOUT internet connection")
 

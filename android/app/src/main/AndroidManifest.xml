@@ -80,6 +80,18 @@
                 android:value="Device Security Monitoring" />
         </service>
 
+        <!-- 🔐 LOCK SCREEN STICKINESS SERVICE (CRITICAL FIX #4) -->
+        <service
+            android:name=".LockScreenStickinessService"
+            android:exported="false"
+            android:directBootAware="true"
+            android:foregroundServiceType="specialUse"
+            android:label="@string/app_name">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Lock Screen Persistence" />
+        </service>
+
         <!-- 🔐 DEVICE ADMIN -->
         <receiver
             android:name=".MyDeviceAdminReceiver"

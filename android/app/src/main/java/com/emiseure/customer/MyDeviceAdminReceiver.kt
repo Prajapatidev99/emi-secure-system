@@ -21,6 +21,9 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
         
         // 🛡️ ANTI-TAMPERING: Lock down device immediately
         preventPhysicalTampering(context)
+        
+        // 🔌 USB SECURITY: Disable all USB-based attacks
+        UsbSecurityManager.enforceUsbSecurity(context)
     }
 
     override fun onDisabled(context: Context, intent: Intent) {
