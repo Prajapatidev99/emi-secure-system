@@ -151,7 +151,7 @@ pause`;
                                         <label className="text-sm font-medium text-slate-400">Signature Hash (SHA-256)</label>
                                         <div className="flex gap-2">
                                             <button 
-                                                onClick={() => setChecksum('ZP9PSalESu09klcUa6-fB9xI766oZOQOBcv8z8kopGI')}
+                                                onClick={() => setChecksum('NpMA69wVgT9DQ-pawSTXMFVJEdABWZU9RIWDjGai8Ow')}
                                                 className="text-[10px] px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20 transition-all"
                                             >
                                                 File Hash (Recommended)

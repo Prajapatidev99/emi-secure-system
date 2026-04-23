@@ -161,16 +161,23 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                             Log.e(TAG, "Failed to disable ADB", e)
                         }
 
-                        // 2. Clear all user restrictions
+                        // 2. Clear all user restrictions and FRP Policy
                         try {
-                            dpm.clearUserRestriction(adminComponent,        UserManager.DISALLOW_FACTORY_RESET)
+                            dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
                             dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_SAFE_BOOT)
                             dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_USB_FILE_TRANSFER)
                             dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_UNINSTALL_APPS)
                             dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
-                            Log.d(TAG, "All user restrictions cleared")
+                            
+                            // 🔐 CLEAR Enterprise FRP Policy so the next user isn't locked out!
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                                dpm.setFactoryResetProtectionPolicy(adminComponent, null)
+                                Log.d(TAG, "Enterprise FRP Policy cleared")
+                            }
+                            
+                            Log.d(TAG, "All user restrictions and FRP policy cleared")
                         } catch (e: Exception) {
-                            Log.e(TAG, "Failed to clear restrictions", e)
+                            Log.e(TAG, "Failed to clear restrictions/FRP", e)
                         }
 
                         // 3. Unblock app uninstallation

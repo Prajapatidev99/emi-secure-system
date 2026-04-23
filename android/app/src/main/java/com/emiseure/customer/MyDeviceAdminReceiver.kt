@@ -115,20 +115,6 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
                     Log.w(TAG, "setUninstallBlocked failed", e)
                 }
 
-                // 🔐 NEW: Enterprise Factory Reset Protection (FRP)
-                // This ensures ONLY your email can unlock the phone after a hard reset
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    try {
-                        val frpPolicy = android.app.admin.FactoryResetProtectionPolicy.Builder()
-                            .setFactoryResetProtectionAccounts(listOf("prajapatidev9974@gmail.com"))
-                            .build()
-                        dpm.setFactoryResetProtectionPolicy(adminComponent, frpPolicy)
-                        Log.i(TAG, "✅ Enterprise FRP Policy Enforced: Master Email Linked")
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to set FRP Policy", e)
-                    }
-                }
-                
                 // 🔐 REDMI/MIUI FIX: Force-Grant Location Permissions
                 // This ensures "Allow Always" is set automatically
                 try {
