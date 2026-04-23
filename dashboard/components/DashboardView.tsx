@@ -200,9 +200,9 @@ const LockPanel = () => {
   };
 
   const filteredPayments = payments.filter(payment =>
-    payment.customerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    payment.deviceModel.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    payment.deviceImei.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (payment.customerName?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (payment.deviceModel?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (payment.deviceImei?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
     payment.simDetails?.slot1?.phoneNumber?.includes(searchTerm) ||
     payment.simDetails?.slot2?.phoneNumber?.includes(searchTerm)
   );

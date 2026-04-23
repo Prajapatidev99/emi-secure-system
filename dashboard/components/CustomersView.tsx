@@ -74,8 +74,8 @@ const CustomersView = () => {
   };
 
   const filteredCustomers = customers.filter(customer =>
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.phone.toLowerCase().includes(searchTerm.toLowerCase())
+    (customer.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (customer.phone?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
   
   if (selectedCustomerId) {
