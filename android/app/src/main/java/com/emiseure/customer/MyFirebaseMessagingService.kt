@@ -62,8 +62,11 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         // 🔑 UPDATE OFFLINE MASTER KEY (IF ANY)
         // ------------------------------------
         unlockKey?.let {
-            prefs.edit().putString("UNLOCK_KEY", it).commit()
-            Log.d(TAG, "Offline unlock key updated from server")
+            prefs.edit()
+                .putString("UNLOCK_KEY", it)
+                .putString("UNLOCK_KEY_HASH", hashKey(it))
+                .commit()
+            Log.d(TAG, "Offline unlock key and hash updated from server")
         }
 
         // ------------------------------
@@ -79,7 +82,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 // Start foreground monitoring service
                 try {
                     val serviceIntent = Intent(this, LockMonitorService::class.java)
-                    serviceIntent.putExtra("action", "START_MONITORING")
+                    serviceIntent.action = "START_MONITORING"
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         startForegroundService(serviceIntent)
                     } else {
@@ -109,7 +112,7 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                 // Stop monitoring service
                 try {
                     val serviceIntent = Intent(this, LockMonitorService::class.java)
-                    serviceIntent.putExtra("action", "STOP_MONITORING")
+                    serviceIntent.action = "STOP_MONITORING"
                     startService(serviceIntent)
                     Log.d(TAG, "LockMonitorService stop requested")
                 } catch (e: Exception) {
@@ -268,5 +271,12 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         }
 
         notificationManager.notify(System.currentTimeMillis().toInt(), builder.build())
+    }
+    private fun hashKey(key: String): String {
+        return try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            val hash = digest.digest(key.toByteArray(Charsets.UTF_8))
+            android.util.Base64.encodeToString(hash, android.util.Base64.NO_WRAP)
+        } catch (e: Exception) { "" }
     }
 }

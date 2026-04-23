@@ -16,7 +16,9 @@ class BootReceiver : BroadcastReceiver() {
 
         val action = intent.action
         if (action != Intent.ACTION_BOOT_COMPLETED &&
-            action != Intent.ACTION_LOCKED_BOOT_COMPLETED
+            action != Intent.ACTION_LOCKED_BOOT_COMPLETED &&
+            action != Intent.ACTION_USER_UNLOCKED &&
+            action != "android.intent.action.QUICKBOOT_POWERON"
         ) {
             return
         }
@@ -63,7 +65,7 @@ class BootReceiver : BroadcastReceiver() {
                 // Start foreground monitoring service FIRST (critical for lock persistence)
                 try {
                     val serviceIntent = Intent(context, LockMonitorService::class.java)
-                    serviceIntent.putExtra("action", "START_MONITORING")
+                    serviceIntent.action = "START_MONITORING"
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         context.startForegroundService(serviceIntent)
                     } else {

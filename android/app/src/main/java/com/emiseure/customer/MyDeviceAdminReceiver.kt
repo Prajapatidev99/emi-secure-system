@@ -127,6 +127,17 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
                     Log.w(TAG, "Failed to set lock task packages or disable keyguard", e)
                 }
 
+                // 🔐 HIDE ORGANIZATION MESSAGE
+                try {
+                    // Setting these to null/empty tries to hide the "Managed by your organization" footer
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        dpm.setDeviceOwnerLockScreenInfo(adminComponent, null)
+                    }
+                    dpm.setOrganizationName(adminComponent, null)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to hide organization message", e)
+                }
+
                 Log.i(TAG, "🛡️ All anti-tampering restrictions applied successfully")
             } else {
                 Log.w(TAG, "⚠️ preventPhysicalTampering: Not device owner — restrictions skipped")

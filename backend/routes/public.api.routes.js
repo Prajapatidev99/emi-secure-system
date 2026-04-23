@@ -2,6 +2,7 @@ const express = require('express');
 const https = require('https');
 const { Device, DeviceStatus } = require('../models/device.model');
 const { Payment, PaymentStatus } = require('../models/payment.model');
+const Customer = require('../models/customer.model');
 
 const router = express.Router();
 const logger = require('../utils/logger');
@@ -101,6 +102,10 @@ router.post('/device-status', async (req, res) => {
             status: { $in: [PaymentStatus.Pending, PaymentStatus.Overdue] }
         }).sort({ dueDate: 'asc' });
 
+        const customer = await Customer.findById(device.customerId).populate('userId', 'shopName phone');
+        const supportName = customer?.userId?.shopName || 'Retailer';
+        const supportPhone = customer?.userId?.phone || '';
+
         if (nextPayment) {
             res.json({
                 deviceStatus: device.status,
@@ -108,6 +113,8 @@ router.post('/device-status', async (req, res) => {
                 nextDueDate: nextPayment.dueDate.toISOString().split('T')[0],
                 amountDue: nextPayment.amount,
                 customerName: device.customerId ? device.customerId.name : 'N/A',
+                support_name: supportName,
+                support_phone: supportPhone
                 // SECURITY: Never send unlockKey over public API
             });
         } else {
@@ -116,6 +123,8 @@ router.post('/device-status', async (req, res) => {
                 paymentStatus: 'All Clear',
                 message: 'All EMIs have been paid. Thank you!',
                 customerName: device.customerId ? device.customerId.name : 'N/A',
+                support_name: supportName,
+                support_phone: supportPhone
                 // SECURITY: Never send unlockKey over public API
             });
         }

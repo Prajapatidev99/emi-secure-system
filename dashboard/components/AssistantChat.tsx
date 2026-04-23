@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useTranslation } from '../i18n';
+import { askAIAssistant } from '../services/api';
 
 const AssistantChat: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
@@ -17,16 +18,7 @@ const AssistantChat: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const token = sessionStorage.getItem('authToken');
-      const response = await fetch('/api/assistant/ask', {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ query, lang })
-      });
-      const data = await response.json();
+      const data = await askAIAssistant(query, lang || 'en');
       setMessages(prev => [...prev, { role: 'ai', text: data.answer }]);
     } catch (error) {
       setMessages(prev => [...prev, { role: 'ai', text: 'Error connecting to support. Please try again.' }]);

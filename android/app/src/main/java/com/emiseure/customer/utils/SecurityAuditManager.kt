@@ -24,6 +24,10 @@ object SecurityAuditManager {
         
         val report = mutableMapOf<String, Any>()
         report["isDeviceOwner"] = isDeviceOwner
+        report["appVersion"] = try {
+            val pInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+            pInfo.versionName ?: "1.0"
+        } catch (e: Exception) { "1.0" }
         
         if (isDeviceOwner) {
             // 🔐 Check FRP Status

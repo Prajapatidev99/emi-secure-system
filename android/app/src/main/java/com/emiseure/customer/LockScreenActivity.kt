@@ -124,43 +124,23 @@ class LockScreenActivity : AppCompatActivity() {
             }
 
             // ---- LOAD OFFLINE KEY (DIRECT BOOT SAFE + ENCRYPTED) ----
-            try {
-                keyManager = OfflineUnlockKeyManager(this)
+                // 1. Check for stored hash (Direct Boot Safe & Recommended)
+                val storedHash = prefs.getString("UNLOCK_KEY_HASH", null)
                 
-                // 🔐 STRATEGY: Try all sources to find the key
-                // 1. Check encrypted hardware vault (Most Secure)
-                offlineUnlockKey = keyManager.getUnlockKey()
-                
-                // 2. Check Intent (New from server)
-                val keyFromIntent = intent.getStringExtra("UNLOCK_KEY_VIA_INTENT")
-                if (!keyFromIntent.isNullOrEmpty() && keyFromIntent.length >= 6) {
-                    Log.d("LockScreen", "Found key in Intent, migrating to vault...")
-                    if (keyManager.storeUnlockKey(keyFromIntent)) {
-                        offlineUnlockKey = keyFromIntent
+                // 2. Fallback to older methods for migration
+                if (storedHash.isNullOrEmpty()) {
+                    // Try to get plain key and migrate to hash
+                    val legacyKey = prefs.getString("UNLOCK_KEY", null)
+                    if (!legacyKey.isNullOrEmpty()) {
+                        val computedHash = hashKey(legacyKey)
+                        prefs.edit().putString("UNLOCK_KEY_HASH", computedHash).apply()
+                        Log.d("LockScreen", "Migrated legacy key to hash for Direct Boot safety")
                     }
                 }
                 
-                // 3. Fallback: Check plain-text storage (Migrate for safety)
-                if (offlineUnlockKey.isNullOrEmpty()) {
-                    val fallbackPrefs = deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
-                    val legacyKey = fallbackPrefs.getString("UNLOCK_KEY", null)
-                    if (!legacyKey.isNullOrEmpty() && legacyKey.length >= 6) {
-                        Log.w("LockScreen", "Found legacy plain-text key, migrating to secure vault...")
-                        if (keyManager.storeUnlockKey(legacyKey)) {
-                            offlineUnlockKey = legacyKey
-                            // Optional: Clear legacy key after successful migration
-                            // fallbackPrefs.edit().remove("UNLOCK_KEY").apply()
-                        }
-                    }
-                }
-                
-                if (offlineUnlockKey.isNullOrEmpty()) {
-                    Log.e("LockScreen", "🚨 CRITICAL: No offline unlock key found in any source!")
-                } else {
-                    Log.d("LockScreen", "✅ Offline unlock key successfully loaded (${offlineUnlockKey?.length} chars)")
-                }
+                Log.d("LockScreen", "✅ Lock verification system ready (Hash present: ${!prefs.getString("UNLOCK_KEY_HASH", null).isNullOrEmpty()})")
             } catch (e: Exception) {
-                Log.e("LockScreen", "Failed to load encrypted unlock key", e)
+                Log.e("LockScreen", "Failed to setup lock verification", e)
             }
 
             setupHiddenUnlock()
@@ -204,10 +184,15 @@ class LockScreenActivity : AppCompatActivity() {
     }
 
     private fun setupLanguageSwitcher() {
-        // Find language icons or create a simple toggle
+        // 🔒 HIDDEN TRICK: Long click on lock icon
         binding.lockIcon.setOnLongClickListener {
             showLanguageDialog()
             true
+        }
+        
+        // 🛡️ NEW VISIBLE WAY: Button at bottom
+        binding.changeLanguageButton.setOnClickListener {
+            showLanguageDialog()
         }
     }
 
@@ -378,11 +363,11 @@ class LockScreenActivity : AppCompatActivity() {
                     .setPositiveButton("Verify") { _, _ ->
                     try {
                         val entered = input.text.toString().trim().uppercase(java.util.Locale.ROOT)
-                        val stored = offlineUnlockKey
+                        val storedHash = prefs.getString("UNLOCK_KEY_HASH", null)
 
-                        if (!stored.isNullOrEmpty() && entered == stored) {
+                        if (!storedHash.isNullOrEmpty() && hashKey(entered) == storedHash) {
                             // ✅ Correct unlock key entered
-                            Log.d("LockScreen", "✅ Offline unlock successful")
+                            Log.d("LockScreen", "✅ Offline hash-match successful")
                             keyManager.resetAttempts()
                             
                             val prefs = createDeviceProtectedStorageContext()
@@ -476,5 +461,13 @@ class LockScreenActivity : AppCompatActivity() {
         if (prefs.getBoolean("IS_LOCKED", true) && !isFinishing) {
             LockScreenPersistenceHelper.notifyLockDestroyed(this, "ACTIVITY_DESTROYED")
         }
+    }
+
+    private fun hashKey(key: String): String {
+        return try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            val hash = digest.digest(key.toByteArray(Charsets.UTF_8))
+            android.util.Base64.encodeToString(hash, android.util.Base64.NO_WRAP)
+        } catch (e: Exception) { "" }
     }
 }

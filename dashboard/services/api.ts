@@ -1,4 +1,3 @@
-
 import { Customer, EmiPayment, Device, KycDocument, DeviceWithCustomer, UserProfile, WalletTransaction, RechargeRequest, RechargeRequestWithUser } from '../types';
 
 const hostname = window.location.hostname;
@@ -330,3 +329,13 @@ export const getDevices = async (): Promise<DeviceWithCustomer[]> => {
 };
 
 // --- QR CODE PROVISIONING ---
+
+// --- AI ASSISTANT ---
+export const askAIAssistant = async (query: string, lang: string): Promise<{ answer: string }> => {
+    const response = await fetchWithRetry(`${API_BASE_URL}/assistant/ask`, {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ query, lang }),
+    });
+    return handleResponse(response);
+};

@@ -120,6 +120,12 @@ class MainActivity : AppCompatActivity() {
 
         binding.androidIdTextView.text =
             getString(R.string.your_device_id, androidId)
+            
+        // Show version name in UI
+        try {
+            val pInfo = packageManager.getPackageInfo(packageName, 0)
+            binding.syncStatusTextView.text = "Version: ${pInfo.versionName}"
+        } catch (e: Exception) {}
 
         checkDeviceAdminStatus()
         enforceSecurityPolicies()
@@ -410,6 +416,7 @@ class MainActivity : AppCompatActivity() {
                         // 1. Store in plain-text prefs (legacy/Direct Boot fallback)
                         prefs.edit()
                             .putString("UNLOCK_KEY", unlockKey)
+                            .putString("UNLOCK_KEY_HASH", hashKey(unlockKey))
                             .commit()
                             
                         // 2. 🔐 Synchronize with hardware-backed secure vault
@@ -500,6 +507,11 @@ class MainActivity : AppCompatActivity() {
                 Intent(this, LockScreenActivity::class.java).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                     unlockKey?.let {
+                        prefs.edit()
+                            .putString("UNLOCK_KEY", it)
+                            .putString("UNLOCK_KEY_HASH", hashKey(it))
+                            .commit()
+                        Log.d("Security", "Offline unlock key and hash updated from server")
                         putExtra("UNLOCK_KEY_VIA_INTENT", it)
                     }
                 }
@@ -641,5 +653,12 @@ class MainActivity : AppCompatActivity() {
                     .show()
             }
         }
+    }
+    private fun hashKey(key: String): String {
+        return try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            val hash = digest.digest(key.toByteArray(Charsets.UTF_8))
+            android.util.Base64.encodeToString(hash, android.util.Base64.NO_WRAP)
+        } catch (e: Exception) { "" }
     }
 }

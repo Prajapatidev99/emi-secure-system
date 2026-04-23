@@ -75,6 +75,7 @@ class LockMonitorService : Service() {
                 stopSelf()
             }
             else -> {
+                Log.d(TAG, "No specific action or unknown action provided, checking local lock state...")
                 startMonitoring()
             }
         }
