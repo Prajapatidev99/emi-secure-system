@@ -8,7 +8,6 @@ import android.os.UserManager
 import android.util.Log
 import android.view.View
 import android.view.WindowManager
-import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
 import android.content.res.Configuration
@@ -16,9 +15,11 @@ import android.util.DisplayMetrics
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import com.emiseure.customer.databinding.ActivityLockScreenBinding
 import com.emiseure.customer.utils.OfflineUnlockKeyManager
-import android.annotation.SuppressLint
+import com.emiseure.customer.utils.SecurityVaultManager
+import java.util.Locale
 
 class LockScreenActivity : AppCompatActivity() {
 
@@ -40,6 +41,7 @@ class LockScreenActivity : AppCompatActivity() {
     // Track receiver registration state
     private var isReceiverRegistered = false
     private var isInLockTaskMode = false
+    private var isFinishing = false
 
     // 🔐 Lazy context and prefs for Direct Boot safety
     private val deviceContext by lazy { createDeviceProtectedStorageContext() }
@@ -50,31 +52,21 @@ class LockScreenActivity : AppCompatActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.emiseure.customer.ACTION_UNLOCK") {
                 Log.d("LockScreen", "Unlock broadcast received")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && dpm.isDeviceOwnerApp(packageName)) {
-                    dpm.setStatusBarDisabled(adminComponent, false)
-                }
                 safeStopLockTask()
                 finishAndRemoveTask()
             }
         }
     }
 
-    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         try {
+            // 🛡️ PRIVACY SHIELD: Block screenshots and screen recording
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+
             binding = ActivityLockScreenBinding.inflate(layoutInflater)
             setContentView(binding.root)
-
-            // Force background color in code as fallback
-            binding.root.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.brand_primary_dark))
-
-            // 🛡️ PRIVACY SHIELD: Block screenshots and screen recording
-            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-            
-            // 🔒 FULLSCREEN & SYSTEM UI BLOCKING
-            hideSystemUI()
 
             // ---- FULL SCREEN + SHOW OVER LOCK ----
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -111,10 +103,6 @@ class LockScreenActivity : AppCompatActivity() {
             if (dpm.isDeviceOwnerApp(packageName)) {
                 try {
                     dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_USB_FILE_TRANSFER)
-                    // 🛡️ Pro-level status bar block (Device Owner only)
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        dpm.setStatusBarDisabled(adminComponent, true)
-                    }
                     // 🛡️ Enforce comprehensive anti-tampering protections
                     TamperDetectionManager.enforceAntiTamperingLock(this)
                     safeStartLockTask()
@@ -124,23 +112,22 @@ class LockScreenActivity : AppCompatActivity() {
             }
 
             // ---- LOAD OFFLINE KEY (DIRECT BOOT SAFE + ENCRYPTED) ----
-                // 1. Check for stored hash (Direct Boot Safe & Recommended)
-                val storedHash = prefs.getString("UNLOCK_KEY_HASH", null)
+            try {
+                keyManager = OfflineUnlockKeyManager(this)
                 
-                // 2. Fallback to older methods for migration
-                if (storedHash.isNullOrEmpty()) {
-                    // Try to get plain key and migrate to hash
-                    val legacyKey = prefs.getString("UNLOCK_KEY", null)
-                    if (!legacyKey.isNullOrEmpty()) {
-                        val computedHash = hashKey(legacyKey)
-                        prefs.edit().putString("UNLOCK_KEY_HASH", computedHash).apply()
-                        Log.d("LockScreen", "Migrated legacy key to hash for Direct Boot safety")
+                // 🔐 Try to load encrypted key first
+                offlineUnlockKey = keyManager.getUnlockKey()
+                
+                // 🔐 If intent contains key (from backend), store it encrypted
+                val keyFromIntent = intent.getStringExtra("UNLOCK_KEY_VIA_INTENT")
+                if (!keyFromIntent.isNullOrEmpty() && keyFromIntent.length >= 6) {
+                    if (keyManager.storeUnlockKey(keyFromIntent)) {
+                        offlineUnlockKey = keyFromIntent
+                        Log.d("LockScreen", "Unlock key stored encrypted in Keystore")
                     }
                 }
-                
-                Log.d("LockScreen", "✅ Lock verification system ready (Hash present: ${!prefs.getString("UNLOCK_KEY_HASH", null).isNullOrEmpty()})")
             } catch (e: Exception) {
-                Log.e("LockScreen", "Failed to setup lock verification", e)
+                Log.e("LockScreen", "Failed to load encrypted unlock key", e)
             }
 
             setupHiddenUnlock()
@@ -362,12 +349,12 @@ class LockScreenActivity : AppCompatActivity() {
                 .setCancelable(false)
                     .setPositiveButton("Verify") { _, _ ->
                     try {
-                        val entered = input.text.toString().trim().uppercase(java.util.Locale.ROOT)
-                        val storedHash = prefs.getString("UNLOCK_KEY_HASH", null)
+                        val entered = input.text.toString().trim().uppercase(Locale.ROOT)
+                        val stored = offlineUnlockKey
 
-                        if (!storedHash.isNullOrEmpty() && hashKey(entered) == storedHash) {
+                        if (!stored.isNullOrEmpty() && entered == stored) {
                             // ✅ Correct unlock key entered
-                            Log.d("LockScreen", "✅ Offline hash-match successful")
+                            Log.d("LockScreen", "✅ Offline unlock successful")
                             keyManager.resetAttempts()
                             
                             val prefs = createDeviceProtectedStorageContext()
@@ -386,9 +373,6 @@ class LockScreenActivity : AppCompatActivity() {
                                 }
                             }
 
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && dpm.isDeviceOwnerApp(packageName)) {
-                                dpm.setStatusBarDisabled(adminComponent, false)
-                            }
                             safeStopLockTask()
                             sendBroadcast(Intent("com.emiseure.customer.ACTION_UNLOCK"))
                             finishAndRemoveTask()
@@ -408,10 +392,10 @@ class LockScreenActivity : AppCompatActivity() {
                                 Log.w("LockScreen", "🚨 Unlock attempts exhausted - security lockout activated")
                                 
                                 // Report to backend that tampering was detected
-                                 TamperDetectionManager.recordTamperAttempt(
-                                     this,
-                                     "BRUTE_FORCE_UNLOCK_ATTEMPT"
-                                 )
+                                TamperDetectionManager.recordTamperAttempt(
+                                    this,
+                                    "BRUTE_FORCE_UNLOCK_ATTEMPT"
+                                )
                             } else {
                                 Toast.makeText(
                                     this,
@@ -436,8 +420,7 @@ class LockScreenActivity : AppCompatActivity() {
     // ---- HARD BLOCK BACK BUTTON ----
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        // Disabled intentionally, but must call super to satisfy linter
-        // super.onBackPressed() // Do not call if you want to block it entirely
+        // Disabled intentionally
     }
 
     override fun onDestroy() {
@@ -451,7 +434,7 @@ class LockScreenActivity : AppCompatActivity() {
                 Log.d("LockScreen", "Unlock receiver unregistered")
             }
         } catch (e: Exception) {
-            Log.e("LockScreen", "Error in onDestroy", e)
+            Log.e("LockScreen", "Error unregistering receiver", e)
         }
         
         safeStopLockTask()

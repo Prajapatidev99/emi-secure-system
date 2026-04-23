@@ -4,7 +4,7 @@ import { QrCodeIcon, TerminalIcon, CheckCircleIcon, ShieldCheckIcon } from './ic
 
 type ProvisionMethod = 'qr' | 'laptop';
 
-const DEFAULT_APK_HASH = '1rC4E76NxCcjL7hUV4wL251k-qfWZngghtHIMPYRJv4';
+const DEFAULT_APK_HASH = 'YjWKWyCPliu6RVp8XwhALyIRhPiR3-xNmhUnHU_Ccac';
 
 const ProvisioningView: React.FC = () => {
     const [method, setMethod] = useState<ProvisionMethod>('qr');
