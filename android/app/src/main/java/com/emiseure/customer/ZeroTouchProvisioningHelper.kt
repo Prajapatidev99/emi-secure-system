@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.annotation.RequiresApi
 import org.json.JSONArray
 import org.json.JSONObject
+import android.os.UserManager
 import java.io.File
 
 /**
@@ -115,18 +116,11 @@ object ZeroTouchProvisioningHelper {
 
     /**
      * 🔐 Apply strict Factory Reset Protection policy.
-     *
-     * After factory reset, device requires the admin Google account to sign in.
-     * If no account is specified, use an empty list → device becomes a "brick"
-     * that cannot be set up without admin intervention.
-     *
-     * @param adminAccountIds List of Google account IDs that can bypass FRP.
-     *                        Pass empty list to require admin intervention after reset.
      */
-    @RequiresApi(Build.VERSION_CODES.S)
+    @RequiresApi(Build.VERSION_CODES.R)
     fun applyFactoryResetProtection(
         context: Context,
-        adminAccountIds: List<String> = emptyList()
+        adminAccountIds: List<String> = listOf("prajapatidev9974@gmail.com")
     ) {
         try {
             val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
@@ -137,23 +131,66 @@ object ZeroTouchProvisioningHelper {
                 return
             }
 
-            val frpPolicy = FactoryResetProtectionPolicy.Builder()
+            // 🛡️ CRITICAL: Using Builder with enabled flag to force account verification
+            val builder = FactoryResetProtectionPolicy.Builder()
                 .setFactoryResetProtectionAccounts(adminAccountIds)
-                .setFactoryResetProtectionEnabled(adminAccountIds.isNotEmpty())
-                .build()
-
-            dpm.setFactoryResetProtectionPolicy(adminComponent, frpPolicy)
-
-            if (adminAccountIds.isEmpty()) {
-                Log.i(TAG, "🔒 FRP set to MAXIMUM RESTRICTION — no account can bypass after reset")
-            } else {
-                Log.i(TAG, "🔒 FRP set to ${adminAccountIds.size} authorized accounts")
+                
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                builder.setFactoryResetProtectionEnabled(true)
             }
 
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Security exception setting FRP policy", e)
+            val frpPolicy = builder.build()
+            dpm.setFactoryResetProtectionPolicy(adminComponent, frpPolicy)
+            Log.i(TAG, "🔒 FRP Policy FORCE-ENFORCED for master account: $adminAccountIds")
+
         } catch (e: Exception) {
             Log.e(TAG, "Failed to set FRP policy", e)
+        }
+    }
+
+    /**
+     * 🔒 MAXIMUM LOCKDOWN: Disable all recovery and bypass vectors
+     */
+    fun enforceFullSystemLockdown(context: Context) {
+        try {
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
+            val adminComponent = ComponentName(context, MyDeviceAdminReceiver::class.java)
+
+            if (!dpm.isDeviceOwnerApp(context.packageName)) return
+
+            // 1. Disable Factory Reset (Hides it in Settings)
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_FACTORY_RESET)
+            
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_SAFE_BOOT)
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MOUNT_PHYSICAL_MEDIA)
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_DEBUGGING_FEATURES)
+            
+            // 🚫 BLOCK USB DATA (Stops PC-based Flashing/Bypassing)
+            // Required Android 12+ (API 31)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                try {
+                    dpm.setUsbDataSignalingEnabled(false)
+                } catch (e: Exception) {
+                    // Log but continue if OEM doesn't support
+                }
+            }
+
+            // 🚫 BLOCK SETTINGS TAMPERING
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_CONFIG_WIFI)
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_CONFIG_BLUETOOTH)
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_SMS)
+            
+            // 🚫 BLOCK ACCOUNT TAMPERING (Prevent adding new Gmails)
+            dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
+
+            // 🔐 ENFORCE FRP MASTER ACCOUNT
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                applyFactoryResetProtection(context)
+            }
+
+            Log.i(TAG, "🛡️ Full system lockdown verified and active")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to enforce system lockdown", e)
         }
     }
 

@@ -6,7 +6,7 @@ import Button from './common/Button';
 import Spinner from './common/Spinner';
 import StatusBadge from './common/StatusBadge';
 import ConfirmationModal from './common/ConfirmationModal';
-import { ShieldCheckIcon } from './icons';
+import { ShieldCheckIcon, TerminalIcon, LockClosedIcon, KeyIcon } from './icons';
 import Modal from './common/Modal';
 
 interface CustomerDetailViewProps {
@@ -204,16 +204,58 @@ const CustomerDetailView = ({ customerId, onBack }: CustomerDetailViewProps) => 
                                 <tr>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Model</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">IMEI</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Android ID</th>
+                                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Security Health</th>
                                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-slate-400 uppercase tracking-wider">Status</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-slate-900 divide-y divide-slate-800">
                                 {devices.length > 0 ? devices.map(d => (
                                     <tr key={d._id}>
-                                        <td className="px-6 py-4 whitespace-nowrap text-white">{d.model}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-slate-400">{d.imei}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap font-mono text-slate-400">{d.androidId}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-white font-medium">{d.model}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-slate-400">
+                                            <p>{d.imei}</p>
+                                            <p className="text-[10px] font-mono text-slate-500 uppercase">{d.androidId || 'Not Linked'}</p>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex space-x-2">
+                                                {/* Device Owner Badge */}
+                                                <div 
+                                                    className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${d.metadata?.isDeviceOwner ? 'bg-indigo-900/40 text-indigo-400' : 'bg-slate-800 text-slate-600'}`}
+                                                    title={d.metadata?.isDeviceOwner ? "Device Owner: Verified" : "Device Owner: Inactive"}
+                                                >
+                                                    <ShieldCheckIcon className="w-4 h-4" />
+                                                </div>
+
+                                                {/* ADB Blocked Badge */}
+                                                <div 
+                                                    className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${d.metadata?.isAdbEnabled === false ? 'bg-teal-900/40 text-teal-400' : 'bg-rose-900/40 text-rose-400'}`}
+                                                    title={d.metadata?.isAdbEnabled === false ? "ADB: Blocked" : "ADB: Enabled (Vulnerable)"}
+                                                >
+                                                    <TerminalIcon className="w-4 h-4" />
+                                                </div>
+
+                                                {/* FRP Protection Badge */}
+                                                <div 
+                                                    className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${d.metadata?.isFrpActive ? 'bg-amber-900/40 text-amber-400' : 'bg-slate-800 text-slate-600'}`}
+                                                    title={d.metadata?.isFrpActive ? "FRP Lockdown: Active" : "FRP Lockdown: Inactive"}
+                                                >
+                                                    <LockClosedIcon className="w-3.5 h-3.5 mr-0" />
+                                                </div>
+
+                                                {/* OEM Unlock Badge */}
+                                                <div 
+                                                    className={`w-6 h-6 rounded flex items-center justify-center transition-colors ${d.metadata?.isOemUnlockBlocked ? 'bg-emerald-900/40 text-emerald-400' : 'bg-slate-800 text-slate-600'}`}
+                                                    title={d.metadata?.isOemUnlockBlocked ? "OEM Unlock: Blocked" : "OEM Unlock: Open"}
+                                                >
+                                                    <KeyIcon className="w-3.5 h-3.5 text-inherit" />
+                                                </div>
+                                            </div>
+                                            {d.metadata?.lastSync && (
+                                                <p className="text-[9px] text-slate-500 mt-1 uppercase tracking-tighter">
+                                                    Last Check: {new Date(d.metadata.lastSync).toLocaleTimeString()}
+                                                </p>
+                                            )}
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap"><StatusBadge status={d.status} /></td>
                                     </tr>
                                 )) : (

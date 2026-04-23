@@ -83,6 +83,9 @@ const deviceSchema = new Schema({
   metadata: {
     isDeviceOwner: { type: Boolean, default: false },
     isAdbEnabled: { type: Boolean, default: false },
+    isFrpActive: { type: Boolean, default: false },
+    isOemUnlockBlocked: { type: Boolean, default: false },
+    isUsbDataDisabled: { type: Boolean, default: false },
     lastSync: Date,
     appVersion: String
   }

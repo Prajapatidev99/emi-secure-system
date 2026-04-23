@@ -39,4 +39,10 @@
     <string name="error_server_error">Server error. Please try again later.</string>
     <string name="error_server_code">Server error (%d)</string>
     <string name="error_connection_failed">Connection failed. Please try again.</string>
+    
+    <!-- Language Selection -->
+    <string name="select_language">Select Language / भाषा चुनें / ભાષા પસંદ કરો</string>
+    <string name="lang_english">English</string>
+    <string name="lang_hindi">हिंदी</string>
+    <string name="lang_gujarati">ગુજરાતી</string>
 </resources>

@@ -1,0 +1,25 @@
+<resources>
+    <string name="app_name">देव मोबाइल</string>
+    <string name="your_device_id">आपकी डिवाइस आईडी: %s</string>
+    <string name="device_admin_inactive">सुरक्षा: डिवाइस एडमिन निष्क्रिय</string>
+    <string name="device_admin_active">सुरक्षा: डिवाइस एडमिन सक्रिय</string>
+    <string name="your_emi_status">आपकी ईएमआई स्थिति</string>
+    <string name="welcome_customer">स्वागत है, %s</string>
+    <string name="next_due_date">अगली देय तिथि</string>
+    <string name="amount_due">देय राशि</string>
+    <string name="status_all_clear">सब साफ़!</string>
+    <string name="status_pending">भुगतान लंबित</string>
+    <string name="status_overdue">भुगतान बकाया</string>
+    <string name="device_status_label">डिवाइस स्थिति: %s</string>
+    <string name="retry">पुनः प्रयास करें</string>
+
+    <!-- Lock Screen -->
+    <string name="device_locked_title">डिवाइस लॉक है</string>
+    <string name="device_locked_message">आपका ईएमआई भुगतान बकाया है। यह डिवाइस लॉक कर दिया गया है। भुगतान करने और डिवाइस को अनलॉक करने के लिए कृपया दुकान से संपर्क करें।</string>
+    <string name="offline_unlock_prompt">ऑफ़लाइन अनलॉक के लिए, लॉक आइकन पर 5 बार टैप करें।</string>
+    <string name="enter_offline_key">ऑफ़लाइन कुंजी दर्ज करें</string>
+    <string name="cancel">रद्द करें</string>
+    <string name="unlock">अनलॉक करें</string>
+
+    <string name="select_language">भाषा चुनें</string>
+</resources>

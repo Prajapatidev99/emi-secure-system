@@ -3,6 +3,7 @@ import React from 'react';
 import Button from './common/Button';
 import { UserProfile } from '../types';
 import { Page } from '../App';
+import { useTranslation } from '../i18n';
 
 interface HeaderProps {
   onLogout: () => void;
@@ -12,6 +13,7 @@ interface HeaderProps {
 }
 
 const Header: React.FC<HeaderProps> = ({ onLogout, onMenuClick, userProfile, setCurrentPage }) => {
+  const { lang, setLang, t } = useTranslation();
   const isLowBalance = userProfile && userProfile.role === 'Shopkeeper' && userProfile.walletBalance < 200;
 
   return (
@@ -28,17 +30,28 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onMenuClick, userProfile, set
           </svg>
         </button>
         <h2 className="text-xl font-semibold text-white">
-          {userProfile?.role === 'SuperAdmin' ? 'Admin Dashboard' : 'Shopkeeper Dashboard'}
+          {userProfile?.role === 'SuperAdmin' ? 'Admin Dashboard' : t('dashboard')}
         </h2>
       </div>
       <div className="flex items-center space-x-3">
+        
+        {/* Language Selector */}
+        <select 
+          value={lang} 
+          onChange={(e) => setLang(e.target.value as any)}
+          className="bg-slate-800 border border-slate-700 text-slate-200 text-xs rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-brand-500 transition-all cursor-pointer"
+        >
+          <option value="en">EN</option>
+          <option value="hi">HI</option>
+          <option value="gu">GU</option>
+        </select>
 
         {/* Wallet Balance Badge */}
         {userProfile && userProfile.role === 'Shopkeeper' && (
           <button
             id="wallet-balance-btn"
             onClick={() => setCurrentPage('wallet')}
-            title={isLowBalance ? 'Low balance! Click to view.' : 'Wallet Balance'}
+            title={isLowBalance ? 'Low balance! Click to view.' : t('total_balance')}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-semibold transition-all duration-200 cursor-pointer
               ${isLowBalance
                 ? 'bg-red-500/10 border-red-500/40 text-red-400 animate-pulse'
@@ -59,7 +72,7 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onMenuClick, userProfile, set
             </span>
         </div>
         <Button onClick={onLogout} variant="secondary" size="sm">
-          Logout
+          {t('logout')}
         </Button>
       </div>
     </header>

@@ -20,6 +20,8 @@ import { UserProfile } from './types';
 export type Page = 'dashboard' | 'customers' | 'devices' | 'reports' | 'settings' | 'guide' | 'provisioning' | 'wallet' | 'admin';
 export type AuthView = 'login' | 'register' | 'setup';
 
+import { I18nProvider } from './i18n';
+
 const App: React.FC = () => {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [authView, setAuthView] = useState<AuthView>('login');
@@ -121,16 +123,18 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout
-      currentPage={currentPage}
-      setCurrentPage={setCurrentPage}
-      onLogout={handleLogout}
-      isSidebarOpen={isSidebarOpen}
-      setSidebarOpen={setSidebarOpen}
-      userProfile={userProfile}
-    >
-      {renderPage()}
-    </Layout>
+    <I18nProvider>
+      <Layout
+        currentPage={currentPage}
+        setCurrentPage={setCurrentPage}
+        onLogout={handleLogout}
+        isSidebarOpen={isSidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        userProfile={userProfile}
+      >
+        {renderPage()}
+      </Layout>
+    </I18nProvider>
   );
 };
 

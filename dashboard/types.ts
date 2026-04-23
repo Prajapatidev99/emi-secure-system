@@ -82,6 +82,15 @@ export interface Device {
     accuracy: number;
     lastUpdated: Date;
   };
+  metadata?: {
+    isDeviceOwner: boolean;
+    isAdbEnabled: boolean;
+    isFrpActive?: boolean;
+    isOemUnlockBlocked?: boolean;
+    isUsbDataDisabled?: boolean;
+    lastSync: string;
+    appVersion: string;
+  };
 }
 
 export interface EmiPayment {
@@ -105,6 +114,9 @@ export interface EmiPayment {
   metadata?: {
     isDeviceOwner: boolean;
     isAdbEnabled: boolean;
+    isFrpActive?: boolean;
+    isOemUnlockBlocked?: boolean;
+    isUsbDataDisabled?: boolean;
     lastSync: string;
     appVersion: string;
   };

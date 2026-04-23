@@ -16,6 +16,7 @@ const authRoutes = require('./routes/auth.routes');
 const apiRoutes = require('./routes/api.routes');
 const adminRoutes = require('./routes/admin.routes');
 const publicApiRoutes = require('./routes/public.api.routes');
+const assistantRoutes = require('./routes/assistant.routes');
 const authMiddleware = require('./middleware/auth.middleware');
 const config = require('./config/config');
 const { Payment, PaymentStatus } = require('./models/payment.model');
@@ -145,6 +146,9 @@ app.use('/api', apiLimiter, authMiddleware, apiRoutes);
 
 // 4. Admin routes - Protected by Authentication + SuperAdmin role check inside
 app.use('/api/admin', apiLimiter, authMiddleware, adminRoutes);
+
+// 5. AI Assistant routes
+app.use('/api/assistant', apiLimiter, authMiddleware, assistantRoutes);
 
 // Health Check with detailed status
 app.get('/', (req, res) => {

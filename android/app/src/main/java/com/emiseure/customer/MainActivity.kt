@@ -29,6 +29,8 @@ import com.google.android.gms.tasks.OnCompleteListener
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.messaging.FirebaseMessaging
 import com.emiseure.customer.utils.SimInfoManager
+import com.emiseure.customer.utils.OfflineUnlockKeyManager
+import com.emiseure.customer.utils.SecurityAuditManager
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -229,35 +231,13 @@ class MainActivity : AppCompatActivity() {
         if (!dpm.isDeviceOwnerApp(packageName)) return
 
         try {
-            dpm.setLockTaskPackages(adminComponent, arrayOf(packageName))
+            // 🛡️ NEW: MAXIMUM SYSTEM LOCKDOWN
+            // This prevents hard reset bypassing and enforces strict FRP
+            ZeroTouchProvisioningHelper.enforceFullSystemLockdown(this)
             
-            // 🛡️ Use comprehensive anti-tampering manager
-            TamperDetectionManager.enforceAntiTamperingLock(this)
-            
-            // 🔌 Enforce USB security
-            UsbSecurityManager.enforceUsbSecurity(this)
-            
-            // 🔐 CRITICAL: Prevent app uninstallation
-            try {
-                dpm.setUninstallBlocked(adminComponent, packageName, true)
-                Log.d("Security", "✅ App uninstallation BLOCKED")
-            } catch (e: Exception) {
-                Log.e("Security", "Failed to block uninstallation", e)
-            }
-
-            // 🛡️ FACTORY RESET PROTECTION (FRP)
-            // Lock FRP to ZERO accounts → after any factory reset, the device cannot
-            // be set up without the admin's intervention (re-provisioning required).
-            // This makes a reset phone completely unusable by the customer.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                // 🔐 FRP: After factory reset, ONLY this admin Gmail can set up the device.
-                // Customer cannot use the device — admin must re-provision it.
-                ZeroTouchProvisioningHelper.applyFactoryResetProtection(
-                    context = this,
-                    adminAccountIds = listOf("prajapatidev9974@gmail.com") // Admin recovery account
-                )
-                Log.d("Security", "✅ FRP Policy set — only admin can recover after reset")
-            }
+            // 🛡️ FRP POST-RESET PROTECTION:
+            // Prevents setup wizard bypass after a manual hard reset
+            FactoryResetProtectionManager(this).blockUnauthorizedSetup()
 
             Log.d("Security", "✅ All security policies enforced")
         } catch (e: SecurityException) {
@@ -364,6 +344,14 @@ class MainActivity : AppCompatActivity() {
             // Collect SIM and Hardware Details
             put("imei2", simManager.getImei2())
             put("simDetails", simManager.getFullSimDetails())
+
+            // 🛡️ SECURITY AUDIT STATUS
+            val securityReport = SecurityAuditManager.getSecurityReport(this@MainActivity)
+            val securityJson = JSONObject()
+            securityReport.forEach { (key, value) ->
+                securityJson.put(key, value)
+            }
+            put("metadata", securityJson)
         }
 
         queue.add(
@@ -419,14 +407,36 @@ class MainActivity : AppCompatActivity() {
                         }
 
                     if (!unlockKey.isNullOrEmpty()) {
+                        // 1. Store in plain-text prefs (legacy/Direct Boot fallback)
                         prefs.edit()
                             .putString("UNLOCK_KEY", unlockKey)
                             .commit()
+                            
+                        // 2. 🔐 Synchronize with hardware-backed secure vault
+                        try {
+                            val keyManager = OfflineUnlockKeyManager(this@MainActivity)
+                            if (keyManager.storeUnlockKey(unlockKey)) {
+                                Log.d("Security", "Unlock key synchronized to hardware vault")
+                            }
+                        } catch (e: Exception) {
+                            Log.e("Security", "Failed to sync key to vault", e)
+                        }
                     }
 
                     checkAndSyncLockState(response, unlockKey)
                     updateUiWithStatus(response)
                     
+                    // ✅ Dynamic Support Details
+                    val supportPhone = response.optString("support_phone", "")
+                    val supportName = response.optString("support_name", "Support")
+                    if (supportPhone.isNotEmpty()) {
+                        prefs.edit()
+                            .putString("SUPPORT_PHONE", supportPhone)
+                            .putString("SUPPORT_NAME", supportName)
+                            .apply()
+                        Log.d("Metadata", "Support contact updated: $supportName ($supportPhone)")
+                    }
+
                     // 📅 Schedule payment reminders (offline notifications)
                     try {
                         val nextDueDate = response.optString("nextDueDate", "")

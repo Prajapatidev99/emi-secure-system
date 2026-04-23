@@ -8,12 +8,17 @@ import android.os.UserManager
 import android.util.Log
 import android.view.View
 import android.view.WindowManager
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
+import android.content.res.Configuration
+import android.util.DisplayMetrics
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.emiseure.customer.databinding.ActivityLockScreenBinding
 import com.emiseure.customer.utils.OfflineUnlockKeyManager
-import java.util.Locale
+import android.annotation.SuppressLint
 
 class LockScreenActivity : AppCompatActivity() {
 
@@ -36,23 +41,34 @@ class LockScreenActivity : AppCompatActivity() {
     private var isReceiverRegistered = false
     private var isInLockTaskMode = false
 
+    // 🔐 Lazy context and prefs for Direct Boot safety
+    private val deviceContext by lazy { createDeviceProtectedStorageContext() }
+    private val prefs by lazy { deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE) }
+
     // Unlock broadcast
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.emiseure.customer.ACTION_UNLOCK") {
                 Log.d("LockScreen", "Unlock broadcast received")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && dpm.isDeviceOwnerApp(packageName)) {
+                    dpm.setStatusBarDisabled(adminComponent, false)
+                }
                 safeStopLockTask()
                 finishAndRemoveTask()
             }
         }
     }
 
+    @SuppressLint("UnspecifiedRegisterReceiverFlag")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         try {
             // 🛡️ PRIVACY SHIELD: Block screenshots and screen recording
-            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            
+            // 🔒 FULLSCREEN & SYSTEM UI BLOCKING
+            hideSystemUI()
 
             binding = ActivityLockScreenBinding.inflate(layoutInflater)
             setContentView(binding.root)
@@ -80,6 +96,7 @@ class LockScreenActivity : AppCompatActivity() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     registerReceiver(unlockReceiver, filter, RECEIVER_NOT_EXPORTED)
                 } else {
+                    // For older APIs, use 0 or a safer context flag if available backported
                     registerReceiver(unlockReceiver, filter)
                 }
                 isReceiverRegistered = true
@@ -92,6 +109,10 @@ class LockScreenActivity : AppCompatActivity() {
             if (dpm.isDeviceOwnerApp(packageName)) {
                 try {
                     dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_USB_FILE_TRANSFER)
+                    // 🛡️ Pro-level status bar block (Device Owner only)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        dpm.setStatusBarDisabled(adminComponent, true)
+                    }
                     // 🛡️ Enforce comprehensive anti-tampering protections
                     TamperDetectionManager.enforceAntiTamperingLock(this)
                     safeStartLockTask()
@@ -104,16 +125,37 @@ class LockScreenActivity : AppCompatActivity() {
             try {
                 keyManager = OfflineUnlockKeyManager(this)
                 
-                // 🔐 Try to load encrypted key first
+                // 🔐 STRATEGY: Try all sources to find the key
+                // 1. Check encrypted hardware vault (Most Secure)
                 offlineUnlockKey = keyManager.getUnlockKey()
                 
-                // 🔐 If intent contains key (from backend), store it encrypted
+                // 2. Check Intent (New from server)
                 val keyFromIntent = intent.getStringExtra("UNLOCK_KEY_VIA_INTENT")
                 if (!keyFromIntent.isNullOrEmpty() && keyFromIntent.length >= 6) {
+                    Log.d("LockScreen", "Found key in Intent, migrating to vault...")
                     if (keyManager.storeUnlockKey(keyFromIntent)) {
                         offlineUnlockKey = keyFromIntent
-                        Log.d("LockScreen", "Unlock key stored encrypted in Keystore")
                     }
+                }
+                
+                // 3. Fallback: Check plain-text storage (Migrate for safety)
+                if (offlineUnlockKey.isNullOrEmpty()) {
+                    val fallbackPrefs = deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
+                    val legacyKey = fallbackPrefs.getString("UNLOCK_KEY", null)
+                    if (!legacyKey.isNullOrEmpty() && legacyKey.length >= 6) {
+                        Log.w("LockScreen", "Found legacy plain-text key, migrating to secure vault...")
+                        if (keyManager.storeUnlockKey(legacyKey)) {
+                            offlineUnlockKey = legacyKey
+                            // Optional: Clear legacy key after successful migration
+                            // fallbackPrefs.edit().remove("UNLOCK_KEY").apply()
+                        }
+                    }
+                }
+                
+                if (offlineUnlockKey.isNullOrEmpty()) {
+                    Log.e("LockScreen", "🚨 CRITICAL: No offline unlock key found in any source!")
+                } else {
+                    Log.d("LockScreen", "✅ Offline unlock key successfully loaded (${offlineUnlockKey?.length} chars)")
                 }
             } catch (e: Exception) {
                 Log.e("LockScreen", "Failed to load encrypted unlock key", e)
@@ -121,9 +163,114 @@ class LockScreenActivity : AppCompatActivity() {
 
             setupHiddenUnlock()
             
+            // 📞 SETUP DYNAMIC SUPPORT CALL
+            setupSupportCall()
+            
+            // 🌐 SETUP LANGUAGE SWITCHER
+            setupLanguageSwitcher()
+            
+            // 🔒 BLOCK NOTIFICATION DRAWER / STATUS BAR EXPANSION
+            startDrawerBlocker()
+            
         } catch (e: Exception) {
             Log.e("LockScreen", "Critical error in onCreate", e)
-            // Don't crash, just log and continue
+        }
+    }
+
+    private fun setupSupportCall() {
+        val supportPhone = prefs.getString("SUPPORT_PHONE", "")
+        val supportName = prefs.getString("SUPPORT_NAME", "Retailer")
+        
+        if (!supportPhone.isNullOrEmpty()) {
+            binding.callSupportButton.visibility = android.view.View.VISIBLE
+            binding.callSupportButton.text = "Call $supportName"
+            
+            binding.callSupportButton.setOnClickListener {
+                try {
+                    val intent = Intent(Intent.ACTION_DIAL).apply {
+                        data = Uri.parse("tel:$supportPhone")
+                    }
+                    startActivity(intent)
+                } catch (e: Exception) {
+                    Log.e("LockScreen", "Failed to start dialer", e)
+                }
+            }
+        }
+    }
+
+    private fun setupLanguageSwitcher() {
+        // Find language icons or create a simple toggle
+        binding.lockIcon.setOnLongClickListener {
+            showLanguageDialog()
+            true
+        }
+    }
+
+    private fun showLanguageDialog() {
+        val languages = arrayOf("English", "हिंदी", "ગુજરાતી")
+        val codes = arrayOf("en", "hi", "gu")
+        
+        AlertDialog.Builder(this)
+            .setTitle(R.string.select_language)
+            .setItems(languages) { _, which ->
+                updateLocale(codes[which])
+            }
+            .show()
+    }
+
+    private fun updateLocale(langCode: String) {
+        val locale = java.util.Locale(langCode)
+        java.util.Locale.setDefault(locale)
+        val config = Configuration()
+        config.setLocale(locale)
+        @Suppress("DEPRECATION")
+        resources.updateConfiguration(config, resources.displayMetrics)
+        
+        // Restart activity to apply changes
+        val intent = intent
+        finish()
+        startActivity(intent)
+    }
+
+    private fun startDrawerBlocker() {
+        // Fallback for non-Device Owner or older APIs
+        if (!dpm.isDeviceOwnerApp(packageName)) {
+            handler.postDelayed(object : Runnable {
+                override fun run() {
+                    try {
+                        @Suppress("DEPRECATION")
+                        sendBroadcast(Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
+                    } catch (e: Exception) {}
+                    handler.postDelayed(this, 1000)
+                }
+            }, 1000)
+        }
+    }
+
+    private fun hideSystemUI() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            window.setDecorFitsSystemWindows(false)
+            window.insetsController?.let { controller ->
+                controller.hide(android.view.WindowInsets.Type.statusBars() or android.view.WindowInsets.Type.navigationBars())
+                controller.systemBarsBehavior = android.view.WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN
+            )
+        }
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus) {
+            // User tried to pull something over the lock screen OR open something
+            if (!dpm.isDeviceOwnerApp(packageName)) {
+                @Suppress("DEPRECATION")
+                sendBroadcast(Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
+            }
         }
     }
 
@@ -206,7 +353,7 @@ class LockScreenActivity : AppCompatActivity() {
                 .setCancelable(false)
                     .setPositiveButton("Verify") { _, _ ->
                     try {
-                        val entered = input.text.toString().trim().uppercase(Locale.ROOT)
+                        val entered = input.text.toString().trim().uppercase(java.util.Locale.ROOT)
                         val stored = offlineUnlockKey
 
                         if (!stored.isNullOrEmpty() && entered == stored) {
@@ -230,12 +377,15 @@ class LockScreenActivity : AppCompatActivity() {
                                 }
                             }
 
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && dpm.isDeviceOwnerApp(packageName)) {
+                                dpm.setStatusBarDisabled(adminComponent, false)
+                            }
                             safeStopLockTask()
                             sendBroadcast(Intent("com.emiseure.customer.ACTION_UNLOCK"))
                             finishAndRemoveTask()
                         } else {
                             // ❌ Wrong unlock key
-                            val lockoutUntil = keyManager.recordFailedAttempt()
+                            keyManager.recordFailedAttempt()
                             val remainingAttempts = 10 - keyManager.getAttemptCount()
                             
                             if (remainingAttempts <= 0) {
@@ -277,7 +427,8 @@ class LockScreenActivity : AppCompatActivity() {
     // ---- HARD BLOCK BACK BUTTON ----
     @Deprecated("Deprecated in Java")
     override fun onBackPressed() {
-        // Disabled intentionally
+        // Disabled intentionally, but must call super to satisfy linter
+        // super.onBackPressed() // Do not call if you want to block it entirely
     }
 
     override fun onDestroy() {

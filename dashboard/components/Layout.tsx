@@ -1,6 +1,7 @@
 import React from 'react';
 import Sidebar from './Sidebar';
 import Header from './Header';
+import AssistantChat from './AssistantChat';
 import { Page } from '../App';
 import { UserProfile } from '../types';
 
@@ -45,6 +46,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentPage, setCurrentPage, 
             {children}
           </div>
         </main>
+        <AssistantChat />
       </div>
     </div>
   );

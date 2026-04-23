@@ -1,0 +1,25 @@
+<resources>
+    <string name="app_name">ડેવ મોબાઈલ</string>
+    <string name="your_device_id">તમારું ડિવાઇસ ID: %s</string>
+    <string name="device_admin_inactive">સુરક્ષા: ઉપકરણ એડમિન નિષ્ક્રિય</string>
+    <string name="device_admin_active">સુરક્ષા: ઉપકરણ એડમિન સક્રિય</string>
+    <string name="your_emi_status">તમારી EMI સ્થિતિ</string>
+    <string name="welcome_customer">સ્વાગત છે, %s</string>
+    <string name="next_due_date">આગામી તારીખ</string>
+    <string name="amount_due">બાકી રકમ</string>
+    <string name="status_all_clear">બધું બરાબર છે!</string>
+    <string name="status_pending">ચુકવણી બાકી છે</string>
+    <string name="status_overdue">ચુકવણી વિલંબિત</string>
+    <string name="device_status_label">ડિવાઇસ સ્થિતિ: %s</string>
+    <string name="retry">ફરી પ્રયાસ કરો</string>
+
+    <!-- Lock Screen -->
+    <string name="device_locked_title">ઉપકરણ લૉક કરેલ છે</string>
+    <string name="device_locked_message">તમારી EMI ચુકવણી બાકી છે. આ ઉપકરણ લૉક કરવામાં આવ્યું છે. ચુકવણી કરવા અને અનલૉક કરવા માટે કૃપા કરીને દુકાનનો સંપર્ક કરો.</string>
+    <string name="offline_unlock_prompt">ઓફલાઇન અનલોક માટે, લૉક આઇકન પર 5 વાર ટેપ કરો.</string>
+    <string name="enter_offline_key">ઓફલાઇન કી દાખલ કરો</string>
+    <string name="cancel">રદ કરો</string>
+    <string name="unlock">અનલૉક કરો</string>
+
+    <string name="select_language">ભાષા પસંદ કરો</string>
+</resources>

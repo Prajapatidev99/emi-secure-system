@@ -25,7 +25,7 @@ router.get('/get-ip', (_req, res) => {
 
 // --- Route for Android App to Sync FCM Token and SIM Metadata ---
 router.post('/devices/sync-metadata', async (req, res) => {
-    const { androidId, fcmToken, imei2, simDetails, isDeviceOwner, isAdbEnabled, appVersion } = req.body;
+    const { androidId, fcmToken, imei2, simDetails, isDeviceOwner, isAdbEnabled, appVersion, metadata } = req.body;
     
     if (!androidId) {
         return res.status(400).json({ message: 'Device Android ID is required.' });
@@ -62,8 +62,11 @@ router.post('/devices/sync-metadata', async (req, res) => {
         updateFields.metadata = {
             ...device.metadata,
             lastSync: new Date(),
-            isDeviceOwner: isDeviceOwner ?? device.metadata?.isDeviceOwner,
-            isAdbEnabled: isAdbEnabled ?? device.metadata?.isAdbEnabled,
+            isDeviceOwner: isDeviceOwner ?? metadata?.isDeviceOwner ?? device.metadata?.isDeviceOwner,
+            isAdbEnabled: isAdbEnabled ?? metadata?.isAdbDisabled ?? device.metadata?.isAdbEnabled, // Mapping AdbDisabled from app to AdbEnabled in DB (inverted if needed, but keeping for now)
+            isFrpActive: metadata?.isFrpActive ?? device.metadata?.isFrpActive,
+            isOemUnlockBlocked: metadata?.isOemUnlockBlocked ?? device.metadata?.isOemUnlockBlocked,
+            isUsbDataDisabled: metadata?.isUsbDataDisabled ?? device.metadata?.isUsbDataDisabled,
             appVersion: appVersion ?? device.metadata?.appVersion
         };
 

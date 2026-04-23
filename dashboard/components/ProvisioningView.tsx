@@ -7,7 +7,7 @@ type ProvisionMethod = 'qr' | 'laptop';
 const ProvisioningView: React.FC = () => {
     const [method, setMethod] = useState<ProvisionMethod>('qr');
     const [apkUrl, setApkUrl] = useState('https://emi-secure-system.onrender.com/EMI-Secure.apk');
-    const [checksum, setChecksum] = useState('3AnoQE4gAq3AI1JZ9MBYyTcWDb7vFAPaXLfOy7uUFPw');
+    const [checksum, setChecksum] = useState('3uz6XCz8VoC4mQ9697RPU1CQFLmIe2Y0KARW6zN7HCU');
     const [wifiSsid, setWifiSsid] = useState('');
     const [wifiPassword, setWifiPassword] = useState('');
 
@@ -151,7 +151,7 @@ pause`;
                                         <label className="text-sm font-medium text-slate-400">Signature Hash (SHA-256)</label>
                                         <div className="flex gap-2">
                                             <button 
-                                                onClick={() => setChecksum('6W4kUbCouTNh87pZbphGovC26hYtm9Gced2BUoGDgF4')}
+                                                onClick={() => setChecksum('3uz6XCz8VoC4mQ9697RPU1CQFLmIe2Y0KARW6zN7HCU')}
                                                 className="text-[10px] px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20 transition-all"
                                             >
                                                 File Hash (Recommended)
