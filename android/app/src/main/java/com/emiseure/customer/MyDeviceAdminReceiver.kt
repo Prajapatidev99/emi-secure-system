@@ -115,20 +115,16 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
                     Log.w(TAG, "setUninstallBlocked failed", e)
                 }
 
-                // 🔐 REDMI/MIUI FIX: Force-Grant Location Permissions
-                // This ensures "Allow Always" is set automatically
+                // 🔐 LOCK TASK MODE: Whitelist this app to be un-escaped
                 try {
-                    val permissions = arrayOf(
-                        Manifest.permission.ACCESS_FINE_LOCATION,
-                        Manifest.permission.ACCESS_COARSE_LOCATION,
-                        Manifest.permission.ACCESS_BACKGROUND_LOCATION
-                    )
-                    for (perm in permissions) {
-                        dpm.setPermissionGrantState(adminComponent, context.packageName, perm, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
-                    }
-                    Log.i(TAG, "✅ Location permissions FORCE-GRANTED (Redmi Fix)")
+                    dpm.setLockTaskPackages(adminComponent, arrayOf(context.packageName))
+                    Log.d(TAG, "✅ Lock task package whitelisted: ${context.packageName}")
+                    
+                    // 🛡️ Disable keyguard (Redmi/Vivo Fix)
+                    dpm.setKeyguardDisabled(adminComponent, true)
+                    Log.d(TAG, "✅ Keyguard DISABLED (Maximum Security)")
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to force-grant permissions", e)
+                    Log.w(TAG, "Failed to set lock task packages or disable keyguard", e)
                 }
 
                 Log.i(TAG, "🛡️ All anti-tampering restrictions applied successfully")

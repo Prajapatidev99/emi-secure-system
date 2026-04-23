@@ -290,9 +290,11 @@ object LockScreenPersistenceHelper {
      */
     fun notifyLockDestroyed(context: Context, reason: String) {
         try {
-            val intent = Intent(LockScreenStickinessService.ACTION_LOCK_DESTROYED)
-                .putExtra("reason", reason)
-            LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
+            val intent = Intent(LockScreenStickinessService.ACTION_LOCK_DESTROYED).apply {
+                putExtra("reason", reason)
+                setPackage(context.packageName) // 🔒 Security: Only our app receives this
+            }
+            context.sendBroadcast(intent)
             Log.w("LockPersistence", "Notified: Lock destroyed ($reason)")
         } catch (e: Exception) {
             Log.e("LockPersistence", "Failed to notify lock destroyed", e)
@@ -304,8 +306,10 @@ object LockScreenPersistenceHelper {
      */
     fun notifyLockAlive(context: Context) {
         try {
-            val intent = Intent(LockScreenStickinessService.ACTION_KEEP_LOCK_ALIVE)
-            LocalBroadcastManager.getInstance(context).sendBroadcast(intent)
+            val intent = Intent(LockScreenStickinessService.ACTION_KEEP_LOCK_ALIVE).apply {
+                setPackage(context.packageName)
+            }
+            context.sendBroadcast(intent)
         } catch (e: Exception) {
             Log.e("LockPersistence", "Failed to notify lock alive", e)
         }

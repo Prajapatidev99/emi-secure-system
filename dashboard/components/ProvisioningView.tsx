@@ -4,10 +4,12 @@ import { QrCodeIcon, TerminalIcon, CheckCircleIcon, ShieldCheckIcon } from './ic
 
 type ProvisionMethod = 'qr' | 'laptop';
 
+const DEFAULT_APK_HASH = '1rC4E76NxCcjL7hUV4wL251k-qfWZngghtHIMPYRJv4';
+
 const ProvisioningView: React.FC = () => {
     const [method, setMethod] = useState<ProvisionMethod>('qr');
     const [apkUrl, setApkUrl] = useState('https://emi-secure-system.onrender.com/EMI-Secure.apk');
-    const [checksum, setChecksum] = useState('NpMA69wVgT9DQ-pawSTXMFVJEdABWZU9RIWDjGai8Ow');
+    const [checksum, setChecksum] = useState(DEFAULT_APK_HASH);
     const [wifiSsid, setWifiSsid] = useState('');
     const [wifiPassword, setWifiPassword] = useState('');
 

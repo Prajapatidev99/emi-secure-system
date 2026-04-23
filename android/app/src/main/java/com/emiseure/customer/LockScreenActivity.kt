@@ -64,14 +64,17 @@ class LockScreenActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         try {
+            binding = ActivityLockScreenBinding.inflate(layoutInflater)
+            setContentView(binding.root)
+
+            // Force background color in code as fallback
+            binding.root.setBackgroundColor(androidx.core.content.ContextCompat.getColor(this, R.color.brand_primary_dark))
+
             // 🛡️ PRIVACY SHIELD: Block screenshots and screen recording
             window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
             
             // 🔒 FULLSCREEN & SYSTEM UI BLOCKING
             hideSystemUI()
-
-            binding = ActivityLockScreenBinding.inflate(layoutInflater)
-            setContentView(binding.root)
 
             // ---- FULL SCREEN + SHOW OVER LOCK ----
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
@@ -94,9 +97,8 @@ class LockScreenActivity : AppCompatActivity() {
             try {
                 val filter = IntentFilter("com.emiseure.customer.ACTION_UNLOCK")
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    registerReceiver(unlockReceiver, filter, RECEIVER_NOT_EXPORTED)
+                    registerReceiver(unlockReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
                 } else {
-                    // For older APIs, use 0 or a safer context flag if available backported
                     registerReceiver(unlockReceiver, filter)
                 }
                 isReceiverRegistered = true
@@ -468,5 +470,11 @@ class LockScreenActivity : AppCompatActivity() {
         }
         
         safeStopLockTask()
+        
+        // 🚨 If we are being destroyed but the device is still supposed to be locked,
+        // notify the stickiness service to re-launch us immediately.
+        if (prefs.getBoolean("IS_LOCKED", true) && !isFinishing) {
+            LockScreenPersistenceHelper.notifyLockDestroyed(this, "ACTIVITY_DESTROYED")
+        }
     }
 }
