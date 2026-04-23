@@ -752,6 +752,201 @@ router.get('/devices', async (req, res) => {
         // Get devices only for THIS user's customers
         const devices = await Device.find({ customerId: { $in: customerIds } })
             .populate('customerId', 'name')
+        const userDevices = await Device.find({ customerId: { $in: customerIds } }).select('_id');
+        const deviceIds = userDevices.map(d => d._id);
+
+        // Count overdue payments for this user's devices
+        const overduePayments = await Payment.countDocuments({
+            deviceId: { $in: deviceIds },
+            status: PaymentStatus.Overdue
+        });
+
+        // Count locked devices for this user's customers
+        const lockedDevices = await Device.countDocuments({
+            customerId: { $in: customerIds },
+            status: DeviceStatus.Locked
+        });
+
+        // Calculate total EMI collected for this user
+        const totalResult = await Payment.aggregate([
+            {
+                $match: {
+                    deviceId: { $in: deviceIds },
+                    status: PaymentStatus.Paid
+                }
+            },
+            { $group: { _id: null, total: { $sum: '$amount' } } }
+        ]);
+        const totalEmiCollected = totalResult.length > 0 ? totalResult[0].total : 0;
+
+        const monthlyData = [
+            { name: 'Jan', revenue: 4000 }, { name: 'Feb', revenue: 3000 },
+            { name: 'Mar', revenue: 5000 }, { name: 'Apr', revenue: 4500 },
+            { name: 'May', revenue: 6000 }, { name: 'Jun', revenue: 5500 },
+        ];
+
+        res.json({
+            totalEmiCollected,
+            overduePayments,
+            lockedDevices,
+            monthlyData,
+        });
+
+    } catch (error) {
+        res.status(500).json({ message: 'Error fetching dashboard stats', error: error.message });
+    }
+});
+
+router.post('/devices/:deviceId/lock', async (req, res) => {
+    try {
+        const userId = req.userId; // From auth middleware
+        const device = await Device.findById(req.params.deviceId).populate('customerId');
+        if (!device) return res.status(404).json({ message: 'Device not found' });
+
+        // SECURITY: Verify device belongs to this user's customer
+        const customer = await Customer.findOne({ _id: device.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This device does not belong to you.' });
+        }
+
+        if (device.status === DeviceStatus.Compromised || device.status === DeviceStatus.Released) return res.status(400).json({ message: 'Cannot lock a device that is compromised or released.' });
+        if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send command.' });
+
+        const result = await sendFcmCommand(device.fcmToken, 'LOCK', 'Your EMI payment is overdue. Please contact the shop.');
+        if (result.success) {
+            device.status = DeviceStatus.Locked;
+            await device.save();
+            res.status(200).json({ message: 'Lock command sent successfully.' });
+        } else {
+            res.status(500).json({ message: 'Failed to send lock command via FCM.', error: result.error });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+router.post('/devices/:deviceId/unlock', async (req, res) => {
+    try {
+        const userId = req.userId; // From auth middleware
+        const device = await Device.findById(req.params.deviceId).populate('customerId');
+        if (!device) return res.status(404).json({ message: 'Device not found' });
+
+        // SECURITY: Verify device belongs to this user's customer
+        const customer = await Customer.findOne({ _id: device.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This device does not belong to you.' });
+        }
+
+        if (device.status === DeviceStatus.Compromised) return res.status(400).json({ message: 'Cannot unlock a compromised device.' });
+        if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send command.' });
+
+        const result = await sendFcmCommand(device.fcmToken, 'UNLOCK', 'Your device has been unlocked. Thank you for your payment.');
+        if (result.success) {
+            device.status = DeviceStatus.Active;
+            await device.save();
+            res.status(200).json({ message: 'Unlock command sent successfully.' });
+        } else {
+            res.status(500).json({ message: 'Failed to send unlock command via FCM.', error: result.error });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+router.post('/devices/:deviceId/reset', async (req, res) => {
+    try {
+        const userId = req.userId; // From auth middleware
+        const device = await Device.findById(req.params.deviceId).populate('customerId');
+        if (!device) return res.status(404).json({ message: 'Device not found' });
+
+        // SECURITY: Verify device belongs to this user's customer
+        const customer = await Customer.findOne({ _id: device.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This device does not belong to you.' });
+        }
+
+        if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send command.' });
+
+        const result = await sendFcmCommand(device.fcmToken, 'WIPE', 'This device is being factory reset due to non-compliance.');
+
+        if (result.success) {
+            logger.info(`Hard Reset command sent to device ${device.imei}.`);
+            device.status = DeviceStatus.Compromised;
+            await device.save();
+            res.status(200).json({ message: 'Hard Reset command sent successfully.' });
+        } else {
+            res.status(500).json({ message: 'Failed to send Hard Reset command via FCM.', error: result.error });
+        }
+    } catch (error) {
+        res.status(500).json({ message: 'Server error during hard reset.', error: error.message });
+    }
+});
+
+router.post('/devices/:deviceId/release', async (req, res) => {
+    try {
+        const userId = req.userId; // From auth middleware
+        const device = await Device.findById(req.params.deviceId).populate('customerId');
+        if (!device) return res.status(404).json({ message: 'Device not found' });
+
+        // SECURITY: Verify device belongs to this user's customer
+        const customer = await Customer.findOne({ _id: device.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This device does not belong to you.' });
+        }
+
+        if (!device.fcmToken) return res.status(400).json({ message: 'Device has no FCM token. Cannot send release command.' });
+
+        const result = await sendFcmCommand(device.fcmToken, 'RELEASE_OWNERSHIP', 'Device ownership has been released.');
+
+        if (result.success) {
+            device.status = DeviceStatus.Released;
+            await device.save();
+            res.status(200).json({ message: 'Device release command sent successfully.' });
+        } else {
+            res.status(500).json({ message: 'Failed to send release command via FCM.', error: result.error });
+        }
+
+    } catch (error) {
+        res.status(500).json({ message: 'Server error during device release.', error: error.message });
+    }
+});
+
+
+router.get('/devices/:deviceId/unlock-key', async (req, res) => {
+    try {
+        const userId = req.userId; // From auth middleware
+        const device = await Device.findById(req.params.deviceId).populate('customerId');
+        if (!device) {
+            return res.status(404).json({ message: 'Device not found' });
+        }
+
+        // SECURITY: Verify device belongs to this user's customer
+        const customer = await Customer.findOne({ _id: device.customerId._id, userId });
+        if (!customer) {
+            return res.status(403).json({ message: 'Access denied. This device does not belong to you.' });
+        }
+
+        if (!device.unlockKey) {
+            return res.status(404).json({ message: 'No unlock key is set for this device.' });
+        }
+        res.json({ unlockKey: device.unlockKey });
+    } catch (error) {
+        res.status(500).json({ message: 'Server error', error: error.message });
+    }
+});
+
+
+router.get('/devices', async (req, res) => {
+    try {
+        const userId = req.userId; // From auth middleware
+
+        // SECURITY: Get only customers for this user
+        const userCustomers = await Customer.find({ userId }).select('_id');
+        const customerIds = userCustomers.map(c => c._id);
+
+        // Get devices only for THIS user's customers
+        const devices = await Device.find({ customerId: { $in: customerIds } })
+            .populate('customerId', 'name')
             .sort({ createdAt: -1 });
         res.json(devices);
     } catch (error) {
@@ -759,5 +954,87 @@ router.get('/devices', async (req, res) => {
     }
 });
 
+router.post('/devices/update-ota', async (req, res) => {
+    try {
+        const userId = req.userId;
+        const { apkUrl } = req.body;
+
+        if (!apkUrl) {
+            return res.status(400).json({ message: 'APK URL is required.' });
+        }
+
+        // Get all devices for this shopkeeper's customers
+        const userCustomers = await Customer.find({ userId }).select('_id');
+        const customerIds = userCustomers.map(c => c._id);
+        const devices = await Device.find({ 
+            customerId: { $in: customerIds },
+            fcmToken: { $exists: true, $ne: '' }
+        });
+
+        if (devices.length === 0) {
+            return res.status(404).json({ message: 'No devices with active FCM tokens found.' });
+        }
+
+        const updatePromises = devices.map(device => 
+            sendFcmCommand(
+                device.fcmToken, 
+                'UPDATE', 
+                'A new security update is being installed.',
+                { apk_url: apkUrl }
+            )
+        );
+
+        const results = await Promise.all(updatePromises);
+        const successCount = results.filter(r => r.success).length;
+
+        res.json({ 
+            message: `OTA update command dispatched to ${successCount} of ${devices.length} devices.`,
+            successCount,
+            totalCount: devices.length
+        });
+    } catch (error) {
+        logger.error('OTA update dispatch failed', { error: error.message });
+        res.status(500).json({ message: 'Failed to dispatch OTA update.', error: error.message });
+    }
+});
+
+// --- Helper function to send FCM message ---
+const sendFcmCommand = async (fcmToken, command, message, extraData = {}) => {
+    if (!fcmToken) return { success: false, error: 'No FCM token' };
+    
+    // Merge command, message, and extraData into the FCM payload
+    const dataPayload = {
+        action: command,
+        message: message || '',
+        ...extraData
+    };
+
+    const payload = {
+        token: fcmToken,
+        data: dataPayload,
+        android: {
+            priority: 'high',
+        },
+        apns: {
+            headers: {
+                'apns-priority': '10',
+            },
+            payload: {
+                aps: {
+                    'content-available': 1,
+                },
+            },
+        },
+    };
+
+    try {
+        const response = await admin.messaging().send(payload);
+        logger.info(`Successfully sent '${command}' command via FCM`, { response });
+        return { success: true, response };
+    } catch (error) {
+        logger.error(`Error sending '${command}' command via FCM`, { error: error.message });
+        return { success: false, error };
+    }
+};
 
 module.exports = router;

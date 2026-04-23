@@ -4,15 +4,19 @@ const { Device, DeviceStatus } = require('../models/device.model');
 const logger = require('../utils/logger');
 
 // --- Helper function to send FCM message ---
-const sendFcmCommand = async (fcmToken, command, message) => {
+const sendFcmCommand = async (fcmToken, command, message, extraData = {}) => {
     if (!fcmToken) return { success: false, error: 'No FCM token' };
     
+    // Merge command, message, and extraData into the FCM payload
+    const dataPayload = {
+        action: command,
+        message: message || '',
+        ...extraData
+    };
+
     const payload = {
         token: fcmToken,
-        data: {
-            action: command, // 'LOCK', 'UNLOCK', 'WIPE', 'RELEASE_OWNERSHIP', 'REMINDER', 'WARNING'
-            message: message,
-        },
+        data: dataPayload,
         android: {
             priority: 'high',
         },
@@ -30,10 +34,10 @@ const sendFcmCommand = async (fcmToken, command, message) => {
 
     try {
         const response = await admin.messaging().send(payload);
-        logger.info(`Successfully sent '${command}' command via cron`, { response });
+        logger.info(`Successfully sent '${command}' command via FCM`, { response });
         return { success: true, response };
     } catch (error) {
-        logger.error(`Error sending '${command}' command via cron`, { error: error.message });
+        logger.error(`Error sending '${command}' command via FCM`, { error: error.message });
         return { success: false, error };
     }
 };

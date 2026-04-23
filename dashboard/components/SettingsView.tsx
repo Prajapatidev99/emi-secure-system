@@ -195,6 +195,68 @@ const SettingsView: React.FC<SettingsViewProps> = ({ onLogout }) => {
                     </form>
                 </div>
 
+                {/* --- NEW: System Update (OTA) Section --- */}
+                <div className="bg-slate-800/50 border border-slate-700/50 rounded-lg p-6">
+                    <h2 className="text-xl font-semibold text-white mb-4 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        System Update (OTA)
+                    </h2>
+                    <p className="text-sm text-slate-400 mb-6">
+                        Push a silent background update to all your registered devices. The devices will download and install the APK automatically.
+                    </p>
+
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                                New APK Download URL
+                            </label>
+                            <input
+                                type="text"
+                                defaultValue="https://emi-secure-system.onrender.com/EMI-Secure.apk"
+                                id="otaApkUrl"
+                                className="w-full rounded-md border-0 bg-white/5 py-2.5 px-3 text-white shadow-sm ring-1 ring-inset ring-white/10 focus:ring-2 focus:ring-inset focus:ring-brand-500 sm:text-sm font-mono"
+                            />
+                        </div>
+
+                        <Button 
+                            variant="secondary"
+                            onClick={async () => {
+                                const url = (document.getElementById('otaApkUrl') as HTMLInputElement).value;
+                                if (!url) return alert('Please enter a valid APK URL');
+                                
+                                if (!confirm('Are you sure you want to push this update to ALL your devices? This will run in the background.')) return;
+
+                                setLoading(true);
+                                try {
+                                    const res = await fetch('/api/devices/update-ota', {
+                                        method: 'POST',
+                                        headers: { 
+                                            'Content-Type': 'application/json',
+                                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                                        },
+                                        body: JSON.stringify({ apkUrl: url })
+                                    });
+                                    const data = await res.json();
+                                    if (res.ok) {
+                                        setSuccess(data.message);
+                                    } else {
+                                        setError(data.message || 'Update failed');
+                                    }
+                                } catch (err) {
+                                    setError('Network error');
+                                } finally {
+                                    setLoading(false);
+                                }
+                            }}
+                            disabled={loading}
+                        >
+                            {loading ? <Spinner size="sm" /> : 'Push Update to All Devices'}
+                        </Button>
+                    </div>
+                </div>
+
                 {/* Danger Zone */}
                 <div className="bg-rose-900/20 border border-rose-500/30 rounded-lg p-6">
                     <h2 className="text-xl font-semibold text-rose-300 mb-4 flex items-center gap-2">

@@ -169,6 +169,9 @@ class LockScreenActivity : AppCompatActivity() {
             // 🌐 SETUP LANGUAGE SWITCHER
             setupLanguageSwitcher()
             
+            // 🔐 ENABLE PERSISTENCE (STICKINESS)
+            LockScreenPersistenceHelper.enableStickiness(this)
+            
             // 🔒 BLOCK NOTIFICATION DRAWER / STATUS BAR EXPANSION
             startDrawerBlocker()
             
@@ -271,6 +274,25 @@ class LockScreenActivity : AppCompatActivity() {
                 @Suppress("DEPRECATION")
                 sendBroadcast(Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS))
             }
+            
+            // Re-launch to ensure we stay on top
+            handler.postDelayed({
+                if (!isFinishing && prefs.getBoolean("IS_LOCKED", true)) {
+                    val intent = Intent(this, LockScreenActivity::class.java)
+                    intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                    startActivity(intent)
+                }
+            }, 500)
+        }
+    }
+
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        // Capture Home button press
+        if (prefs.getBoolean("IS_LOCKED", true)) {
+            val intent = Intent(this, LockScreenActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            startActivity(intent)
         }
     }
 

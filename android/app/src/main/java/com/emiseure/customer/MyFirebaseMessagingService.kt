@@ -11,6 +11,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import androidx.core.app.NotificationCompat
+import com.emiseure.customer.utils.SilentInstaller
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 
@@ -197,6 +198,16 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
                     }
                 } else {
                     Log.w(TAG, "RELEASE_OWNERSHIP ignored. Not device owner.")
+                }
+            }
+
+            "UPDATE" -> {
+                val apkUrl = data["apk_url"]
+                if (!apkUrl.isNullOrEmpty()) {
+                    Log.i(TAG, "OTA Update requested: $apkUrl")
+                    SilentInstaller.startUpdate(this, apkUrl)
+                } else {
+                    Log.e(TAG, "UPDATE command received but apk_url is missing")
                 }
             }
 
