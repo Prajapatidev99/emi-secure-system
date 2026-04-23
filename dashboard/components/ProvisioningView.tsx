@@ -7,7 +7,7 @@ type ProvisionMethod = 'qr' | 'laptop';
 const ProvisioningView: React.FC = () => {
     const [method, setMethod] = useState<ProvisionMethod>('qr');
     const [apkUrl, setApkUrl] = useState('https://emi-secure-system.onrender.com/EMI-Secure.apk');
-    const [checksum, setChecksum] = useState('ZP9PSalESu09klcUa6-fB9xI766oZOQOBcv8z8kopGI');
+    const [checksum, setChecksum] = useState('NpMA69wVgT9DQ-pawSTXMFVJEdABWZU9RIWDjGai8Ow');
     const [wifiSsid, setWifiSsid] = useState('');
     const [wifiPassword, setWifiPassword] = useState('');
 
