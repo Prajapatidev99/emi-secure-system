@@ -31,21 +31,21 @@ class AssistantService {
         if (!this.genAI) return "I'm currently in offline mode. Please contact technical support for manual assistance.";
 
         try {
-            const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+            const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
             const prompt = `
-                You are a helpful assistant for the "EMI Secure" device management platform used by shopkeepers in India.
-                Your goal: Provide extremely short, 1-2 sentence answers to save on display space and tokens.
-                Target Language: ${lang}
-                
-                Product Knowledge:
-                ${KNOWLEDGE_BASE}
-                
-                User Query: ${query}
-            `;
+You are a helpful assistant for the "EMI Secure" device management platform used by shopkeepers in India.
+Your goal: Provide extremely short, 1-2 sentence answers to save on display space and tokens.
+Target Language: ${lang}
+
+Product Knowledge:
+${KNOWLEDGE_BASE}
+
+User Query: ${query}
+            `.trim();
 
             const result = await model.generateContent(prompt);
-            const response = await result.response;
-            return response.text();
+            // In @google/generative-ai v0.21+, result.response is a GenerateContentResponse object (not a Promise)
+            return result.response.text();
         } catch (error) {
             logger.error('Assistant AI Error:', error);
             return "Sorry, I'm having trouble connecting to my AI brain. Try again later.";

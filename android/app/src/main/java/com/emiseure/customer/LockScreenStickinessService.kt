@@ -56,7 +56,7 @@ class LockScreenStickinessService : Service() {
     }
 
     private var isMonitoring = false
-    private var lockScreenProcessId: Int? = null
+    @Volatile private var monitorThread: Thread? = null  // BUG-08: volatile ref to interrupt stale threads
 
     override fun onCreate() {
         super.onCreate()
@@ -103,13 +103,15 @@ class LockScreenStickinessService : Service() {
         super.onDestroy()
         Log.w(TAG, "Service destroyed - attempting to restart")
 
-        if (isMonitoring) {
-            try {
-                unregisterReceiver(lockMonitorReceiver)
-                isMonitoring = false
-            } catch (e: Exception) {
-                Log.e(TAG, "Error unregistering receiver", e)
-            }
+        // BUG-08: Interrupt monitor thread BEFORE unregistering so it exits cleanly
+        isMonitoring = false
+        monitorThread?.interrupt()
+        monitorThread = null
+
+        try {
+            unregisterReceiver(lockMonitorReceiver)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error unregistering receiver", e)
         }
 
         // Re-launch lock screen if service is destroyed
@@ -122,11 +124,16 @@ class LockScreenStickinessService : Service() {
      * 📌 Monitor lock screen process health
      */
     private fun startMonitoringLockScreen() {
+        // BUG-08: Interrupt any previously running monitor thread to prevent doubling up
+        monitorThread?.interrupt()
+
         val thread = Thread {
             try {
-                while (isMonitoring) {
+                while (isMonitoring && !Thread.currentThread().isInterrupted) {
                     // Check every 2 seconds
                     Thread.sleep(2000)
+
+                    if (!isMonitoring || Thread.currentThread().isInterrupted) break
 
                     val prefs = createDeviceProtectedStorageContext()
                         .getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
@@ -143,6 +150,9 @@ class LockScreenStickinessService : Service() {
                         relaunachLockScreen("ACTIVITY_DESTROYED")
                     }
                 }
+            } catch (e: InterruptedException) {
+                Log.d(TAG, "Monitor thread interrupted cleanly")
+                Thread.currentThread().interrupt() // restore interrupt status
             } catch (e: Exception) {
                 Log.e(TAG, "Error in monitoring thread", e)
             }
@@ -150,6 +160,7 @@ class LockScreenStickinessService : Service() {
 
         thread.isDaemon = true
         thread.name = "LockScreenMonitor"
+        monitorThread = thread  // BUG-08: store reference for later interruption
         thread.start()
     }
 
@@ -159,19 +170,12 @@ class LockScreenStickinessService : Service() {
     private fun isLockScreenRunning(): Boolean {
         return try {
             val activityManager = getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager
-            val processes = activityManager.runningAppProcesses ?: return false
-
-            // Check if our app is in foreground
-            for (process in processes) {
-                if (process.processName.contains("com.emiseure.customer")) {
-                    // Check the top activity
-                    val taskManager = activityManager.appTasks
-                    for (task in taskManager) {
-                        val info = task.taskInfo
-                        if (info.baseActivity?.className?.contains("LockScreenActivity") == true) {
-                            return true
-                        }
-                    }
+            // BUG-01: Use topActivity (currently visible) not baseActivity (root of stack)
+            val tasks = activityManager.appTasks
+            for (task in tasks) {
+                val info = task.taskInfo
+                if (info.topActivity?.className?.contains("LockScreenActivity") == true) {
+                    return true
                 }
             }
             false

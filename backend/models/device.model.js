@@ -88,6 +88,10 @@ const deviceSchema = new Schema({
     isUsbDataDisabled: { type: Boolean, default: false },
     lastSync: Date,
     appVersion: String
+  },
+  lastSeen: {
+    type: Date,
+    default: null
   }
 }, {
   timestamps: true,

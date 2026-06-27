@@ -10,8 +10,15 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
+import android.provider.Settings
+import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import com.android.volley.Request
+import com.android.volley.toolbox.JsonObjectRequest
+import com.android.volley.toolbox.Volley
+import com.emiseure.customer.BuildConfig
+import org.json.JSONObject
 
 /**
  * 🔄 POST-RESET RE-PROVISIONING RECEIVER
@@ -85,6 +92,10 @@ class PostResetReprovisionReceiver : BroadcastReceiver() {
                 } catch (e: Exception) {
                     Log.e(TAG, "Could not record tamper attempt", e)
                 }
+
+                // 🔍 Check backend via IMEI — the IMEI survives factory reset
+                // This re-associates the device with its backend record using the new Android ID
+                checkImeiWithBackend(context)
 
                 // Show re-provisioning notification to push user to go back to admin
                 showReprovisionNotification(context)
@@ -164,6 +175,89 @@ class PostResetReprovisionReceiver : BroadcastReceiver() {
             Log.d(TAG, "✅ Re-provision activity started")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start re-provision activity", e)
+        }
+    }
+
+    /**
+     * 🔍 Check IMEI with backend to re-associate device after factory reset.
+     * IMEI survives factory reset, so the backend can look up the device
+     * and respond with whether it should be locked.
+     */
+    @Suppress("MissingPermission", "HardwareIds")
+    private fun checkImeiWithBackend(context: Context) {
+        try {
+            // Get IMEI (as Device Owner, READ_PHONE_STATE is available)
+            val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+            val imei = try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    tm?.getImei(0) ?: "UNKNOWN"
+                } else {
+                    @Suppress("DEPRECATION")
+                    tm?.deviceId ?: "UNKNOWN"
+                }
+            } catch (e: SecurityException) {
+                Log.w(TAG, "Cannot read IMEI (no permission)", e)
+                "UNKNOWN"
+            } catch (e: Exception) {
+                Log.w(TAG, "Cannot read IMEI", e)
+                "UNKNOWN"
+            }
+
+            // Get the NEW Android ID (changed after factory reset)
+            val newAndroidId = Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ANDROID_ID
+            ) ?: "UNKNOWN"
+
+            Log.d(TAG, "Checking IMEI with backend: imei=$imei, newAndroidId=$newAndroidId")
+
+            val url = "${BuildConfig.BACKEND_URL}/api/public/check-imei"
+            val body = JSONObject().apply {
+                put("imei", imei)
+                put("newAndroidId", newAndroidId)
+            }
+
+            val queue = Volley.newRequestQueue(context)
+            val request = JsonObjectRequest(
+                Request.Method.POST,
+                url,
+                body,
+                { response ->
+                    try {
+                        Log.d(TAG, "IMEI check response: $response")
+                        val shouldLock = response.optBoolean("shouldLock", false)
+                        if (shouldLock) {
+                            Log.w(TAG, "🚨 Backend says device should be LOCKED — enforcing immediately")
+                            // Set IS_LOCKED in Device Protected prefs
+                            val dpContext = context.createDeviceProtectedStorageContext()
+                            val dpPrefs = dpContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
+                            dpPrefs.edit().putBoolean("IS_LOCKED", true).commit()
+
+                            // Launch LockScreenActivity immediately
+                            val lockIntent = Intent(context, LockScreenActivity::class.java).apply {
+                                addFlags(
+                                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+                                )
+                                putExtra("LOCK_REASON", "POST_RESET_IMEI_CHECK")
+                            }
+                            context.startActivity(lockIntent)
+                        } else {
+                            Log.d(TAG, "Backend says device is not locked (shouldLock=false)")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error processing IMEI check response", e)
+                    }
+                },
+                { error ->
+                    // Handle errors gracefully — don't crash if no network
+                    Log.w(TAG, "IMEI check failed (network error, will retry on next boot): ${error.message}")
+                }
+            )
+
+            queue.add(request)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to check IMEI with backend", e)
         }
     }
 

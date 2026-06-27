@@ -61,11 +61,26 @@ class MyFirebaseMessagingService : FirebaseMessagingService() {
         // ------------------------------------
         // 🔑 UPDATE OFFLINE MASTER KEY (IF ANY)
         // ------------------------------------
-        unlockKey?.let {
+        unlockKey?.let { key ->
+            // BUG-04 FIX: Write to BOTH plain prefs AND Keystore vault
+            // Plain prefs is used by BootReceiver; Keystore vault is used by LockScreenActivity
             prefs.edit()
-                .putString("UNLOCK_KEY", it)
-                .putString("UNLOCK_KEY_HASH", hashKey(it))
+                .putString("UNLOCK_KEY", key)
+                .putString("UNLOCK_KEY_HASH", hashKey(key))
                 .commit()
+
+            // 🔐 Also store in encrypted Keystore vault so OfflineUnlockKeyManager can read it
+            try {
+                val keyManager = com.emiseure.customer.utils.OfflineUnlockKeyManager(this)
+                if (keyManager.storeUnlockKey(key)) {
+                    Log.d(TAG, "Offline unlock key saved to Keystore vault")
+                } else {
+                    Log.w(TAG, "Keystore vault storage failed - key only in plain prefs")
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to store key in Keystore vault", e)
+            }
+
             Log.d(TAG, "Offline unlock key and hash updated from server")
         }
 

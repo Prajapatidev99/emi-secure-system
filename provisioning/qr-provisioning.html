@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EMI Secure - QR Code Provisioner</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        .card {
+            background: rgba(30, 41, 59, 0.8);
+            border: 1px solid rgba(71, 85, 105, 0.5);
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .card h2 {
+            font-size: 18px;
+            color: #38bdf8;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 6px;
+            font-weight: 500;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px 14px;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(71, 85, 105, 0.5);
+            border-radius: 10px;
+            color: #e2e8f0;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus {
+            border-color: #38bdf8;
+        }
+
+        .form-group .hint {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            color: #0f172a;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(56, 189, 248, 0.3);
+        }
+
+        .btn-secondary {
+            background: rgba(71, 85, 105, 0.5);
+            color: #e2e8f0;
+            margin-top: 10px;
+        }
+
+        .qr-container {
+            text-align: center;
+            padding: 30px;
+            display: none;
+        }
+
+        .qr-container.visible {
+            display: block;
+        }
+
+        .qr-container canvas {
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .qr-container img {
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            max-width: 100%;
+        }
+
+        .steps {
+            margin-top: 24px;
+        }
+
+        .step {
+            display: flex;
+            gap: 14px;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(71, 85, 105, 0.3);
+        }
+
+        .step:last-child {
+            border-bottom: none;
+        }
+
+        .step-num {
+            width: 28px;
+            height: 28px;
+            min-width: 28px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            color: #0f172a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 13px;
+        }
+
+        .step-text {
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .step-text strong {
+            color: #38bdf8;
+        }
+
+        .json-preview {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(71, 85, 105, 0.3);
+            border-radius: 10px;
+            padding: 14px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 12px;
+            color: #94a3b8;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 12px;
+            display: none;
+        }
+
+        .json-preview.visible {
+            display: block;
+        }
+
+        .toggle-json {
+            background: none;
+            border: none;
+            color: #64748b;
+            font-size: 12px;
+            cursor: pointer;
+            padding: 4px 0;
+            margin-top: 8px;
+        }
+
+        .toggle-json:hover {
+            color: #94a3b8;
+        }
+
+        .alert {
+            padding: 14px;
+            border-radius: 10px;
+            font-size: 13px;
+            margin-bottom: 16px;
+        }
+
+        .alert-info {
+            background: rgba(56, 189, 248, 0.1);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            color: #7dd3fc;
+        }
+
+        .alert-warning {
+            background: rgba(251, 191, 36, 0.1);
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            color: #fcd34d;
+        }
+
+        .alert-success {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+            color: #86efac;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔐 EMI Secure - QR Provisioner</h1>
+            <p>Generate QR code to provision customer phones — No laptop needed!</p>
+        </div>
+
+        <!-- How It Works -->
+        <div class="card">
+            <h2>📱 How QR Provisioning Works</h2>
+            <div class="alert alert-info">
+                No USB cable, no laptop needed! Just scan a QR code on the fresh phone.
+            </div>
+            <div class="steps">
+                <div class="step">
+                    <div class="step-num">1</div>
+                    <div class="step-text">Customer phone is <strong>fresh</strong> (new or after factory reset) — showing "Welcome" screen</div>
+                </div>
+                <div class="step">
+                    <div class="step-num">2</div>
+                    <div class="step-text"><strong>Tap 6 times</strong> on any empty area of the Welcome screen → QR reader opens</div>
+                </div>
+                <div class="step">
+                    <div class="step-num">3</div>
+                    <div class="step-text"><strong>Scan the QR code</strong> below → Phone auto-connects to Wi-Fi</div>
+                </div>
+                <div class="step">
+                    <div class="step-num">4</div>
+                    <div class="step-text">Phone <strong>auto-downloads EMI Secure APK</strong> from your server</div>
+                </div>
+                <div class="step">
+                    <div class="step-num">5</div>
+                    <div class="step-text">App is <strong>automatically set as Device Owner</strong> — all security enforced!</div>
+                </div>
+                <div class="step">
+                    <div class="step-num">6</div>
+                    <div class="step-text">Add <strong>your shop Google account</strong> → Hardware FRP activated</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration -->
+        <div class="card">
+            <h2>⚙️ Configuration</h2>
+
+            <div class="form-group">
+                <label>APK Download URL</label>
+                <input type="text" id="apkUrl" value="https://emi-secure-system.onrender.com/EMI-Secure.apk" placeholder="https://your-server.com/EMI-Secure.apk">
+                <div class="hint">Where the phone downloads the APK from. Your backend already serves it!</div>
+            </div>
+
+            <div class="form-group">
+                <label>APK SHA-256 Checksum (URL-safe Base64)</label>
+                <input type="text" id="apkChecksum" value="rQtyW6yq6JknwY_YdNLYqMS-8aTBaxG_bSVACno6MNQ" placeholder="Base64 encoded SHA-256 checksum">
+                <div class="hint">From your apk_checksum.txt. Regenerate if you update the APK.</div>
+            </div>
+
+            <div class="form-group">
+                <label>Shop Wi-Fi Name (SSID)</label>
+                <input type="text" id="wifiSsid" placeholder="e.g. MyShopWiFi">
+                <div class="hint">Phone auto-connects to this Wi-Fi to download the APK</div>
+            </div>
+
+            <div class="form-group">
+                <label>Wi-Fi Password</label>
+                <input type="password" id="wifiPassword" placeholder="Your Wi-Fi password">
+                <div class="hint">Leave empty for open Wi-Fi networks</div>
+            </div>
+
+            <div class="form-group">
+                <label>Wi-Fi Security Type</label>
+                <select id="wifiSecurity">
+                    <option value="WPA">WPA/WPA2 (Most Common)</option>
+                    <option value="WEP">WEP</option>
+                    <option value="NONE">Open (No Password)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Skip Encryption (for budget phones)</label>
+                <select id="skipEncryption">
+                    <option value="true">Yes — Skip (recommended for budget phones)</option>
+                    <option value="false">No — Keep encryption</option>
+                </select>
+                <div class="hint">Budget phones may freeze during encryption. Recommended: Yes</div>
+            </div>
+
+            <button class="btn btn-primary" onclick="generateQR()">🔄 Generate QR Code</button>
+        </div>
+
+        <!-- QR Code Output -->
+        <div class="card">
+            <h2>📱 Your Provisioning QR Code</h2>
+            <div id="qrContainer" class="qr-container">
+                <p style="color: #64748b; padding: 40px;">Fill the form above and click "Generate QR Code"</p>
+            </div>
+            <div id="qrSuccess" class="alert alert-success" style="display:none;">
+                ✅ QR Code generated! Print this page or show on your phone to scan.
+            </div>
+            <button class="toggle-json" onclick="toggleJson()">▶ Show/Hide QR Data (JSON)</button>
+            <pre id="jsonPreview" class="json-preview"></pre>
+
+            <button class="btn btn-secondary" onclick="printQR()" id="printBtn" style="display:none;">🖨️ Print QR Code</button>
+            <button class="btn btn-secondary" onclick="downloadQR()" id="downloadBtn" style="display:none;">📥 Download QR Image</button>
+        </div>
+
+        <!-- Warnings -->
+        <div class="card">
+            <h2>⚠️ Important Notes</h2>
+            <div class="alert alert-warning">
+                <strong>QR provisioning only works on FRESH phones</strong> — either brand new (first boot) or right after factory reset. The Setup Wizard must be showing the "Welcome" / "Hi there" screen.
+            </div>
+            <div class="alert alert-warning" style="margin-top:10px;">
+                <strong>Android 7.0+ required.</strong> QR code provisioning is available from Android 7.0 (Nougat) onwards. Most phones sold today support this.
+            </div>
+            <div class="alert alert-info" style="margin-top:10px;">
+                <strong>Tap location varies by brand:</strong><br>
+                • <strong>Stock Android / Pixel:</strong> Tap 6x on "Welcome" text<br>
+                • <strong>Samsung:</strong> Tap 6x on "Let's go" or "Start" area<br>
+                • <strong>Xiaomi/Redmi:</strong> Tap 6x anywhere on the welcome screen<br>
+                • <strong>Realme/Oppo:</strong> Tap 6x on the empty area<br>
+                • <strong>Some phones:</strong> May need to connect to Wi-Fi first, then tap 6x
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Code Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script>
+        function generateQR() {
+            const apkUrl = document.getElementById('apkUrl').value.trim();
+            const checksum = document.getElementById('apkChecksum').value.trim();
+            const wifiSsid = document.getElementById('wifiSsid').value.trim();
+            const wifiPassword = document.getElementById('wifiPassword').value.trim();
+            const wifiSecurity = document.getElementById('wifiSecurity').value;
+            const skipEncryption = document.getElementById('skipEncryption').value;
+
+            if (!apkUrl) {
+                alert('Please enter the APK Download URL');
+                return;
+            }
+
+            if (!checksum) {
+                alert('Please enter the APK checksum');
+                return;
+            }
+
+            // Build provisioning JSON payload
+            // These are standard Android Enterprise provisioning extras
+            const provisioningData = {
+                "android.app.extra.PROVISIONING_DEVICE_ADMIN_COMPONENT_NAME":
+                    "com.emiseure.customer/.MyDeviceAdminReceiver",
+                "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_DOWNLOAD_LOCATION":
+                    apkUrl,
+                "android.app.extra.PROVISIONING_DEVICE_ADMIN_PACKAGE_CHECKSUM":
+                    checksum,
+                "android.app.extra.PROVISIONING_SKIP_ENCRYPTION":
+                    skipEncryption === "true",
+                "android.app.extra.PROVISIONING_LEAVE_ALL_SYSTEM_APPS_ENABLED":
+                    true
+            };
+
+            // Add Wi-Fi config if provided
+            if (wifiSsid) {
+                provisioningData["android.app.extra.PROVISIONING_WIFI_SSID"] = wifiSsid;
+
+                if (wifiPassword) {
+                    provisioningData["android.app.extra.PROVISIONING_WIFI_PASSWORD"] = wifiPassword;
+                }
+
+                provisioningData["android.app.extra.PROVISIONING_WIFI_SECURITY_TYPE"] = wifiSecurity;
+            }
+
+            const jsonString = JSON.stringify(provisioningData);
+
+            // Show JSON preview
+            document.getElementById('jsonPreview').textContent = JSON.stringify(provisioningData, null, 2);
+
+            // Generate QR code
+            const container = document.getElementById('qrContainer');
+            container.innerHTML = '';
+            container.classList.add('visible');
+
+            const canvas = document.createElement('canvas');
+            container.appendChild(canvas);
+
+            QRCode.toCanvas(canvas, jsonString, {
+                width: 400,
+                margin: 2,
+                color: {
+                    dark: '#0f172a',
+                    light: '#ffffff'
+                },
+                errorCorrectionLevel: 'M'
+            }, function(error) {
+                if (error) {
+                    container.innerHTML = '<p style="color: #f87171;">Error generating QR code: ' + error.message + '</p>';
+                    console.error(error);
+                    return;
+                }
+
+                document.getElementById('qrSuccess').style.display = 'block';
+                document.getElementById('printBtn').style.display = 'block';
+                document.getElementById('downloadBtn').style.display = 'block';
+            });
+        }
+
+        function toggleJson() {
+            const el = document.getElementById('jsonPreview');
+            el.classList.toggle('visible');
+        }
+
+        function printQR() {
+            window.print();
+        }
+
+        function downloadQR() {
+            const canvas = document.querySelector('#qrContainer canvas');
+            if (!canvas) return;
+
+            const link = document.createElement('a');
+            link.download = 'EMISecure-Provision-QR.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        }
+    </script>
+</body>
+</html>

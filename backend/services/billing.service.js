@@ -57,30 +57,39 @@ const processDailyBilling = async () => {
         today.setHours(0, 0, 0, 0);
 
         // Calculate thresholds
-        const yesterday = new Date(today);
-        yesterday.setDate(today.getDate() - 1);
+        const startOfYesterday = new Date(today);
+        startOfYesterday.setDate(today.getDate() - 1);
         
-        const threeDaysAgo = new Date(today);
-        threeDaysAgo.setDate(today.getDate() - 3);
+        const startOfThreeDaysAgo = new Date(today);
+        startOfThreeDaysAgo.setDate(today.getDate() - 3);
 
-        // 1. Due Today (Reminder)
-        // Find payments exactly due today, status Pending
+        // BUG-05 FIX: Use $gte/$lt range instead of exact date equality.
+        // MongoDB stores dates with time components, so { dueDate: today } always returns 0 results.
+        // --- 1. Due Today (Reminder) ---
         const dueToday = await Payment.find({
-            dueDate: today,
+            dueDate: { $gte: today, $lt: startOfYesterday < today ? new Date(today.getTime() + 86400000) : startOfYesterday },
+            status: PaymentStatus.Pending
+        }).populate('deviceId');
+
+        // Simpler: due between today midnight and tomorrow midnight
+        const tomorrow = new Date(today);
+        tomorrow.setDate(today.getDate() + 1);
+        const dueTodayFixed = await Payment.find({
+            dueDate: { $gte: today, $lt: tomorrow },
             status: PaymentStatus.Pending
         }).populate('deviceId');
         
-        logger.info(`Found ${dueToday.length} payments due today.`);
-        for (const p of dueToday) {
+        logger.info(`Found ${dueTodayFixed.length} payments due today.`);
+        for (const p of dueTodayFixed) {
             if (p.deviceId && p.deviceId.fcmToken) {
                 await sendFcmCommand(p.deviceId.fcmToken, 'REMINDER', 'Gentle reminder: Your EMI payment is due today.');
             }
         }
 
-        // 2. 1 Day Overdue (Warning Phase)
-        // Find payments that were due yesterday, status still Pending
+        // --- 2. 1 Day Overdue (Warning Phase) ---
+        // Find payments due between yesterday midnight and today midnight, still Pending
         const oneDayLate = await Payment.find({
-            dueDate: yesterday,
+            dueDate: { $gte: startOfYesterday, $lt: today },
             status: PaymentStatus.Pending
         }).populate('deviceId');
 
@@ -96,21 +105,28 @@ const processDailyBilling = async () => {
 
         // Catch any stray older Pending payments and mark Overdue
         await Payment.updateMany(
-            { dueDate: { $lt: yesterday }, status: PaymentStatus.Pending },
+            { dueDate: { $lt: startOfYesterday }, status: PaymentStatus.Pending },
             { $set: { status: PaymentStatus.Overdue } }
         );
 
-        // 3. 3 Days Overdue (Hard Lock Phase)
-        // Find payments due 3 days ago or earlier, status Overdue, where device isn't Locked already
+        // --- 3. 3 Days Overdue (Hard Lock Phase) ---
+        // Find payments due 3+ days ago, still Overdue, device not already locked/released
+        const startOfFourDaysAgo = new Date(today);
+        startOfFourDaysAgo.setDate(today.getDate() - 4);
+
         const totallyLatePayments = await Payment.find({
-            dueDate: { $lte: threeDaysAgo },
+            dueDate: { $lt: startOfThreeDaysAgo },  // strictly before 3 days ago midnight
             status: PaymentStatus.Overdue
         }).populate('deviceId');
 
         logger.info(`Found ${totallyLatePayments.length} payments 3+ days late.`);
         
         for (const p of totallyLatePayments) {
-            if (p.deviceId && p.deviceId.status !== DeviceStatus.Locked && p.deviceId.status !== DeviceStatus.Compromised) {
+            // BUG-16 FIX: Also skip Released devices to prevent re-locking paid-off devices
+            if (p.deviceId &&
+                p.deviceId.status !== DeviceStatus.Locked &&
+                p.deviceId.status !== DeviceStatus.Compromised &&
+                p.deviceId.status !== DeviceStatus.Released) {  // BUG-16
                 // Lock it
                 if (p.deviceId.fcmToken) {
                     await sendFcmCommand(p.deviceId.fcmToken, 'LOCK', 'Your device has been locked due to missing EMI payments. Please contact your shop.');

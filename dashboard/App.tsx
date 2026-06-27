@@ -30,8 +30,9 @@ const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   useEffect(() => {
-    // Check for token in session storage on initial load
-    const storedToken = sessionStorage.getItem('authToken');
+    // BUG-13 FIX: Use localStorage (persists across tab close) instead of sessionStorage
+    // The backend issues 1-day JWTs; sessionStorage was clearing them on every tab close
+    const storedToken = localStorage.getItem('authToken');
     if (storedToken) {
       setToken(storedToken);
     }
@@ -50,19 +51,19 @@ const App: React.FC = () => {
   }, [token]);
 
   const handleLoginSuccess = (newToken: string, profile?: UserProfile) => {
-    sessionStorage.setItem('authToken', newToken);
+    localStorage.setItem('authToken', newToken);  // BUG-13 FIX: localStorage
     setToken(newToken);
     if (profile) setUserProfile(profile);
   };
 
   const handleRegisterSuccess = (newToken: string, profile?: UserProfile) => {
-    sessionStorage.setItem('authToken', newToken);
+    localStorage.setItem('authToken', newToken);  // BUG-13 FIX: localStorage
     setToken(newToken);
     if (profile) setUserProfile(profile);
   };
 
   const handleLogout = () => {
-    sessionStorage.removeItem('authToken');
+    localStorage.removeItem('authToken');  // BUG-13 FIX: localStorage
     setToken(null);
     setUserProfile(null);
     setCurrentPage('dashboard');
@@ -100,40 +101,41 @@ const App: React.FC = () => {
     }
   };
 
-  if (!token) {
-    if (authView === 'setup') {
-      return <SetupGuideView onBack={() => setAuthView('login')} />;
-    }
-
-    return (
-      <LoginLayout>
-        {authView === 'login' ? (
-          <LoginView
-            onLoginSuccess={handleLoginSuccess}
-            onSwitchToRegister={() => setAuthView('register')}
-          />
-        ) : (
-          <RegisterView
-            onRegisterSuccess={handleRegisterSuccess}
-            onSwitchToLogin={() => setAuthView('login')}
-          />
-        )}
-      </LoginLayout>
-    );
-  }
-
+  // BUG-10 FIX: I18nProvider now wraps the ENTIRE app tree (including login/register)
+  // Previously it only wrapped authenticated views, so useTranslation() would throw
+  // if called from LoginView, RegisterView, or SetupGuideView.
   return (
     <I18nProvider>
-      <Layout
-        currentPage={currentPage}
-        setCurrentPage={setCurrentPage}
-        onLogout={handleLogout}
-        isSidebarOpen={isSidebarOpen}
-        setSidebarOpen={setSidebarOpen}
-        userProfile={userProfile}
-      >
-        {renderPage()}
-      </Layout>
+      {!token ? (
+        authView === 'setup' ? (
+          <SetupGuideView onBack={() => setAuthView('login')} />
+        ) : (
+          <LoginLayout>
+            {authView === 'login' ? (
+              <LoginView
+                onLoginSuccess={handleLoginSuccess}
+                onSwitchToRegister={() => setAuthView('register')}
+              />
+            ) : (
+              <RegisterView
+                onRegisterSuccess={handleRegisterSuccess}
+                onSwitchToLogin={() => setAuthView('login')}
+              />
+            )}
+          </LoginLayout>
+        )
+      ) : (
+        <Layout
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          onLogout={handleLogout}
+          isSidebarOpen={isSidebarOpen}
+          setSidebarOpen={setSidebarOpen}
+          userProfile={userProfile}
+        >
+          {renderPage()}
+        </Layout>
+      )}
     </I18nProvider>
   );
 };

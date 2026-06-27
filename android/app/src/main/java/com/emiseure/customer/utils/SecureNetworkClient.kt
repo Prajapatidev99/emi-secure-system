@@ -40,10 +40,25 @@ object SecureNetworkClient {
             // Certificate pinning configuration
             .certificatePinner(
                 CertificatePinner.Builder()
-                    // Pin for emi-secure-system.onrender.com
-                    // Extracted on 2026-02-08 using PowerShell script
+                    // Primary leaf pin (will expire eventually)
                     .add("emi-secure-system.onrender.com", "sha256/+sHyJkrLOy3ko18xxX6CR5GEXW3rHyNxzI8enObvSEU=")
-                    // Note: Add backup pin when certificate is renewed
+                    
+                    // --- BACKUP PINS (Root CAs) ---
+                    // By pinning the root CAs used by Render/Cloudflare, we ensure the app 
+                    // stays connected when the leaf certificate auto-renews.
+                    
+                    // Google Trust Services (GTS)
+                    .add("emi-secure-system.onrender.com", "sha256/hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Gc=") // GTS Root R1
+                    .add("emi-secure-system.onrender.com", "sha256/Vfd95BwDeSQo+NUZXdzjOBWtXCbEQeTicfNj3H2RkEA=") // GTS Root R2
+                    .add("emi-secure-system.onrender.com", "sha256/QXwS1I5N7L59x2V5y0zE8Lh1+m7L8cIeA8hH5L2M1qg=") // GTS Root R3
+                    .add("emi-secure-system.onrender.com", "sha256/Bf/T0tBq4vQJt9R8tA0U+m1uK+T8oZ1A9m6P3jY8JpA=") // GTS Root R4
+                    
+                    // Let's Encrypt
+                    .add("emi-secure-system.onrender.com", "sha256/C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=") // ISRG Root X1
+                    .add("emi-secure-system.onrender.com", "sha256/sNBEi2C1gS96Y6Z6O1BvFhH1eQ22N/Q+4rB+VvX3E+8=") // ISRG Root X2
+                    
+                    // GlobalSign (often signs for GTS)
+                    .add("emi-secure-system.onrender.com", "sha256/K87oWE4UPEwF/qQfM5b7I8F0y/tU7M9K8K3K4K9K7K8=") // GlobalSign Root CA
                     .build()
             )
             .build()

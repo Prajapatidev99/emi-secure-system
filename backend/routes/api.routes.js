@@ -1,5 +1,6 @@
 
 const express = require('express');
+const crypto = require('crypto');  // BUG-20: for cryptographically secure random keys
 const admin = require('firebase-admin');
 const Customer = require('../models/customer.model');
 const { Device, DeviceStatus } = require('../models/device.model');
@@ -151,7 +152,8 @@ router.post('/devices/register', async (req, res) => {
         const customer = await Customer.findOne({ _id: customerId, userId });
         if (!customer) return res.status(404).json({ message: 'Customer not found' });
 
-        const unlockKey = Math.random().toString(36).substring(2, 8).toUpperCase();
+        // BUG-20 FIX: Use crypto.randomBytes (CSPRNG) instead of Math.random() (predictable PRNG)
+        const unlockKey = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 hex chars, cryptographically secure
         const device = new Device({ customerId, imei, model, unlockKey });
         await device.save();
 
@@ -385,12 +387,31 @@ router.get('/stats', cache.middleware(2 * 60 * 1000), async (req, res) => {
         ]);
         const totalEmiCollected = totalResult.length > 0 ? totalResult[0].total : 0;
 
-        const monthlyData = [
-            { name: 'Jan', revenue: totalEmiCollected * 0.1 }, 
-            { name: 'Feb', revenue: totalEmiCollected * 0.2 },
-            { name: 'Mar', revenue: totalEmiCollected * 0.3 }, 
-            { name: 'Apr', revenue: totalEmiCollected * 0.4 },
-        ];
+        // BUG-11 FIX: Real monthly revenue aggregated from DB instead of fake hardcoded multipliers
+        const currentYear = new Date().getFullYear();
+        const monthlyResult = await Payment.aggregate([
+            {
+                $match: {
+                    deviceId: { $in: deviceIds },
+                    status: PaymentStatus.Paid,
+                    updatedAt: { $gte: new Date(`${currentYear}-01-01`), $lte: new Date(`${currentYear}-12-31`) }
+                }
+            },
+            {
+                $group: {
+                    _id: { month: { $month: '$updatedAt' } },
+                    revenue: { $sum: '$amount' }
+                }
+            },
+            { $sort: { '_id.month': 1 } }
+        ]);
+
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        // Build a full 12-month array, filling in 0 for months with no payments
+        const monthlyData = monthNames.map((name, idx) => {
+            const found = monthlyResult.find(r => r._id.month === idx + 1);
+            return { name, revenue: found ? Math.round(found.revenue) : 0 };
+        });
 
         res.json({ totalEmiCollected, overduePayments, lockedDevices, monthlyData });
     } catch (error) {
@@ -472,14 +493,23 @@ router.patch('/payments/:paymentId/pay', async (req, res) => {
         payment.status = PaymentStatus.Paid;
         await payment.save();
 
-        const pending = await Payment.countDocuments({ customerId: payment.customerId._id, status: { $in: [PaymentStatus.Pending, PaymentStatus.Overdue] } });
+        // BUG-07 FIX: Check pending payments per-device, not per-customer.
+        // A customer may have multiple devices; paying off one device's last EMI
+        // must NOT automatically release other devices that still have outstanding payments.
+        const devicePendingCount = await Payment.countDocuments({
+            deviceId: payment.deviceId,
+            status: { $in: [PaymentStatus.Pending, PaymentStatus.Overdue] }
+        });
 
-        if (pending === 0) {
-            const devices = await Device.find({ customerId: payment.customerId._id });
-            for (const d of devices) {
-                if (d.fcmToken) await sendFcmCommand(d.fcmToken, 'RELEASE_OWNERSHIP', 'Cleared! App can be removed.');
-                d.status = DeviceStatus.Released;
-                await d.save();
+        if (devicePendingCount === 0) {
+            // All EMIs for THIS specific device are cleared — release only that device
+            const device = await Device.findById(payment.deviceId);
+            if (device && device.fcmToken) {
+                await sendFcmCommand(device.fcmToken, 'RELEASE_OWNERSHIP', 'Cleared! App can be removed.');
+            }
+            if (device) {
+                device.status = DeviceStatus.Released;
+                await device.save();
             }
         }
         res.json({ message: 'Payment recorded.' });

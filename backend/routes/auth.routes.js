@@ -22,7 +22,8 @@ router.post('/register', async (req, res) => {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        const isSuperAdmin = email === 'prajapatidev9974@gmail.com';
+        const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'prajapatidev9974@gmail.com'; // BUG-12 FIX: use env var
+        const isSuperAdmin = email === superAdminEmail;
         const user = await User.create({ 
             email, 
             password, 
@@ -67,8 +68,9 @@ router.post('/login', async (req, res) => {
         if (user && (await user.matchPassword(password))) {
             const secret = jwtSecret; // Use secret from centralized config
 
-            // Ensure production superadmin holds role
-            if (user.email === 'prajapatidev9974@gmail.com' && user.role !== 'SuperAdmin') {
+            // BUG-12 FIX: use env var instead of hardcoded email
+            const superAdminEmail = process.env.SUPER_ADMIN_EMAIL || 'prajapatidev9974@gmail.com';
+            if (user.email === superAdminEmail && user.role !== 'SuperAdmin') {
                 user.role = 'SuperAdmin';
                 await user.save();
             }

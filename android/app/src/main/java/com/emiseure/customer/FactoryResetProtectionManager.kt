@@ -2,8 +2,10 @@ package com.emiseure.customer
 
 import android.content.Context
 import android.os.Build
+import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.content.edit
+import com.emiseure.customer.BuildConfig
 import com.google.firebase.messaging.FirebaseMessaging
 
 /**
@@ -58,28 +60,48 @@ class FactoryResetProtectionManager(private val context: Context) {
      */
     private fun isPostFactoryResetInstall(): Boolean {
         return try {
-            // Indicators of post-reset:
-            // 1. First run (no previous FRP prefs)
-            // 2. Device owner was active before but isn't now
-            // 3. Very few packages installed (fresh system)
-            // 4. No Google account configured
-
-            val wasLockedBefore = prefs.getBoolean(KEY_WAS_LOCKED, false)
-            val hadDeviceOwnerBefore = prefs.getBoolean(KEY_DEVICE_OWNER_ACTIVE, false)
+            // Check 1: Does the KEY_WAS_LOCKED key EXIST in prefs?
+            // Device Protected Storage is wiped by factory reset, so if the key
+            // doesn't exist at all, this is either first install OR post-reset.
+            val hasWasLockedKey = prefs.contains(KEY_WAS_LOCKED)
+            val hasDeviceOwnerKey = prefs.contains(KEY_DEVICE_OWNER_ACTIVE)
             val isOwnerNow = dpm?.isDeviceOwnerApp(context.packageName) == true
 
-            Log.d(TAG, "FRP Check: wasLocked=$wasLockedBefore, hadOwner=$hadDeviceOwnerBefore, isOwnerNow=$isOwnerNow")
+            Log.d(TAG, "FRP Check: hasWasLockedKey=$hasWasLockedKey, hasDeviceOwnerKey=$hasDeviceOwnerKey, isOwnerNow=$isOwnerNow")
 
-            // If it WAS locked and HAD device owner, but now DOESN'T - this is suspicious!
-            if (wasLockedBefore && hadDeviceOwnerBefore && !isOwnerNow) {
-                Log.w(TAG, "⚠️ Device owner was removed - FRP bypass likely!")
+            // If prefs keys don't exist at all — this is either first install or post-reset
+            if (!hasWasLockedKey && !hasDeviceOwnerKey) {
+                // Check 2: Is the app a system app (exists in /system/priv-app/) but has no local state?
+                // This indicates a data wipe on a pre-installed system app
+                val isSystemApp = try {
+                    val appInfo = context.packageManager.getApplicationInfo(context.packageName, 0)
+                    (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+                } catch (e: Exception) { false }
+
+                if (isSystemApp) {
+                    Log.w(TAG, "⚠️ System app with no local state — likely factory reset!")
+                    return true
+                }
+
+                // If not a system app, this could be a normal first install
+                // Check if Device Owner is already active (normal first provisioning)
+                if (isOwnerNow) {
+                    Log.d(TAG, "First provisioning with device owner — not a reset")
+                    return false
+                }
+
+                // No prefs, no device owner — suspicious, likely post-reset
+                Log.w(TAG, "⚠️ No local state and no device owner — possible factory reset")
                 return true
             }
 
-            // No previous state = first install (could be after reset)
-            if (!wasLockedBefore && !hadDeviceOwnerBefore && isOwnerNow) {
-                // This is normal: first provisioning with device owner
-                return false
+            // Check 3 (secondary signal): If prefs exist but Device Owner was removed
+            val wasLockedBefore = prefs.getBoolean(KEY_WAS_LOCKED, false)
+            val hadDeviceOwnerBefore = prefs.getBoolean(KEY_DEVICE_OWNER_ACTIVE, false)
+
+            if (wasLockedBefore && hadDeviceOwnerBefore && !isOwnerNow) {
+                Log.w(TAG, "⚠️ Device owner was removed — FRP bypass likely!")
+                return true
             }
 
             // Other suspicious patterns
@@ -180,10 +202,10 @@ class FactoryResetProtectionManager(private val context: Context) {
         return try {
             var id = prefs.getString(KEY_DEVICE_ID, null)
             if (id.isNullOrEmpty()) {
-                // Create unique ID based on device identifiers
-                @Suppress("DEPRECATION", "HardwareIds")
-                val serial = Build.SERIAL
-                id = "${Build.DEVICE}_${serial}_${Build.BOARD}".take(50)
+                // Create unique ID based on device identifiers (IMEI instead of deprecated Build.SERIAL)
+                val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+                val imei = try { tm?.getImei(0) ?: "UNKNOWN" } catch (e: Exception) { "UNKNOWN" }
+                id = "${Build.DEVICE}_${imei}_${Build.BOARD}".take(50)
                 prefs.edit { putString(KEY_DEVICE_ID, id) }
                 Log.d(TAG, "Created device ID: $id")
             }
@@ -216,15 +238,29 @@ class FactoryResetProtectionManager(private val context: Context) {
     /**
      * 📡 Report factory reset to backend
      */
-    @Suppress("UNUSED_PARAMETER")
     private fun reportFactoryResetToBackend(deviceId: String, resetCount: Int) {
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             try {
-                @Suppress("UNUSED_VARIABLE")
                 val fcmToken = if (task.isSuccessful) task.result else "UNKNOWN"
 
                 Log.d(TAG, "Factory reset report prepared for device: $deviceId")
-                // TODO: Send report to backend via your production network client
+                
+                // FIX: Send real report using SecureNetworkClient
+                val url = "${BuildConfig.BACKEND_URL}/api/public/devices/security-event"
+                val body = org.json.JSONObject().apply {
+                    put("deviceId", deviceId)
+                    put("eventType", "FACTORY_RESET")
+                    put("fcmToken", fcmToken)
+                    put("resetCount", resetCount)
+                    put("timestamp", System.currentTimeMillis())
+                }
+                
+                com.emiseure.customer.utils.SecureNetworkClient.post(
+                    url = url,
+                    body = body,
+                    onSuccess = { Log.d(TAG, "Factory reset reported successfully") },
+                    onError = { Log.e(TAG, "Failed to report factory reset: $it") }
+                )
             } catch (e: Exception) {
                 Log.e(TAG, "Error preparing factory reset report", e)
             }
@@ -237,7 +273,22 @@ class FactoryResetProtectionManager(private val context: Context) {
     private fun notifyBackendOfReprovisioningNeeded() {
         try {
             Log.d(TAG, "Notified backend of reprovision need (Action: REPROVISION_NEEDED)")
-            // TODO: Send via your production network client (SecureNetworkClient)
+            
+            // FIX: Send real request using SecureNetworkClient
+            val deviceId = getOrCreateDeviceId()
+            val url = "${BuildConfig.BACKEND_URL}/api/public/devices/security-event"
+            val body = org.json.JSONObject().apply {
+                put("deviceId", deviceId)
+                put("eventType", "REPROVISION_NEEDED")
+                put("timestamp", System.currentTimeMillis())
+            }
+            
+            com.emiseure.customer.utils.SecureNetworkClient.post(
+                url = url,
+                body = body,
+                onSuccess = { Log.d(TAG, "Reprovision need reported successfully") },
+                onError = { Log.e(TAG, "Failed to report reprovision need: $it") }
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Error notifying backend", e)
         }

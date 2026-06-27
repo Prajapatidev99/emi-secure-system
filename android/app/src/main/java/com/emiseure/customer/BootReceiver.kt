@@ -1,5 +1,8 @@
 package com.emiseure.customer
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -7,6 +10,7 @@ import android.os.Build
 import android.util.Log
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
+import androidx.core.app.NotificationCompat
 
 class BootReceiver : BroadcastReceiver() {
 
@@ -44,14 +48,35 @@ class BootReceiver : BroadcastReceiver() {
             if (isLocked) {
                 // Ensure lock state is persisted (survives hard resets)
                 prefs.edit().putBoolean("IS_LOCKED", true).apply()
-                
-                // 🚨 AUDIT: Record boot-while-locked as potential bypass attempt
-                val tamperType = when (action) {
-                    Intent.ACTION_LOCKED_BOOT_COMPLETED -> "LOCKED_BOOT_WHILE_LOCKED"
-                    else -> "BOOT_WHILE_LOCKED"
+
+                // BUG-03 FIX: Sync plain-text key into Keystore vault so LockScreenActivity can read it
+                if (!unlockKey.isNullOrEmpty()) {
+                    try {
+                        val keyManager = com.emiseure.customer.utils.OfflineUnlockKeyManager(context)
+                        var isStored = keyManager.getUnlockKey() != null
+                        if (!isStored) {
+                            // Vault is empty — populate from plain prefs
+                            isStored = keyManager.storeUnlockKey(unlockKey)
+                            Log.d(TAG, "Unlock key synced from plain prefs to Keystore vault on boot")
+                        }
+                        
+                        // FIX: Remove plaintext key from prefs to avoid parallel plaintext exposure
+                        if (isStored) {
+                            prefs.edit().remove("UNLOCK_KEY").apply()
+                            Log.d(TAG, "Plaintext unlock key cleared from preferences")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to sync key to Keystore vault on boot", e)
+                    }
                 }
-                TamperDetectionManager.recordTamperAttempt(context, tamperType)
-                Log.w(TAG, "🚨 Boot recorded in tamper audit: $tamperType")
+
+                // BUG-22 FIX: Only record LOCKED_BOOT as suspicious (not every normal reboot)
+                if (action == Intent.ACTION_LOCKED_BOOT_COMPLETED) {
+                    TamperDetectionManager.recordTamperAttempt(context, "LOCKED_BOOT_WHILE_LOCKED")
+                    Log.w(TAG, "🚨 Locked-boot recorded in tamper audit")
+                } else {
+                    Log.d(TAG, "Normal boot while locked (not recorded as tamper)")
+                }
                 
                 // 🛡️ Re-enforce comprehensive anti-tampering protections
                 TamperDetectionManager.enforceAntiTamperingLock(context)
@@ -109,14 +134,97 @@ class BootReceiver : BroadcastReceiver() {
                     }, 2000) // 2 second delay
                 }
 
+                // Bug 9 FIX: On Android 10+, startActivity from BroadcastReceiver may be restricted.
+                // Show a full-screen notification as a fallback to ensure the lock screen appears.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    try {
+                        showFullScreenLockNotification(context, unlockKey)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to show full-screen lock notification", e)
+                    }
+                }
+
             } else {
-                Log.d(TAG, "Device is UNLOCKED → no action required")
+                // Prefs say unlocked — but verify with backend in case of factory reset
+                // If prefs don't contain IS_LOCKED key at all, this might be a post-reset boot
+                if (!prefs.contains("IS_LOCKED")) {
+                    Log.w(TAG, "⚠️ No lock state in prefs — possible factory reset. Checking backend via IMEI...")
+                    // Fire an intent to trigger PostResetReprovisionReceiver's IMEI check
+                    // Or directly start a check here
+                    try {
+                        val intent = Intent(context, MainActivity::class.java).apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            putExtra("CHECK_IMEI_ON_BOOT", true)
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to start IMEI check activity", e)
+                    }
+                } else {
+                    Log.d(TAG, "Device is UNLOCKED → no action required")
+                }
             }
 
         } catch (e: Exception) {
             Log.e(TAG, "BootReceiver failed to enforce lock state", e)
             // Log stack trace for debugging
             e.printStackTrace()
+        }
+    }
+
+    /**
+     * 🔔 Bug 9 FIX: Show a high-priority full-screen notification that launches LockScreenActivity.
+     * This serves as a fallback on Android 10+ where startActivity from a BroadcastReceiver
+     * may be silently blocked. The full-screen intent bypasses the restriction.
+     */
+    private fun showFullScreenLockNotification(context: Context, unlockKey: String?) {
+        try {
+            val channelId = "lock_screen_boot_channel"
+
+            // Create notification channel (Android 8+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    channelId,
+                    "Device Lock Alerts",
+                    NotificationManager.IMPORTANCE_HIGH
+                ).apply {
+                    description = "Critical alerts for device lock enforcement"
+                    enableVibration(true)
+                    setShowBadge(true)
+                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
+                }
+                val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                nm.createNotificationChannel(channel)
+            }
+
+            // Build full-screen intent for LockScreenActivity
+            val lockIntent = Intent(context, LockScreenActivity::class.java).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                unlockKey?.let { putExtra("UNLOCK_KEY_VIA_INTENT", it) }
+            }
+            val fullScreenPendingIntent = PendingIntent.getActivity(
+                context, 0, lockIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val notification = NotificationCompat.Builder(context, channelId)
+                .setContentTitle("⚠️ Device Locked")
+                .setContentText("This device is locked. Tap to view lock screen.")
+                .setSmallIcon(android.R.drawable.ic_dialog_alert)
+                .setPriority(NotificationCompat.PRIORITY_MAX)
+                .setCategory(NotificationCompat.CATEGORY_ALARM)
+                .setOngoing(true)
+                .setAutoCancel(false)
+                .setFullScreenIntent(fullScreenPendingIntent, true)
+                .setContentIntent(fullScreenPendingIntent)
+                .build()
+
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.notify(8888, notification)
+
+            Log.d(TAG, "✅ Full-screen lock notification shown (Android 10+ fallback)")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to show full-screen lock notification", e)
         }
     }
 }

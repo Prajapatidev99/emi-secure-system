@@ -9,6 +9,7 @@ import androidx.test.espresso.matcher.ViewMatchers.*
 import androidx.test.ext.junit.rules.ActivityScenarioRule
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.filters.LargeTest
+import com.emiseure.customer.utils.OfflineUnlockKeyManager
 import org.hamcrest.Matchers.anyOf
 import org.junit.Before
 import org.junit.Rule
@@ -32,14 +33,26 @@ class LockScreenActivityTest {
 
     @Before
     fun setUp() {
-        // Set the IS_LOCKED flag so the LockScreenActivity doesn't redirect
         val context = ApplicationProvider.getApplicationContext<Context>()
         val deviceContext = context.createDeviceProtectedStorageContext()
+
+        // Set IS_LOCKED so the LockScreenActivity doesn't redirect
         deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
             .edit()
             .putBoolean("IS_LOCKED", true)
-            .putString("UNLOCK_KEY", "TEST01") // Test unlock key
             .commit()
+
+        // BUG-23 FIX: Store test unlock key in the Keystore vault (the actual mechanism
+        // used by OfflineUnlockKeyManager / LockScreenActivity) instead of raw plain prefs.
+        // Raw prefs are NOT read by OfflineUnlockKeyManager, so previous tests validated nothing.
+        try {
+            val keyManager = OfflineUnlockKeyManager(context)
+            keyManager.storeUnlockKey("TEST01")
+        } catch (e: Exception) {
+            // Key storage may fail in pure unit test context (no real Keystore).
+            // Instrumentation tests on a real device/emulator should succeed.
+            android.util.Log.w("LockScreenActivityTest", "Could not store test key in vault: ${e.message}")
+        }
     }
 
     @get:Rule

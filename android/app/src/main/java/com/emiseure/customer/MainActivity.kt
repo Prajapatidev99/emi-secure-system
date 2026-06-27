@@ -31,6 +31,7 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.emiseure.customer.utils.SimInfoManager
 import com.emiseure.customer.utils.OfflineUnlockKeyManager
 import com.emiseure.customer.utils.SecurityAuditManager
+import com.emiseure.customer.utils.PaymentReminderManager
 import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -132,6 +133,15 @@ class MainActivity : AppCompatActivity() {
 
         // 📅 Create notification channel for payment reminders
         PaymentReminderManager.createNotificationChannel(this)
+
+        // 🔍 Handle BootReceiver post-reset check request
+        if (intent.getBooleanExtra("CHECK_IMEI_ON_BOOT", false)) {
+            Log.w("MainActivity", "⚠️ CHECK_IMEI_ON_BOOT flag received — delegating to PostResetReprovisionReceiver logic")
+            // Send a broadcast to PostResetReprovisionReceiver so it runs its check
+            sendBroadcast(Intent(this, PostResetReprovisionReceiver::class.java).apply {
+                action = Intent.ACTION_LOCKED_BOOT_COMPLETED
+            })
+        }
 
         registerForPushNotifications(androidId)
         fetchDeviceStatus(androidId)
@@ -244,6 +254,9 @@ class MainActivity : AppCompatActivity() {
             // 🛡️ FRP POST-RESET PROTECTION:
             // Prevents setup wizard bypass after a manual hard reset
             FactoryResetProtectionManager(this).blockUnauthorizedSetup()
+            
+            // 🔐 HARDWARE-BACKED FRP: Set immediately using master email
+            enforceHardwareBackedFrp()
 
             Log.d("Security", "✅ All security policies enforced")
         } catch (e: SecurityException) {
@@ -283,6 +296,40 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             Log.e("AccountSecurity", "Failed to enforce account restriction", e)
+        }
+    }
+
+    /**
+     * 🔐 HARDWARE-BACKED FACTORY RESET PROTECTION (Android 11+)
+     *
+     * This is the STRONGEST no-root FRP protection available:
+     * - Stores the shop's Google account in a PROTECTED HARDWARE PARTITION
+     * - This partition SURVIVES factory reset (not in /data)
+     * - After factory reset, phone FORCES login with THIS specific account
+     * - Much harder to bypass than normal FRP because it's hardware-backed
+     * - Normal FRP bypass tools often can't bypass this enterprise FRP
+     *
+     * Works because Device Owner can write to the persistent data block
+     * which is stored in a separate partition from /data.
+     */
+    private fun enforceHardwareBackedFrp() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val masterEmail = "devmobile997422@gmail.com"
+                // Android 11+ (API 30): Use FactoryResetProtectionPolicy
+                val frpPolicy = android.app.admin.FactoryResetProtectionPolicy.Builder()
+                    .setFactoryResetProtectionAccounts(listOf(masterEmail))
+                    .setFactoryResetProtectionEnabled(true)
+                    .build()
+                
+                dpm.setFactoryResetProtectionPolicy(adminComponent, frpPolicy)
+                Log.d("HardwareFRP", "✅ Hardware-backed FRP set with master email: $masterEmail")
+                Log.d("HardwareFRP", "🔐 After factory reset, ONLY this account can unlock the phone")
+            } else {
+                Log.w("HardwareFRP", "Enterprise FRP requires Android 11+. Using standard admin protections.")
+            }
+        } catch (e: Exception) {
+            Log.e("HardwareFRP", "Failed to set hardware-backed FRP: ${e.message}")
         }
     }
 

@@ -64,12 +64,21 @@ router.post('/devices/sync-metadata', async (req, res) => {
             ...device.metadata,
             lastSync: new Date(),
             isDeviceOwner: isDeviceOwner ?? metadata?.isDeviceOwner ?? device.metadata?.isDeviceOwner,
-            isAdbEnabled: isAdbEnabled ?? metadata?.isAdbDisabled ?? device.metadata?.isAdbEnabled, // Mapping AdbDisabled from app to AdbEnabled in DB (inverted if needed, but keeping for now)
+            // BUG-06 FIX: app sends isAdbDisabled=true when ADB is OFF, so we invert it
+            // to store as isAdbEnabled (true = ADB is ON = security risk)
+            isAdbEnabled: isAdbEnabled !== undefined
+                ? isAdbEnabled                                    // direct mapping if sent
+                : (metadata?.isAdbDisabled !== undefined
+                    ? !metadata.isAdbDisabled                     // invert: disabled→!enabled
+                    : device.metadata?.isAdbEnabled),             // fallback to existing
             isFrpActive: metadata?.isFrpActive ?? device.metadata?.isFrpActive,
             isOemUnlockBlocked: metadata?.isOemUnlockBlocked ?? device.metadata?.isOemUnlockBlocked,
             isUsbDataDisabled: metadata?.isUsbDataDisabled ?? device.metadata?.isUsbDataDisabled,
             appVersion: appVersion ?? device.metadata?.appVersion
         };
+
+        // BUG-07 FIX: Update lastSeen on every metadata sync
+        updateFields.lastSeen = new Date();
 
         await Device.findByIdAndUpdate(device._id, { $set: updateFields });
 
@@ -97,14 +106,23 @@ router.post('/device-status', async (req, res) => {
             return res.status(404).json({ message: 'This device is not registered.' });
         }
 
+        // BUG-07 FIX: Update lastSeen on device-status check
+        device.lastSeen = new Date();
+        await device.save();
+
         const nextPayment = await Payment.findOne({
             deviceId: device._id,
             status: { $in: [PaymentStatus.Pending, PaymentStatus.Overdue] }
         }).sort({ dueDate: 'asc' });
 
-        const customer = await Customer.findById(device.customerId).populate('userId', 'shopName phone');
-        const supportName = customer?.userId?.shopName || 'Retailer';
-        const supportPhone = customer?.userId?.phone || '';
+        // BUG-17 FIX: Populate the shopkeeper (User) from the customer's userId ref
+        // device.customerId is already populated as a Customer doc (from the previous query)
+        // We need the Customer's userId ref to get the shopkeeper's name/phone
+        const customer = await Customer.findById(device.customerId._id || device.customerId)
+            .populate('userId', 'shopName phone');
+        const shopkeeper = customer?.userId;  // populated User doc
+        const supportName = shopkeeper?.shopName || 'Retailer';
+        const supportPhone = shopkeeper?.phone || '';
 
         if (nextPayment) {
             res.json({
@@ -169,6 +187,9 @@ router.post('/devices/location', async (req, res) => {
         if (device.locationHistory.length > 100) {
             device.locationHistory = device.locationHistory.slice(-100);
         }
+
+        // BUG-07 FIX: Update lastSeen on location update
+        device.lastSeen = new Date();
 
         await device.save();
 
@@ -239,8 +260,9 @@ router.get('/apk-info', (req, res) => {
  * Used by freshly reset devices that lost their androidId registration.
  * IMEI survives factory resets (hardware identifier).
  */
+// TODO: Add rate limiting middleware (e.g., express-rate-limit) to prevent brute-force IMEI scanning
 router.post('/check-imei', async (req, res) => {
-    const { imei, newAndroidId } = req.body;
+    const { imei, newAndroidId, fcmToken, imei2 } = req.body;
 
     if (!imei) {
         return res.status(400).json({ message: 'IMEI is required.' });
@@ -257,14 +279,48 @@ router.post('/check-imei', async (req, res) => {
             });
         }
 
-        // 🔄 If device has a new Android ID after factory reset, update it
+        // BUG-05 FIX: Secure androidId update with verification
+        // After factory reset the device WILL have a new FCM token, so we can't rely
+        // on FCM matching alone. Instead:
+        //   - Allow if the device has NO existing androidId (first provisioning / post-reset blank)
+        //   - Allow if the request includes the device's IMEI2 as verification
+        //   - Allow if the existing fcmToken matches (same device, token refresh)
+        //   - Otherwise reject the update
         if (newAndroidId && newAndroidId !== device.androidId) {
-            logger.info(`Refreshing Android ID for IMEI ${imei}: (factory reset)`, { oldId: device.androidId, newId: newAndroidId });
-            device.androidId = newAndroidId;
-            await device.save();
+            const hasNoExistingId = !device.androidId;
+            const imei2Matches = imei2 && device.imei2 && imei2 === device.imei2;
+            const fcmMatches = fcmToken && device.fcmToken && fcmToken === device.fcmToken;
+
+            if (hasNoExistingId || imei2Matches || fcmMatches) {
+                logger.info(`Refreshing Android ID for IMEI ${imei}: (factory reset)`, { oldId: device.androidId, newId: newAndroidId });
+                device.androidId = newAndroidId;
+
+                // If FCM token changed (post-reset), update it but flag as suspicious
+                if (fcmToken && fcmToken !== device.fcmToken) {
+                    logger.warn(`🚨 SECURITY: FCM token changed during androidId update for IMEI ${imei}. Possible post-reset re-registration.`);
+                    device.fcmToken = fcmToken;
+                }
+
+                // BUG-07 FIX: Update lastSeen on check-imei
+                device.lastSeen = new Date();
+                await device.save();
+            } else {
+                logger.warn(`🚨 SECURITY: Rejected androidId update for IMEI ${imei}. No valid verification provided.`, {
+                    hasExistingId: !!device.androidId,
+                    fcmProvided: !!fcmToken,
+                    imei2Provided: !!imei2
+                });
+                return res.status(403).json({
+                    message: 'Android ID update rejected. Verification failed.',
+                    shouldLock: device.status === 'Locked'
+                });
+            }
         }
 
         const shouldLock = device.status === 'Locked';
+
+        // BUG-05 FIX: Only require reprovisioning for Locked or Compromised devices
+        const requiresReprovisioning = device.status === DeviceStatus.Locked || device.status === DeviceStatus.Compromised;
 
         res.json({
             shouldLock,
@@ -273,12 +329,162 @@ router.post('/check-imei', async (req, res) => {
             message: shouldLock
                 ? 'This device is locked. Contact your EMI provider.'
                 : 'Device is active.',
-            requiresReprovisioning: true // Admin must re-run provisioning script
+            requiresReprovisioning
         });
 
     } catch (error) {
         logger.error('IMEI check error:', { error: error.message, imei });
         res.status(500).json({ message: 'Server error during IMEI check.', error: error.message });
+    }
+});
+
+// -------------------------------------------------------------------
+// 🔒 DEVICE SECURITY & LOCK STATUS ENDPOINTS (Bug 2 Fix)
+// -------------------------------------------------------------------
+
+/**
+ * POST /device/check-lock-status
+ * Called by DeviceOwnerFallbackManager.kt to check if the device should be locked.
+ * Expects: { fcmToken, androidId }
+ * Returns: { shouldLock: boolean, deviceStatus: string }
+ */
+router.post('/device/check-lock-status', async (req, res) => {
+    const { fcmToken, androidId } = req.body;
+
+    if (!fcmToken && !androidId) {
+        return res.status(400).json({ message: 'fcmToken or androidId is required.' });
+    }
+
+    try {
+        // Look up device by androidId first, fallback to fcmToken
+        let device = null;
+        if (androidId) {
+            device = await Device.findOne({ androidId });
+        }
+        if (!device && fcmToken) {
+            device = await Device.findOne({ fcmToken });
+        }
+
+        if (!device) {
+            return res.status(404).json({ message: 'Device not found.' });
+        }
+
+        // Update lastSync and lastSeen
+        device.metadata = device.metadata || {};
+        device.metadata.lastSync = new Date();
+        device.lastSeen = new Date();
+        await device.save();
+
+        // SECURITY: Never send unlockKey over public API
+        res.json({
+            shouldLock: device.status === DeviceStatus.Locked,
+            deviceStatus: device.status
+        });
+
+    } catch (error) {
+        logger.error('Check lock status error:', { error: error.message, androidId, fcmToken: fcmToken ? '***' : undefined });
+        res.status(500).json({ message: 'Server error during lock status check.' });
+    }
+});
+
+/**
+ * POST /device/report-lock
+ * Called by DeviceOwnerFallbackManager.kt to report lock enforcement.
+ * Expects: { fcmToken, isLocked: true }
+ * Returns: { success: boolean, message: string }
+ */
+router.post('/device/report-lock', async (req, res) => {
+    const { fcmToken, isLocked } = req.body;
+
+    if (!fcmToken) {
+        return res.status(400).json({ message: 'fcmToken is required.' });
+    }
+
+    try {
+        const device = await Device.findOne({ fcmToken });
+
+        if (!device) {
+            return res.status(404).json({ message: 'Device not found.' });
+        }
+
+        // Log the lock enforcement report
+        logger.info(`Lock enforcement report for IMEI ${device.imei}: isLocked=${isLocked}`, {
+            deviceId: device._id,
+            status: device.status,
+            isLocked
+        });
+
+        // Update lastSync and lastSeen
+        device.metadata = device.metadata || {};
+        device.metadata.lastSync = new Date();
+        device.lastSeen = new Date();
+        await device.save();
+
+        res.json({ success: true, message: 'Lock enforcement recorded' });
+
+    } catch (error) {
+        logger.error('Report lock error:', { error: error.message, fcmToken: '***' });
+        res.status(500).json({ message: 'Server error during lock report.' });
+    }
+});
+
+/**
+ * POST /devices/security-event
+ * Called by FactoryResetProtectionManager.kt to report security events.
+ * Expects: { deviceId, eventType, fcmToken, resetCount, timestamp }
+ * Returns: { success: boolean }
+ */
+router.post('/devices/security-event', async (req, res) => {
+    const { deviceId, eventType, fcmToken, resetCount, timestamp } = req.body;
+
+    if (!fcmToken && !deviceId) {
+        return res.status(400).json({ message: 'fcmToken or deviceId is required.' });
+    }
+
+    try {
+        // Find device by fcmToken first, fallback to matching deviceId against androidId or _id
+        let device = null;
+        if (fcmToken) {
+            device = await Device.findOne({ fcmToken });
+        }
+        if (!device && deviceId) {
+            device = await Device.findOne({ androidId: deviceId });
+            if (!device) {
+                // Try matching by MongoDB _id if deviceId looks like an ObjectId
+                if (deviceId.match(/^[0-9a-fA-F]{24}$/)) {
+                    device = await Device.findById(deviceId);
+                }
+            }
+        }
+
+        if (!device) {
+            return res.status(404).json({ message: 'Device not found.' });
+        }
+
+        // Log the security event
+        logger.warn(`🚨 SECURITY EVENT for IMEI ${device.imei}: ${eventType}`, {
+            deviceId: device._id,
+            eventType,
+            resetCount,
+            timestamp,
+            currentStatus: device.status
+        });
+
+        // If factory reset detected, mark device as compromised
+        if (eventType === 'FACTORY_RESET') {
+            device.isCompromised = true;
+            logger.error(`🚨 FACTORY RESET detected for IMEI ${device.imei}. Device marked as compromised.`);
+        }
+
+        // Update lastSeen
+        device.lastSeen = new Date();
+        await device.save();
+
+        res.json({ success: true });
+
+    } catch (error) {
+        logger.error('Security event error:', { error: error.message, deviceId, eventType });
+        res.status(500).json({ message: 'Server error during security event processing.' });
     }
 });
 

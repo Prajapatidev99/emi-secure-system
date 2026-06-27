@@ -71,6 +71,15 @@ class SoftwareBasedUsbSecurityManager(private val context: Context) {
         try {
             pollingTimer?.cancel()
             pollingTimer = null
+            
+            // FIX: Unregister receiver to prevent memory/context leak
+            try {
+                context.unregisterReceiver(usbStateReceiver)
+                Log.d(TAG, "USB broadcast receiver unregistered")
+            } catch (e: Exception) {
+                // Ignore if not registered
+            }
+            
             Log.d(TAG, "USB monitoring stopped")
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping monitoring", e)
@@ -177,6 +186,11 @@ class SoftwareBasedUsbSecurityManager(private val context: Context) {
             if (isUsbConnected && !wasConnected) {
                 Log.w(TAG, "⚠️ USB connected (mode: $usbConfig)")
                 lastDetectionTime = System.currentTimeMillis()
+                
+                // FIX: Increment the recent connections counter for rapid toggling detection
+                val recent = prefs.getInt("RECENT_USB_CONNECTIONS", 0)
+                prefs.edit().putInt("RECENT_USB_CONNECTIONS", recent + 1).commit()
+                
                 lockDeviceOnUsbDetection("USB_CONNECTED")
             } else if (!isUsbConnected && wasConnected) {
                 Log.d(TAG, "✅ USB disconnected")
@@ -220,6 +234,13 @@ class SoftwareBasedUsbSecurityManager(private val context: Context) {
         if (!isUsbConnected) return
 
         val timeSinceLastDetection = System.currentTimeMillis() - lastDetectionTime
+        
+        // FIX: Clear counter if last detection was more than 60s ago
+        if (timeSinceLastDetection > 60000) {
+            prefs.edit().putInt("RECENT_USB_CONNECTIONS", 0).commit()
+            return
+        }
+        
         val recentConnections = prefs.getInt("RECENT_USB_CONNECTIONS", 0)
 
         // If more than 5 USB connections in the last 60 seconds = attack
@@ -287,9 +308,15 @@ class SoftwareBasedUsbSecurityManager(private val context: Context) {
                     put("adbEnabled", isAdbEnabled)
                 }
 
-                // Use your existing network client to send this
+                // FIX: Send real request using SecureNetworkClient instead of stub
                 Log.d(TAG, "USB event reported: $eventType")
-                // TODO: Implement actual network call to backend
+                val url = "https://emi-secure-system.onrender.com/api/public/devices/security-event"
+                com.emiseure.customer.utils.SecureNetworkClient.post(
+                    url = url,
+                    body = request,
+                    onSuccess = { Log.d(TAG, "USB event successfully sent to backend") },
+                    onError = { Log.e(TAG, "Failed to send USB event: $it") }
+                )
             } catch (e: Exception) {
                 Log.e(TAG, "Error reporting USB event", e)
             }

@@ -31,8 +31,9 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
         Log.w(TAG, "⚠️ Device Admin DISABLED by user — recording tamper attempt")
         // 🚨 AUDIT: Record admin disable as tampering event
         TamperDetectionManager.recordTamperAttempt(context, "ADMIN_DISABLED")
-        // 🛡️ Attempt to re-enforce even after disable (may fail if truly removed)
-        preventPhysicalTampering(context)
+        // ⚠️ Admin is already disabled — preventPhysicalTampering() would fail since
+        // we no longer have device owner privileges. Just log the warning.
+        Log.w(TAG, "⚠️ Device Admin disabled — cannot re-enforce restrictions without admin privileges")
     }
 
     override fun onPasswordFailed(context: Context, intent: Intent) {
@@ -91,12 +92,14 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
                     }
                 }
 
-                // 🔐 Block USB file transfers (MTP/PTP)
-                try {
-                    dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_USB_FILE_TRANSFER)
-                    Log.d(TAG, "✅ DISALLOW_USB_FILE_TRANSFER enforced")
-                } catch (e: Exception) {
-                    Log.w(TAG, "DISALLOW_USB_FILE_TRANSFER not available")
+                // 🔐 Block USB file transfers (MTP/PTP) - API 33+
+                if (Build.VERSION.SDK_INT >= 33) {
+                    try {
+                        dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_USB_FILE_TRANSFER)
+                        Log.d(TAG, "✅ DISALLOW_USB_FILE_TRANSFER enforced")
+                    } catch (e: Exception) {
+                        Log.w(TAG, "DISALLOW_USB_FILE_TRANSFER not available")
+                    }
                 }
 
                 // 🔐 Block OEM unlock via global settings (prevents bootloader unlock → wipe)
@@ -127,23 +130,68 @@ class MyDeviceAdminReceiver : DeviceAdminReceiver() {
                     Log.w(TAG, "Failed to set lock task packages or disable keyguard", e)
                 }
 
-                // 🔐 HIDE ORGANIZATION MESSAGE
+                // 🔐 HIDE/CUSTOMIZE ORGANIZATION MESSAGE
                 try {
-                    // Setting these to null/empty tries to hide the "Managed by your organization" footer
+                    // Hide the message from the main lock screen
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                         dpm.setDeviceOwnerLockScreenInfo(adminComponent, null)
                     }
-                    dpm.setOrganizationName(adminComponent, null)
+                    // Customize the message in the quick settings dropdown to look official
+                    dpm.setOrganizationName(adminComponent, "Device Security Manager")
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to hide organization message", e)
+                    Log.w(TAG, "Failed to set organization message", e)
                 }
 
                 Log.i(TAG, "🛡️ All anti-tampering restrictions applied successfully")
+
+                // 🔐 HARDWARE-BACKED FRP: Lock bootloader and enable enterprise FRP
+                enforceHardwareBackedProtection(context, dpm, adminComponent)
+
             } else {
                 Log.w(TAG, "⚠️ preventPhysicalTampering: Not device owner — restrictions skipped")
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to apply anti-tampering restrictions", e)
+        }
+    }
+
+    /**
+     * 🔐 HARDWARE-BACKED PROTECTION (No Root Required!)
+     *
+     * These protections are stored in hardware partitions that SURVIVE factory reset:
+     * 1. PersistentDataBlock: Disables OEM unlock at hardware level
+     * 2. FactoryResetProtectionPolicy: Forces specific Google account after reset
+     *
+     * Even if customer does hardware factory reset (Vol+Power):
+     * - Bootloader stays locked (can't flash TWRP/custom ROM)
+     * - FRP forces YOUR shop's Google account
+     * - Standard FRP bypass tools won't work on enterprise-managed FRP
+     */
+    private fun enforceHardwareBackedProtection(
+        context: Context,
+        dpm: android.app.admin.DevicePolicyManager,
+        adminComponent: ComponentName
+    ) {
+        // 🔐 STEP 1: Bootloader OEM Unlock is already blocked via Global Settings (see above)
+
+        // 🔐 STEP 2: Set enterprise FRP policy (Android 11+)
+        // This stores the required Google account in a protected partition
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                // Hardcoded Master Email for Enterprise FRP
+                val masterEmail = "devmobile997422@gmail.com"
+                
+                val frpPolicy = android.app.admin.FactoryResetProtectionPolicy.Builder()
+                    .setFactoryResetProtectionAccounts(listOf(masterEmail))
+                    .setFactoryResetProtectionEnabled(true)
+                    .build()
+
+                dpm.setFactoryResetProtectionPolicy(adminComponent, frpPolicy)
+                Log.d(TAG, "✅ Enterprise FRP policy set to MASTER EMAIL — $masterEmail")
+                Log.d(TAG, "🔐 After factory reset, ONLY this account can unlock the phone")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to set FactoryResetProtectionPolicy", e)
+            }
         }
     }
 }

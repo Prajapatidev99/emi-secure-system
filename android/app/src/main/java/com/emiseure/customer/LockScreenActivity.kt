@@ -11,14 +11,12 @@ import android.view.WindowManager
 import android.net.Uri
 import android.provider.Settings
 import android.content.res.Configuration
-import android.util.DisplayMetrics
-import android.widget.EditText
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.emiseure.customer.databinding.ActivityLockScreenBinding
 import com.emiseure.customer.utils.OfflineUnlockKeyManager
-import com.emiseure.customer.utils.SecurityVaultManager
 import java.util.Locale
 
 class LockScreenActivity : AppCompatActivity() {
@@ -41,17 +39,18 @@ class LockScreenActivity : AppCompatActivity() {
     // Track receiver registration state
     private var isReceiverRegistered = false
     private var isInLockTaskMode = false
-    private var isFinishing = false
+    private var isSelfFinishing = false  // Renamed from isFinishing to avoid shadowing Activity.isFinishing()
 
     // 🔐 Lazy context and prefs for Direct Boot safety
     private val deviceContext by lazy { createDeviceProtectedStorageContext() }
     private val prefs by lazy { deviceContext.getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE) }
 
-    // Unlock broadcast
+    // Unlock broadcast — BUG-15: set isSelfFinishing=true BEFORE finishing
     private val unlockReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.emiseure.customer.ACTION_UNLOCK") {
                 Log.d("LockScreen", "Unlock broadcast received")
+                isSelfFinishing = true  // BUG-15 FIX: prevent stickiness re-launch after unlock
                 safeStopLockTask()
                 finishAndRemoveTask()
             }
@@ -60,6 +59,13 @@ class LockScreenActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // BUG-18 FIX: Block back gesture on Android 13+ predictive-back (modern API)
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                // Do nothing — back navigation is intentionally blocked on lock screen
+            }
+        })
 
         try {
             // 🛡️ PRIVACY SHIELD: Block screenshots and screen recording
@@ -196,14 +202,21 @@ class LockScreenActivity : AppCompatActivity() {
     }
 
     private fun updateLocale(langCode: String) {
-        val locale = java.util.Locale(langCode)
-        java.util.Locale.setDefault(locale)
-        val config = Configuration()
-        config.setLocale(locale)
-        @Suppress("DEPRECATION")
-        resources.updateConfiguration(config, resources.displayMetrics)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getSystemService(android.app.LocaleManager::class.java)?.applicationLocales = 
+                android.os.LocaleList.forLanguageTags(langCode)
+        } else {
+            val locale = java.util.Locale(langCode)
+            java.util.Locale.setDefault(locale)
+            val config = Configuration()
+            config.setLocale(locale)
+            @Suppress("DEPRECATION")
+            resources.updateConfiguration(config, resources.displayMetrics)
+        }
         
-        // Restart activity to apply changes
+        // Restart activity to apply language changes
+        // Set isSelfFinishing so onDestroy doesn't trigger stickiness re-launch
+        isSelfFinishing = true
         val intent = intent
         finish()
         startActivity(intent)
@@ -253,7 +266,8 @@ class LockScreenActivity : AppCompatActivity() {
             handler.postDelayed({
                 if (!isFinishing && prefs.getBoolean("IS_LOCKED", true)) {
                     val intent = Intent(this, LockScreenActivity::class.java)
-                    intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                    // FIX: Use SINGLE_TOP to avoid creating hundreds of instances in a loop
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     startActivity(intent)
                 }
             }, 500)
@@ -306,7 +320,7 @@ class LockScreenActivity : AppCompatActivity() {
     // ===============================
     private fun setupHiddenUnlock() {
         try {
-            // 5-tap trigger
+            // 5-tap on lock icon → show on-screen keypad panel
             binding.lockIcon.setOnClickListener {
                 iconClickCount++
 
@@ -315,16 +329,26 @@ class LockScreenActivity : AppCompatActivity() {
                 handler.postDelayed(resetClickRunnable!!, 2000)
 
                 if (iconClickCount >= 5) {
-                    showOfflineUnlockDialog()
+                    showKeypadPanel()
                     iconClickCount = 0
                 }
+            }
+
+            // Wire Cancel button
+            binding.keypadCancelButton.setOnClickListener {
+                hideKeypadPanel()
+            }
+
+            // Wire Submit button
+            binding.keypadSubmitButton.setOnClickListener {
+                verifyOfflineKey(binding.keypadInput.text.toString().trim())
             }
         } catch (e: Exception) {
             Log.e("LockScreen", "Failed to setup hidden unlock", e)
         }
     }
 
-    private fun showOfflineUnlockDialog() {
+    private fun showKeypadPanel() {
         try {
             // 🛡️ Check if user is locked out due to too many failed attempts
             val lockoutRemaining = keyManager.getLockoutRemaining()
@@ -338,89 +362,100 @@ class LockScreenActivity : AppCompatActivity() {
                 Log.w("LockScreen", "User locked out: ${remainingSec}s remaining")
                 return
             }
-
-            val input = EditText(this).apply {
-                hint = "Enter Emergency Key"
-            }
-
-            AlertDialog.Builder(this)
-                .setTitle("Offline Emergency Unlock")
-                .setView(input)
-                .setCancelable(false)
-                    .setPositiveButton("Verify") { _, _ ->
-                    try {
-                        val entered = input.text.toString().trim().uppercase(Locale.ROOT)
-                        val stored = offlineUnlockKey
-
-                        if (!stored.isNullOrEmpty() && entered == stored) {
-                            // ✅ Correct unlock key entered
-                            Log.d("LockScreen", "✅ Offline unlock successful")
-                            keyManager.resetAttempts()
-                            
-                            val prefs = createDeviceProtectedStorageContext()
-                                .getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
-
-                            prefs.edit().putBoolean("IS_LOCKED", false).commit()
-
-                            if (dpm.isDeviceOwnerApp(packageName)) {
-                                try {
-                                    dpm.clearUserRestriction(
-                                        adminComponent,
-                                        UserManager.DISALLOW_USB_FILE_TRANSFER
-                                    )
-                                } catch (e: Exception) {
-                                    Log.e("LockScreen", "Failed to clear USB restriction", e)
-                                }
-                            }
-
-                            safeStopLockTask()
-                            sendBroadcast(Intent("com.emiseure.customer.ACTION_UNLOCK"))
-                            finishAndRemoveTask()
-                        } else {
-                            // ❌ Wrong unlock key
-                            keyManager.recordFailedAttempt()
-                            val remainingAttempts = 10 - keyManager.getAttemptCount()
-                            
-                            if (remainingAttempts <= 0) {
-                                // 🚨 CRITICAL: Too many failed attempts
-                                val lockoutRemainingSec = (keyManager.getLockoutRemaining() + 999) / 1000
-                                Toast.makeText(
-                                    this,
-                                    "🔒 Too many failed attempts. Locked for $lockoutRemainingSec seconds.",
-                                    Toast.LENGTH_LONG
-                                ).show()
-                                Log.w("LockScreen", "🚨 Unlock attempts exhausted - security lockout activated")
-                                
-                                // Report to backend that tampering was detected
-                                TamperDetectionManager.recordTamperAttempt(
-                                    this,
-                                    "BRUTE_FORCE_UNLOCK_ATTEMPT"
-                                )
-                            } else {
-                                Toast.makeText(
-                                    this,
-                                    "❌ Invalid Key. $remainingAttempts attempts remaining.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                            Log.w("LockScreen", "❌ Offline unlock failed (Attempt ${keyManager.getAttemptCount()})")
-                        }
-                    } catch (e: Exception) {
-                        Log.e("LockScreen", "Error during unlock verification", e)
-                        Toast.makeText(this, "Unlock verification failed", Toast.LENGTH_SHORT).show()
-                    }
-                }
-                .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
-                .show()
+            binding.keypadInput.setText("")
+            binding.mainContent.visibility = android.view.View.GONE
+            binding.keypadContainer.visibility = android.view.View.VISIBLE
+            binding.keypadInput.requestFocus()
         } catch (e: Exception) {
-            Log.e("LockScreen", "Failed to show unlock dialog", e)
+            Log.e("LockScreen", "Failed to show keypad panel", e)
         }
     }
 
-    // ---- HARD BLOCK BACK BUTTON ----
+    private fun hideKeypadPanel() {
+        try {
+            binding.keypadContainer.visibility = android.view.View.GONE
+            binding.mainContent.visibility = android.view.View.VISIBLE
+            iconClickCount = 0
+        } catch (e: Exception) {
+            Log.e("LockScreen", "Failed to hide keypad panel", e)
+        }
+    }
+
+    private fun verifyOfflineKey(enteredRaw: String) {
+        try {
+            // Normalize to uppercase on both sides — avoid case-sensitive mismatch
+            val entered = enteredRaw.uppercase(Locale.ROOT)
+            val stored = offlineUnlockKey?.uppercase(Locale.ROOT)
+
+            if (!stored.isNullOrEmpty() && entered == stored) {
+                // ✅ Correct unlock key entered
+                Log.d("LockScreen", "✅ Offline unlock successful")
+                keyManager.resetAttempts()
+                hideKeypadPanel()
+
+                val prefs = createDeviceProtectedStorageContext()
+                    .getSharedPreferences("EMI_SECURE_PREFS", Context.MODE_PRIVATE)
+
+                prefs.edit().putBoolean("IS_LOCKED", false).commit()
+
+                if (dpm.isDeviceOwnerApp(packageName)) {
+                    try {
+                        dpm.clearUserRestriction(
+                            adminComponent,
+                            UserManager.DISALLOW_USB_FILE_TRANSFER
+                        )
+                    } catch (e: Exception) {
+                        Log.e("LockScreen", "Failed to clear USB restriction", e)
+                    }
+                }
+
+                isSelfFinishing = true
+                safeStopLockTask()
+                sendBroadcast(Intent("com.emiseure.customer.ACTION_UNLOCK"))
+                finishAndRemoveTask()
+            } else {
+                // ❌ Wrong unlock key
+                keyManager.recordFailedAttempt()
+                val remainingAttempts = 10 - keyManager.getAttemptCount()
+
+                if (remainingAttempts <= 0) {
+                    // 🚨 CRITICAL: Too many failed attempts
+                    val lockoutRemainingSec = (keyManager.getLockoutRemaining() + 999) / 1000
+                    Toast.makeText(
+                        this,
+                        "🔒 Too many failed attempts. Locked for $lockoutRemainingSec seconds.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                    Log.w("LockScreen", "🚨 Unlock attempts exhausted - security lockout activated")
+                    hideKeypadPanel()
+
+                    // Report to backend that tampering was detected
+                    TamperDetectionManager.recordTamperAttempt(
+                        this,
+                        "BRUTE_FORCE_UNLOCK_ATTEMPT"
+                    )
+                } else {
+                    Toast.makeText(
+                        this,
+                        "❌ Invalid Key. $remainingAttempts attempts remaining.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    binding.keypadInput.setText("")
+                }
+                Log.w("LockScreen", "❌ Offline unlock failed (Attempt ${keyManager.getAttemptCount()})")
+            }
+        } catch (e: Exception) {
+            Log.e("LockScreen", "Error during unlock verification", e)
+            Toast.makeText(this, "Unlock verification failed", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    // ---- HARD BLOCK BACK BUTTON (deprecated API, kept for Android < 13 compat) ----
     @Deprecated("Deprecated in Java")
+    @Suppress("DEPRECATION")
     override fun onBackPressed() {
-        // Disabled intentionally
+        // BUG-18: Also handled by OnBackPressedCallback above for API 33+
+        // Disabled intentionally — lock screen cannot be dismissed via back
     }
 
     override fun onDestroy() {
@@ -441,7 +476,8 @@ class LockScreenActivity : AppCompatActivity() {
         
         // 🚨 If we are being destroyed but the device is still supposed to be locked,
         // notify the stickiness service to re-launch us immediately.
-        if (prefs.getBoolean("IS_LOCKED", true) && !isFinishing) {
+        // Use isSelfFinishing (NOT Activity.isFinishing()) to track deliberate unlock-finish calls
+        if (prefs.getBoolean("IS_LOCKED", true) && !isSelfFinishing) {
             LockScreenPersistenceHelper.notifyLockDestroyed(this, "ACTIVITY_DESTROYED")
         }
     }

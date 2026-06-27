@@ -9,6 +9,8 @@ import android.os.Handler
 import android.os.Looper
 import android.os.UserManager
 import android.util.Log
+import com.emiseure.customer.BuildConfig
+import com.emiseure.customer.utils.SecureNetworkClient
 import com.google.firebase.messaging.FirebaseMessaging
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -32,8 +34,10 @@ class DeviceOwnerFallbackManager(private val context: Context) {
         private const val PREFS_NAME = "EMI_DEVICE_OWNER_FALLBACK"
         private const val KEY_LAST_SYNC = "LAST_SERVER_SYNC"
         private const val KEY_LOCK_STATE_CACHED = "LOCK_STATE_CACHED"
-        private val SYNC_INTERVAL_MS = TimeUnit.MINUTES.toMillis(5) // Verify every 5 minutes
+        private val SYNC_INTERVAL_MS = TimeUnit.MINUTES.toMillis(5)
         private val REQUEST_TIMEOUT_MS = TimeUnit.SECONDS.toMillis(10)
+        // Backend base URL — loaded from BuildConfig (local.properties)
+        private val BASE_URL = BuildConfig.BACKEND_URL
     }
 
     private val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager
@@ -51,7 +55,7 @@ class DeviceOwnerFallbackManager(private val context: Context) {
         val now = System.currentTimeMillis()
 
         if (now - lastSync < SYNC_INTERVAL_MS) {
-            val cachedLocked = prefs.getBoolean(KEY_LOCK_STATE_CACHED, false)
+            val cachedLocked = prefs.getBoolean(KEY_LOCK_STATE_CACHED, true) // fail closed
             Log.d(TAG, "Using cached lock state: $cachedLocked")
             onResult(cachedLocked)
             return
@@ -174,8 +178,8 @@ class DeviceOwnerFallbackManager(private val context: Context) {
         // Get FCM token for identification
         FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
             if (!task.isSuccessful) {
-                Log.w(TAG, "Could not get FCM token")
-                onResult(false) // Fail open
+                Log.w(TAG, "Could not get FCM token — defaulting to LOCKED (fail-closed)")
+                onResult(true) // Fail closed — default to locked for security
                 return@addOnCompleteListener
             }
 
@@ -192,8 +196,8 @@ class DeviceOwnerFallbackManager(private val context: Context) {
             ) { response, error ->
                 if (error != null) {
                     Log.w(TAG, "Failed to fetch lock status from server: ${error.message}")
-                    // Use cached state on error
-                    val cachedState = prefs.getBoolean(KEY_LOCK_STATE_CACHED, false)
+                    // Use cached state on error, default to true (fail closed)
+                    val cachedState = prefs.getBoolean(KEY_LOCK_STATE_CACHED, true)
                     onResult(cachedState)
                     return@makeServerRequest
                 }
@@ -203,8 +207,8 @@ class DeviceOwnerFallbackManager(private val context: Context) {
                     Log.d(TAG, "Server lock status: isLocked=$isLocked")
                     onResult(isLocked)
                 } catch (e: Exception) {
-                    Log.e(TAG, "Error parsing server response", e)
-                    onResult(false)
+                    Log.e(TAG, "Error parsing server response — defaulting to LOCKED (fail-closed)", e)
+                    onResult(true) // Fail closed — default to locked for security
                 }
             }
         }
@@ -234,18 +238,30 @@ class DeviceOwnerFallbackManager(private val context: Context) {
     }
 
     /**
-     * 🔄 Make HTTP request to backend (placeholder - use your network client)
+     * 🔄 Make HTTP request to backend using the app’s pinned SecureNetworkClient.
+     *
+     * FIX (BUG): The original implementation was a permanent stub that always
+     * called onComplete(null, Exception("Not implemented")). This meant that
+     * verifyLockStatusWithServer() and reportLockEnforcementToBackend() NEVER
+     * reached the server, making the entire fallback manager non-functional.
      */
     private fun makeServerRequest(
         endpoint: String,
         body: JSONObject,
         onComplete: (response: JSONObject?, error: Exception?) -> Unit
     ) {
-        // TODO: Implement using your SecureNetworkClient or similar
-        // This should use the same network infrastructure as the rest of the app
-        Handler(Looper.getMainLooper()).post {
-            onComplete(null, Exception("Not implemented - use your network client"))
-        }
+        val url = "$BASE_URL$endpoint"
+        SecureNetworkClient.post(
+            url = url,
+            body = body,
+            onSuccess = { response ->
+                onComplete(response, null)
+            },
+            onError = { errorMessage ->
+                Log.w(TAG, "Server request failed [$endpoint]: $errorMessage")
+                onComplete(null, Exception(errorMessage))
+            }
+        )
     }
 
     /**
