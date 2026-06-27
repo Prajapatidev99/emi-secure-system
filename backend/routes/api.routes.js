@@ -152,8 +152,8 @@ router.post('/devices/register', async (req, res) => {
         const customer = await Customer.findOne({ _id: customerId, userId });
         if (!customer) return res.status(404).json({ message: 'Customer not found' });
 
-        // BUG-20 FIX: Use crypto.randomBytes (CSPRNG) instead of Math.random() (predictable PRNG)
-        const unlockKey = crypto.randomBytes(4).toString('hex').toUpperCase(); // 8 hex chars, cryptographically secure
+        // BUG-20 FIX: Use 6-digit numeric PIN for offline unlock so it works with numeric keypad
+        const unlockKey = crypto.randomInt(100000, 999999).toString();
         const device = new Device({ customerId, imei, model, unlockKey });
         await device.save();
 
@@ -257,13 +257,15 @@ router.post('/devices/:deviceId/lock', async (req, res) => {
 
         if (!device.fcmToken) return res.status(400).json({ message: 'No FCM token.' });
 
+        // Save status FIRST to prevent race condition where app fetches status before DB updates
+        device.status = DeviceStatus.Locked;
+        await device.save();
+
         const result = await sendFcmCommand(device.fcmToken, 'LOCK', 'Device locked due to overdue payment.');
         if (result.success) {
-            device.status = DeviceStatus.Locked;
-            await device.save();
             res.json({ message: 'Lock command sent.' });
         } else {
-            res.status(500).json({ message: 'FCM failed', error: result.error });
+            res.status(500).json({ message: 'FCM failed, but status saved.', error: result.error });
         }
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });
@@ -281,13 +283,15 @@ router.post('/devices/:deviceId/unlock', async (req, res) => {
 
         if (!device.fcmToken) return res.status(400).json({ message: 'No FCM token.' });
 
+        // Save status FIRST to prevent race condition
+        device.status = DeviceStatus.Active;
+        await device.save();
+
         const result = await sendFcmCommand(device.fcmToken, 'UNLOCK', 'Device unlocked.');
         if (result.success) {
-            device.status = DeviceStatus.Active;
-            await device.save();
             res.json({ message: 'Unlock command sent.' });
         } else {
-            res.status(500).json({ message: 'FCM failed', error: result.error });
+            res.status(500).json({ message: 'FCM failed, but status saved.', error: result.error });
         }
     } catch (error) {
         res.status(500).json({ message: 'Server error', error: error.message });

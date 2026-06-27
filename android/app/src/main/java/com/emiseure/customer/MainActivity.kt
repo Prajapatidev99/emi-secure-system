@@ -143,10 +143,8 @@ class MainActivity : AppCompatActivity() {
             })
         }
 
-        registerForPushNotifications(androidId)
-        fetchDeviceStatus(androidId)
-
         // 📱 PERMISSIONS: Request all required permissions (Telephony, Location, Notifications)
+        // Wait to fetch device status until permissions are granted
         requestRequiredPermissions()
 
         binding.retryButton.setOnClickListener {
@@ -189,7 +187,11 @@ class MainActivity : AppCompatActivity() {
                     .setPositiveButton("Configure") { _, _ ->
                         ActivityCompat.requestPermissions(this@MainActivity, arrayOf(Manifest.permission.ACCESS_BACKGROUND_LOCATION), 103)
                     }
-                    .setNegativeButton("Cancel") { dialog, _ -> dialog.dismiss() }
+                    .setNegativeButton("Cancel") { dialog, _ -> 
+                        dialog.dismiss() 
+                        // Proceed without background location (don't block the app)
+                        startSecurityServices()
+                    }
                     .show()
             } else {
                 startSecurityServices()
@@ -222,7 +224,8 @@ class MainActivity : AppCompatActivity() {
             102 -> {
                 // Foreground permissions complete
                 if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                    syncMetadataWithServer(getAndroidId(), currentFcmToken)
+                    registerForPushNotifications(getAndroidId())
+                    fetchDeviceStatus(getAndroidId())
                 }
                 // Now check for background location
                 requestBackgroundLocationPermission()
@@ -236,7 +239,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        fetchDeviceStatus(getAndroidId())
+        // Only fetch if we have permission, otherwise wait for onRequestPermissionsResult
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_PHONE_STATE) == PackageManager.PERMISSION_GRANTED) {
+            fetchDeviceStatus(getAndroidId())
+        }
         enforceAccountRestriction() // Re-check account state when app returns
     }
 
@@ -257,6 +263,11 @@ class MainActivity : AppCompatActivity() {
             
             // 🔐 HARDWARE-BACKED FRP: Set immediately using master email
             enforceHardwareBackedFrp()
+
+            // 🛡️ Auto-grant SYSTEM_ALERT_WINDOW so the lock screen can ALWAYS start from background (even on Android 10+ reboots)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                dpm.setPermissionGrantState(adminComponent, packageName, Manifest.permission.SYSTEM_ALERT_WINDOW, DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED)
+            }
 
             Log.d("Security", "✅ All security policies enforced")
         } catch (e: SecurityException) {
