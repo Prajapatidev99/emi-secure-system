@@ -4,7 +4,7 @@ import { QrCodeIcon, TerminalIcon, CheckCircleIcon, ShieldCheckIcon } from './ic
 
 type ProvisionMethod = 'qr' | 'laptop';
 
-const DEFAULT_APK_HASH = 'YjWKWyCPliu6RVp8XwhALyIRhPiR3-xNmhUnHU_Ccac';
+const DEFAULT_APK_HASH = 'jWrZX07E5nKKaUwwUFUlUoLIMSJbHcWGnoB4nzuowYs=';
 
 const ProvisioningView: React.FC = () => {
     const [method, setMethod] = useState<ProvisionMethod>('qr');
@@ -153,7 +153,7 @@ pause`;
                                         <label className="text-sm font-medium text-slate-400">Signature Hash (SHA-256)</label>
                                         <div className="flex gap-2">
                                             <button 
-                                                onClick={() => setChecksum('NpMA69wVgT9DQ-pawSTXMFVJEdABWZU9RIWDjGai8Ow')}
+                                                onClick={() => setChecksum('jWrZX07E5nKKaUwwUFUlUoLIMSJbHcWGnoB4nzuowYs=')}
                                                 className="text-[10px] px-2 py-1 rounded bg-brand-500/10 text-brand-400 border border-brand-500/20 hover:bg-brand-500/20 transition-all"
                                             >
                                                 File Hash (Recommended)
