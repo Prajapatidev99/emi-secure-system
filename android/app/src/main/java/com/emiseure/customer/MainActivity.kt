@@ -99,10 +99,10 @@ class MainActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         // 🛠️ CHINESE ROM AUTOSTART FIX
-        AutoStartHelper.checkAndPromptAutoStart(this)
+        // AutoStartHelper.checkAndPromptAutoStart(this) // Temporarily disabled to prevent dialog conflicts during startup
 
         // 🔋 BATTERY OPTIMIZATION FIX (Critical for Redmi)
-        checkBatteryOptimizations()
+        // checkBatteryOptimizations() // Temporarily disabled to prevent dialog conflicts during startup
 
         // 📊 Initialize Crashlytics with device metadata for cross-device crash reporting
         val crashlytics = FirebaseCrashlytics.getInstance()
@@ -284,27 +284,37 @@ class MainActivity : AppCompatActivity() {
         try {
             val accountAlreadyAdded = prefs.getBoolean("GOOGLE_ACCOUNT_ADDED", false)
             
-            val am = AccountManager.get(this)
-            val googleAccounts = am.getAccountsByType("com.google")
-            
-            when {
-                googleAccounts.isNotEmpty() && !accountAlreadyAdded -> {
-                    // First Google account added - lock it permanently
-                    prefs.edit().putBoolean("GOOGLE_ACCOUNT_ADDED", true).commit()
-                    dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
-                    Log.d("AccountSecurity", "✅ Google account added - restrictions enabled permanently")
+            // Move to background thread to prevent ANR (AccountManager IPC can block)
+            Thread {
+                try {
+                    val am = AccountManager.get(this)
+                    val googleAccounts = am.getAccountsByType("com.google")
+                    
+                    runOnUiThread {
+                        try {
+                            when {
+                                googleAccounts.isNotEmpty() && !accountAlreadyAdded -> {
+                                    prefs.edit().putBoolean("GOOGLE_ACCOUNT_ADDED", true).commit()
+                                    dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
+                                    Log.d("AccountSecurity", "✅ Google account added - restrictions enabled permanently")
+                                }
+                                accountAlreadyAdded -> {
+                                    dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
+                                    Log.d("AccountSecurity", "🔒 Maintaining permanent account restrictions")
+                                }
+                                else -> {
+                                    dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
+                                    Log.d("AccountSecurity", "⚠️ Waiting for first Google account (ONE TIME ONLY)")
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.e("AccountSecurity", "Failed to apply restriction", e)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e("AccountSecurity", "Failed to fetch accounts", e)
                 }
-                accountAlreadyAdded -> {
-                    // Account was added before - maintain restrictions
-                    dpm.addUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
-                    Log.d("AccountSecurity", "🔒 Maintaining permanent account restrictions")
-                }
-                else -> {
-                    // No account yet - allow adding ONCE
-                    dpm.clearUserRestriction(adminComponent, UserManager.DISALLOW_MODIFY_ACCOUNTS)
-                    Log.d("AccountSecurity", "⚠️ Waiting for first Google account (ONE TIME ONLY)")
-                }
-            }
+            }.start()
         } catch (e: Exception) {
             Log.e("AccountSecurity", "Failed to enforce account restriction", e)
         }

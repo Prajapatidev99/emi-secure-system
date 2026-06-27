@@ -33,7 +33,26 @@ router.post('/devices/sync-metadata', async (req, res) => {
     }
 
     try {
-        const device = await Device.findOne({ androidId: androidId });
+        let device = await Device.findOne({ androidId: androidId });
+        
+        // BUG FIX: If device not found by androidId, this might be a fresh install.
+        // Try to link it using the IMEI provided in simDetails or imei2.
+        if (!device) {
+            const imei1 = simDetails?.slot1?.imei;
+            const imei2FromSim = simDetails?.slot2?.imei;
+            const searchImeis = [imei1, imei2FromSim, imei2].filter(Boolean);
+            
+            if (searchImeis.length > 0) {
+                device = await Device.findOne({ imei: { $in: searchImeis } });
+                if (device) {
+                    // Found the device created by the shopkeeper! Link the new androidId.
+                    device.androidId = androidId;
+                    await device.save();
+                    logger.info(`Linked new androidId ${androidId} to existing device IMEI ${device.imei}`);
+                }
+            }
+        }
+
         if (!device) {
             return res.status(404).json({ message: 'Device registration not found on server.' });
         }
@@ -103,7 +122,7 @@ router.post('/device-status', async (req, res) => {
     try {
         const device = await Device.findOne({ androidId }).populate('customerId', 'name');
         if (!device) {
-            return res.status(404).json({ message: 'This device is not registered.' });
+            return res.status(404).json({ message: 'This device is not registered yet. Please ensure background services are running so it can sync.' });
         }
 
         // BUG-07 FIX: Update lastSeen on device-status check
