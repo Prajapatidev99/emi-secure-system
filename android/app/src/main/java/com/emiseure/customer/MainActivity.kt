@@ -26,6 +26,7 @@ import com.android.volley.toolbox.Volley
 import com.emiseure.customer.BuildConfig
 import com.emiseure.customer.databinding.ActivityMainBinding
 import com.google.android.gms.tasks.OnCompleteListener
+import com.google.firebase.FirebaseApp
 import com.google.firebase.crashlytics.FirebaseCrashlytics
 import com.google.firebase.messaging.FirebaseMessaging
 import com.emiseure.customer.utils.SimInfoManager
@@ -104,14 +105,21 @@ class MainActivity : AppCompatActivity() {
         // 🔋 BATTERY OPTIMIZATION FIX (Critical for Redmi)
         // checkBatteryOptimizations() // Temporarily disabled to prevent dialog conflicts during startup
 
-        // 📊 Initialize Crashlytics with device metadata for cross-device crash reporting
-        val crashlytics = FirebaseCrashlytics.getInstance()
-        crashlytics.setCustomKey("device_model", android.os.Build.MODEL)
-        crashlytics.setCustomKey("device_manufacturer", android.os.Build.MANUFACTURER)
-        crashlytics.setCustomKey("android_version", android.os.Build.VERSION.RELEASE)
-        crashlytics.setCustomKey("android_sdk", android.os.Build.VERSION.SDK_INT)
-        crashlytics.setCustomKey("device_brand", android.os.Build.BRAND)
-        crashlytics.setCustomKey("device_product", android.os.Build.PRODUCT)
+        // 📊 Initialize Firebase and Crashlytics safely
+        try {
+            if (FirebaseApp.getApps(this).isEmpty()) {
+                FirebaseApp.initializeApp(this)
+            }
+            val crashlytics = FirebaseCrashlytics.getInstance()
+            crashlytics.setCustomKey("device_model", android.os.Build.MODEL)
+            crashlytics.setCustomKey("device_manufacturer", android.os.Build.MANUFACTURER)
+            crashlytics.setCustomKey("android_version", android.os.Build.VERSION.RELEASE)
+            crashlytics.setCustomKey("android_sdk", android.os.Build.VERSION.SDK_INT)
+            crashlytics.setCustomKey("device_brand", android.os.Build.BRAND)
+            crashlytics.setCustomKey("device_product", android.os.Build.PRODUCT)
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to initialize Firebase or Crashlytics", e)
+        }
 
         dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         adminComponent = ComponentName(this, MyDeviceAdminReceiver::class.java)
@@ -394,16 +402,23 @@ class MainActivity : AppCompatActivity() {
     // 🔔 FCM
     // =====================================
     private fun registerForPushNotifications(androidId: String) {
-        FirebaseMessaging.getInstance().token
-            .addOnCompleteListener(OnCompleteListener { task ->
-                if (!task.isSuccessful) {
-                    Log.e("FCM", "Token fetch failed", task.exception)
-                    return@OnCompleteListener
-                }
-                val token = task.result
-                currentFcmToken = token // Cache it
-                syncMetadataWithServer(androidId, token)
-            })
+        try {
+            if (FirebaseApp.getApps(this).isEmpty()) {
+                FirebaseApp.initializeApp(this)
+            }
+            FirebaseMessaging.getInstance().token
+                .addOnCompleteListener(OnCompleteListener { task ->
+                    if (!task.isSuccessful) {
+                        Log.e("FCM", "Token fetch failed", task.exception)
+                        return@OnCompleteListener
+                    }
+                    val token = task.result
+                    currentFcmToken = token // Cache it
+                    syncMetadataWithServer(androidId, token)
+                })
+        } catch (e: Exception) {
+            Log.e("FCM", "Failed to register for push notifications", e)
+        }
     }
 
     private fun syncMetadataWithServer(androidId: String, token: String?) {

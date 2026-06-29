@@ -6,6 +6,7 @@ import android.telephony.TelephonyManager
 import android.util.Log
 import androidx.core.content.edit
 import com.emiseure.customer.BuildConfig
+import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 
 /**
@@ -239,31 +240,38 @@ class FactoryResetProtectionManager(private val context: Context) {
      * 📡 Report factory reset to backend
      */
     private fun reportFactoryResetToBackend(deviceId: String, resetCount: Int) {
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            try {
-                val fcmToken = if (task.isSuccessful) task.result else "UNKNOWN"
-
-                Log.d(TAG, "Factory reset report prepared for device: $deviceId")
-                
-                // FIX: Send real report using SecureNetworkClient
-                val url = "${BuildConfig.BACKEND_URL}/api/public/devices/security-event"
-                val body = org.json.JSONObject().apply {
-                    put("deviceId", deviceId)
-                    put("eventType", "FACTORY_RESET")
-                    put("fcmToken", fcmToken)
-                    put("resetCount", resetCount)
-                    put("timestamp", System.currentTimeMillis())
-                }
-                
-                com.emiseure.customer.utils.SecureNetworkClient.post(
-                    url = url,
-                    body = body,
-                    onSuccess = { Log.d(TAG, "Factory reset reported successfully") },
-                    onError = { Log.e(TAG, "Failed to report factory reset: $it") }
-                )
-            } catch (e: Exception) {
-                Log.e(TAG, "Error preparing factory reset report", e)
+        try {
+            if (FirebaseApp.getApps(context).isEmpty()) {
+                FirebaseApp.initializeApp(context)
             }
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                try {
+                    val fcmToken = if (task.isSuccessful) task.result else "UNKNOWN"
+
+                    Log.d(TAG, "Factory reset report prepared for device: $deviceId")
+                    
+                    // FIX: Send real report using SecureNetworkClient
+                    val url = "${BuildConfig.BACKEND_URL}/api/public/devices/security-event"
+                    val body = org.json.JSONObject().apply {
+                        put("deviceId", deviceId)
+                        put("eventType", "FACTORY_RESET")
+                        put("fcmToken", fcmToken)
+                        put("resetCount", resetCount)
+                        put("timestamp", System.currentTimeMillis())
+                    }
+                    
+                    com.emiseure.customer.utils.SecureNetworkClient.post(
+                        url = url,
+                        body = body,
+                        onSuccess = { Log.d(TAG, "Factory reset reported successfully") },
+                        onError = { Log.e(TAG, "Failed to report factory reset: $it") }
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error preparing factory reset report", e)
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get FCM token for factory reset report", e)
         }
     }
 

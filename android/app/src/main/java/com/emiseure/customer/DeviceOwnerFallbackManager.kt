@@ -11,6 +11,7 @@ import android.os.UserManager
 import android.util.Log
 import com.emiseure.customer.BuildConfig
 import com.emiseure.customer.utils.SecureNetworkClient
+import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -176,41 +177,49 @@ class DeviceOwnerFallbackManager(private val context: Context) {
      */
     private fun fetchDeviceLockStatusFromBackend(onResult: (Boolean) -> Unit) {
         // Get FCM token for identification
-        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-            if (!task.isSuccessful) {
-                Log.w(TAG, "Could not get FCM token — defaulting to LOCKED (fail-closed)")
-                onResult(true) // Fail closed — default to locked for security
-                return@addOnCompleteListener
+        try {
+            if (FirebaseApp.getApps(context).isEmpty()) {
+                FirebaseApp.initializeApp(context)
             }
-
-            val fcmToken = task.result
-            val requestBody = JSONObject().apply {
-                put("fcmToken", fcmToken)
-                put("action", "CHECK_LOCK_STATUS")
-            }
-
-            // Make API call to backend (using your existing network client)
-            makeServerRequest(
-                "/api/device/check-lock-status",
-                requestBody
-            ) { response, error ->
-                if (error != null) {
-                    Log.w(TAG, "Failed to fetch lock status from server: ${error.message}")
-                    // Use cached state on error, default to true (fail closed)
-                    val cachedState = prefs.getBoolean(KEY_LOCK_STATE_CACHED, true)
-                    onResult(cachedState)
-                    return@makeServerRequest
-                }
-
-                try {
-                    val isLocked = response?.optBoolean("isLocked", false) == true
-                    Log.d(TAG, "Server lock status: isLocked=$isLocked")
-                    onResult(isLocked)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Error parsing server response — defaulting to LOCKED (fail-closed)", e)
+            FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+                if (!task.isSuccessful) {
+                    Log.w(TAG, "Could not get FCM token — defaulting to LOCKED (fail-closed)")
                     onResult(true) // Fail closed — default to locked for security
+                    return@addOnCompleteListener
+                }
+
+                val fcmToken = task.result
+                val requestBody = JSONObject().apply {
+                    put("fcmToken", fcmToken)
+                    put("action", "CHECK_LOCK_STATUS")
+                }
+
+                // Make API call to backend (using your existing network client)
+                makeServerRequest(
+                    "/api/device/check-lock-status",
+                    requestBody
+                ) { response, error ->
+                    if (error != null) {
+                        Log.w(TAG, "Failed to fetch lock status from server: ${error.message}")
+                        // Use cached state on error, default to true (fail closed)
+                        val cachedState = prefs.getBoolean(KEY_LOCK_STATE_CACHED, true)
+                        onResult(cachedState)
+                        return@makeServerRequest
+                    }
+
+                    try {
+                        val isLocked = response?.optBoolean("isLocked", false) == true
+                        Log.d(TAG, "Server lock status: isLocked=$isLocked")
+                        onResult(isLocked)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Error parsing server response — defaulting to LOCKED (fail-closed)", e)
+                        onResult(true) // Fail closed — default to locked for security
+                    }
                 }
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get FCM token for lock status check", e)
+            onResult(true) // Fail closed on error
         }
     }
 
