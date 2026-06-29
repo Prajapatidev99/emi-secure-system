@@ -6,7 +6,7 @@ const isLocal = hostname === 'localhost' || hostname === '127.0.0.1' || hostname
 const API_BASE_URL = isLocal ? `http://${hostname}:3001/api` : 'https://emi-secure-system.onrender.com/api';
 
 const getAuthHeaders = () => {
-    const token = sessionStorage.getItem('authToken');
+    const token = localStorage.getItem('authToken');
     return {
         'Content-Type': 'application/json',
         'Authorization': token ? `Bearer ${token}` : '',
@@ -72,7 +72,7 @@ const getUserFriendlyError = (error: Error): string => {
 
 const handleResponse = async (response: Response) => {
     if (response.status === 401 && !response.url.endsWith('/login')) {
-        sessionStorage.removeItem('authToken');
+        localStorage.removeItem('authToken');
         window.location.reload();
         throw new Error('Your session has expired. Please log in again.');
     }
